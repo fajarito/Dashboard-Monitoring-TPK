@@ -1,0 +1,1126 @@
+{
+  "metadata": {
+    "nama": "Monitoring TPK — Blue Executive",
+    "versi": "0.1-data-staging",
+    "status": "BELUM TERVALIDASI; JANGAN DIPAKAI UNTUK KPI RESMI",
+    "cakupan": "Terbatas pada wilayah yang tercatat di dataset eksplorasi; bukan nasional lengkap",
+    "sumber": [
+      "wilayah.xlsx",
+      "agg_pkb_kel_tpk.xlsx",
+      "tpk_detail.xlsx",
+      "agg_all.xlsx"
+    ],
+    "keterangan": "Scaffold untuk Figma Make/Cursor. Rasio null agar tidak menampilkan statistik semu. Hasil eksplorasi lama tidak digunakan untuk pembilang keluarga."
+  },
+  "definisi": {
+    "sasaran_per_tpk": {
+      "numerator": "SUM satu nilai jml_keluarga_sasaran per TPKID unik dari tpk_detail; cek nilai konflik di dalam TPKID",
+      "denominator": "COUNT TPKID valid atau jumlah kelompok TPK tercakup; status aktif harus dibuktikan sebelum memberi label aktif",
+      "unit": "keluarga penugasan per TPK; unik lintas TPK belum dibuktikan"
+    },
+    "krs_per_tpk": {
+      "numerator": "SUM total_prioritas satu kali per kode desa unik dari agg_all",
+      "denominator": "TPK cakupan wilayah yang sepadan",
+      "unit": "KRS per TPK; bukan jumlah KRS yang sudah didampingi"
+    },
+    "granularitas": "nasional > provinsi > kabupaten/kota > kecamatan > desa/kelurahan",
+    "null": "Belum tersedia / perlu validasi"
+  },
+  "wilayah": [
+    {
+      "id": "11",
+      "level": "provinsi",
+      "nama": "ACEH",
+      "hierarki_nama": [
+        "ACEH"
+      ],
+      "hierarki_kode": [
+        "11"
+      ],
+      "jumlah_tpk_agregat_sementara": 7483,
+      "jumlah_tpkid_teramati_sementara": 7473,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32",
+      "level": "provinsi",
+      "nama": "JAWA BARAT",
+      "hierarki_nama": [
+        "JAWA BARAT"
+      ],
+      "hierarki_kode": [
+        "32"
+      ],
+      "jumlah_tpk_agregat_sementara": 37214,
+      "jumlah_tpkid_teramati_sementara": 37184,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/5",
+      "level": "kabupaten",
+      "nama": "ACEH BARAT",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH BARAT"
+      ],
+      "hierarki_kode": [
+        "11",
+        "5"
+      ],
+      "jumlah_tpk_agregat_sementara": 322,
+      "jumlah_tpkid_teramati_sementara": 322,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/12",
+      "level": "kabupaten",
+      "nama": "ACEH BARAT DAYA",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH BARAT DAYA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "12"
+      ],
+      "jumlah_tpk_agregat_sementara": 208,
+      "jumlah_tpkid_teramati_sementara": 207,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/6",
+      "level": "kabupaten",
+      "nama": "ACEH BESAR",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH BESAR"
+      ],
+      "hierarki_kode": [
+        "11",
+        "6"
+      ],
+      "jumlah_tpk_agregat_sementara": 604,
+      "jumlah_tpkid_teramati_sementara": 604,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/14",
+      "level": "kabupaten",
+      "nama": "ACEH JAYA",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH JAYA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "14"
+      ],
+      "jumlah_tpk_agregat_sementara": 172,
+      "jumlah_tpkid_teramati_sementara": 172,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/1",
+      "level": "kabupaten",
+      "nama": "ACEH SELATAN",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH SELATAN"
+      ],
+      "hierarki_kode": [
+        "11",
+        "1"
+      ],
+      "jumlah_tpk_agregat_sementara": 280,
+      "jumlah_tpkid_teramati_sementara": 280,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/10",
+      "level": "kabupaten",
+      "nama": "ACEH SINGKIL",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH SINGKIL"
+      ],
+      "hierarki_kode": [
+        "11",
+        "10"
+      ],
+      "jumlah_tpk_agregat_sementara": 175,
+      "jumlah_tpkid_teramati_sementara": 175,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/16",
+      "level": "kabupaten",
+      "nama": "ACEH TAMIANG",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH TAMIANG"
+      ],
+      "hierarki_kode": [
+        "11",
+        "16"
+      ],
+      "jumlah_tpk_agregat_sementara": 316,
+      "jumlah_tpkid_teramati_sementara": 316,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/4",
+      "level": "kabupaten",
+      "nama": "ACEH TENGAH",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH TENGAH"
+      ],
+      "hierarki_kode": [
+        "11",
+        "4"
+      ],
+      "jumlah_tpk_agregat_sementara": 349,
+      "jumlah_tpkid_teramati_sementara": 349,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/2",
+      "level": "kabupaten",
+      "nama": "ACEH TENGGARA",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH TENGGARA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "2"
+      ],
+      "jumlah_tpk_agregat_sementara": 497,
+      "jumlah_tpkid_teramati_sementara": 497,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/3",
+      "level": "kabupaten",
+      "nama": "ACEH TIMUR",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH TIMUR"
+      ],
+      "hierarki_kode": [
+        "11",
+        "3"
+      ],
+      "jumlah_tpk_agregat_sementara": 650,
+      "jumlah_tpkid_teramati_sementara": 650,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/8",
+      "level": "kabupaten",
+      "nama": "ACEH UTARA",
+      "hierarki_nama": [
+        "ACEH",
+        "ACEH UTARA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "8"
+      ],
+      "jumlah_tpk_agregat_sementara": 857,
+      "jumlah_tpkid_teramati_sementara": 852,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/17",
+      "level": "kabupaten",
+      "nama": "BENER MERIAH",
+      "hierarki_nama": [
+        "ACEH",
+        "BENER MERIAH"
+      ],
+      "hierarki_kode": [
+        "11",
+        "17"
+      ],
+      "jumlah_tpk_agregat_sementara": 322,
+      "jumlah_tpkid_teramati_sementara": 322,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/11",
+      "level": "kabupaten",
+      "nama": "BIREUEN",
+      "hierarki_nama": [
+        "ACEH",
+        "BIREUEN"
+      ],
+      "hierarki_kode": [
+        "11",
+        "11"
+      ],
+      "jumlah_tpk_agregat_sementara": 612,
+      "jumlah_tpkid_teramati_sementara": 609,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/13",
+      "level": "kabupaten",
+      "nama": "GAYO LUES",
+      "hierarki_nama": [
+        "ACEH",
+        "GAYO LUES"
+      ],
+      "hierarki_kode": [
+        "11",
+        "13"
+      ],
+      "jumlah_tpk_agregat_sementara": 254,
+      "jumlah_tpkid_teramati_sementara": 254,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/71",
+      "level": "kabupaten",
+      "nama": "KOTA BANDA ACEH",
+      "hierarki_nama": [
+        "ACEH",
+        "KOTA BANDA ACEH"
+      ],
+      "hierarki_kode": [
+        "11",
+        "71"
+      ],
+      "jumlah_tpk_agregat_sementara": 90,
+      "jumlah_tpkid_teramati_sementara": 90,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/74",
+      "level": "kabupaten",
+      "nama": "KOTA LANGSA",
+      "hierarki_nama": [
+        "ACEH",
+        "KOTA LANGSA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "74"
+      ],
+      "jumlah_tpk_agregat_sementara": 66,
+      "jumlah_tpkid_teramati_sementara": 66,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/73",
+      "level": "kabupaten",
+      "nama": "KOTA LHOKSEUMAWE",
+      "hierarki_nama": [
+        "ACEH",
+        "KOTA LHOKSEUMAWE"
+      ],
+      "hierarki_kode": [
+        "11",
+        "73"
+      ],
+      "jumlah_tpk_agregat_sementara": 68,
+      "jumlah_tpkid_teramati_sementara": 68,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/72",
+      "level": "kabupaten",
+      "nama": "KOTA SABANG",
+      "hierarki_nama": [
+        "ACEH",
+        "KOTA SABANG"
+      ],
+      "hierarki_kode": [
+        "11",
+        "72"
+      ],
+      "jumlah_tpk_agregat_sementara": 18,
+      "jumlah_tpkid_teramati_sementara": 18,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/75",
+      "level": "kabupaten",
+      "nama": "KOTA SUBULUSSALAM",
+      "hierarki_nama": [
+        "ACEH",
+        "KOTA SUBULUSSALAM"
+      ],
+      "hierarki_kode": [
+        "11",
+        "75"
+      ],
+      "jumlah_tpk_agregat_sementara": 82,
+      "jumlah_tpkid_teramati_sementara": 82,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/15",
+      "level": "kabupaten",
+      "nama": "NAGAN RAYA",
+      "hierarki_nama": [
+        "ACEH",
+        "NAGAN RAYA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "15"
+      ],
+      "jumlah_tpk_agregat_sementara": 290,
+      "jumlah_tpkid_teramati_sementara": 290,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/7",
+      "level": "kabupaten",
+      "nama": "PIDIE",
+      "hierarki_nama": [
+        "ACEH",
+        "PIDIE"
+      ],
+      "hierarki_kode": [
+        "11",
+        "7"
+      ],
+      "jumlah_tpk_agregat_sementara": 730,
+      "jumlah_tpkid_teramati_sementara": 730,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/18",
+      "level": "kabupaten",
+      "nama": "PIDIE JAYA",
+      "hierarki_nama": [
+        "ACEH",
+        "PIDIE JAYA"
+      ],
+      "hierarki_kode": [
+        "11",
+        "18"
+      ],
+      "jumlah_tpk_agregat_sementara": 351,
+      "jumlah_tpkid_teramati_sementara": 350,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "11/9",
+      "level": "kabupaten",
+      "nama": "SIMEULUE",
+      "hierarki_nama": [
+        "ACEH",
+        "SIMEULUE"
+      ],
+      "hierarki_kode": [
+        "11",
+        "9"
+      ],
+      "jumlah_tpk_agregat_sementara": 170,
+      "jumlah_tpkid_teramati_sementara": 170,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/4",
+      "level": "kabupaten",
+      "nama": "BANDUNG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BANDUNG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "4"
+      ],
+      "jumlah_tpk_agregat_sementara": 2793,
+      "jumlah_tpkid_teramati_sementara": 2793,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/17",
+      "level": "kabupaten",
+      "nama": "BANDUNG BARAT",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BANDUNG BARAT"
+      ],
+      "hierarki_kode": [
+        "32",
+        "17"
+      ],
+      "jumlah_tpk_agregat_sementara": 1377,
+      "jumlah_tpkid_teramati_sementara": 1377,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/16",
+      "level": "kabupaten",
+      "nama": "BEKASI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BEKASI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "16"
+      ],
+      "jumlah_tpk_agregat_sementara": 2423,
+      "jumlah_tpkid_teramati_sementara": 2398,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/1",
+      "level": "kabupaten",
+      "nama": "BOGOR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1"
+      ],
+      "jumlah_tpk_agregat_sementara": 4179,
+      "jumlah_tpkid_teramati_sementara": 4179,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/7",
+      "level": "kabupaten",
+      "nama": "CIAMIS",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "CIAMIS"
+      ],
+      "hierarki_kode": [
+        "32",
+        "7"
+      ],
+      "jumlah_tpk_agregat_sementara": 947,
+      "jumlah_tpkid_teramati_sementara": 947,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/3",
+      "level": "kabupaten",
+      "nama": "CIANJUR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "CIANJUR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "3"
+      ],
+      "jumlah_tpk_agregat_sementara": 1908,
+      "jumlah_tpkid_teramati_sementara": 1908,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/9",
+      "level": "kabupaten",
+      "nama": "CIREBON",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "CIREBON"
+      ],
+      "hierarki_kode": [
+        "32",
+        "9"
+      ],
+      "jumlah_tpk_agregat_sementara": 1748,
+      "jumlah_tpkid_teramati_sementara": 1748,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/5",
+      "level": "kabupaten",
+      "nama": "GARUT",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "GARUT"
+      ],
+      "hierarki_kode": [
+        "32",
+        "5"
+      ],
+      "jumlah_tpk_agregat_sementara": 1996,
+      "jumlah_tpkid_teramati_sementara": 1991,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/12",
+      "level": "kabupaten",
+      "nama": "INDRAMAYU",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "INDRAMAYU"
+      ],
+      "hierarki_kode": [
+        "32",
+        "12"
+      ],
+      "jumlah_tpk_agregat_sementara": 1413,
+      "jumlah_tpkid_teramati_sementara": 1413,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/15",
+      "level": "kabupaten",
+      "nama": "KARAWANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KARAWANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "15"
+      ],
+      "jumlah_tpk_agregat_sementara": 1879,
+      "jumlah_tpkid_teramati_sementara": 1879,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/73",
+      "level": "kabupaten",
+      "nama": "KOTA BANDUNG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA BANDUNG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "73"
+      ],
+      "jumlah_tpk_agregat_sementara": 1883,
+      "jumlah_tpkid_teramati_sementara": 1883,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/79",
+      "level": "kabupaten",
+      "nama": "KOTA BANJAR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA BANJAR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "79"
+      ],
+      "jumlah_tpk_agregat_sementara": 155,
+      "jumlah_tpkid_teramati_sementara": 155,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/75",
+      "level": "kabupaten",
+      "nama": "KOTA BEKASI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA BEKASI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "75"
+      ],
+      "jumlah_tpk_agregat_sementara": 1959,
+      "jumlah_tpkid_teramati_sementara": 1959,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/71",
+      "level": "kabupaten",
+      "nama": "KOTA BOGOR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA BOGOR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "71"
+      ],
+      "jumlah_tpk_agregat_sementara": 804,
+      "jumlah_tpkid_teramati_sementara": 804,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/77",
+      "level": "kabupaten",
+      "nama": "KOTA CIMAHI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA CIMAHI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "77"
+      ],
+      "jumlah_tpk_agregat_sementara": 438,
+      "jumlah_tpkid_teramati_sementara": 438,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/74",
+      "level": "kabupaten",
+      "nama": "KOTA CIREBON",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA CIREBON"
+      ],
+      "hierarki_kode": [
+        "32",
+        "74"
+      ],
+      "jumlah_tpk_agregat_sementara": 257,
+      "jumlah_tpkid_teramati_sementara": 257,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/76",
+      "level": "kabupaten",
+      "nama": "KOTA DEPOK",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA DEPOK"
+      ],
+      "hierarki_kode": [
+        "32",
+        "76"
+      ],
+      "jumlah_tpk_agregat_sementara": 1584,
+      "jumlah_tpkid_teramati_sementara": 1584,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/72",
+      "level": "kabupaten",
+      "nama": "KOTA SUKABUMI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA SUKABUMI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "72"
+      ],
+      "jumlah_tpk_agregat_sementara": 266,
+      "jumlah_tpkid_teramati_sementara": 266,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/78",
+      "level": "kabupaten",
+      "nama": "KOTA TASIKMALAYA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KOTA TASIKMALAYA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "78"
+      ],
+      "jumlah_tpk_agregat_sementara": 552,
+      "jumlah_tpkid_teramati_sementara": 552,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/8",
+      "level": "kabupaten",
+      "nama": "KUNINGAN",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "KUNINGAN"
+      ],
+      "hierarki_kode": [
+        "32",
+        "8"
+      ],
+      "jumlah_tpk_agregat_sementara": 899,
+      "jumlah_tpkid_teramati_sementara": 899,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/10",
+      "level": "kabupaten",
+      "nama": "MAJALENGKA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "MAJALENGKA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "10"
+      ],
+      "jumlah_tpk_agregat_sementara": 1006,
+      "jumlah_tpkid_teramati_sementara": 1006,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/18",
+      "level": "kabupaten",
+      "nama": "PANGANDARAN",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "PANGANDARAN"
+      ],
+      "hierarki_kode": [
+        "32",
+        "18"
+      ],
+      "jumlah_tpk_agregat_sementara": 327,
+      "jumlah_tpkid_teramati_sementara": 327,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/14",
+      "level": "kabupaten",
+      "nama": "PURWAKARTA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "PURWAKARTA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "14"
+      ],
+      "jumlah_tpk_agregat_sementara": 768,
+      "jumlah_tpkid_teramati_sementara": 768,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/13",
+      "level": "kabupaten",
+      "nama": "SUBANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "SUBANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "13"
+      ],
+      "jumlah_tpk_agregat_sementara": 1229,
+      "jumlah_tpkid_teramati_sementara": 1229,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/2",
+      "level": "kabupaten",
+      "nama": "SUKABUMI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "SUKABUMI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "2"
+      ],
+      "jumlah_tpk_agregat_sementara": 2100,
+      "jumlah_tpkid_teramati_sementara": 2100,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/11",
+      "level": "kabupaten",
+      "nama": "SUMEDANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "SUMEDANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "11"
+      ],
+      "jumlah_tpk_agregat_sementara": 888,
+      "jumlah_tpkid_teramati_sementara": 888,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    },
+    {
+      "id": "32/6",
+      "level": "kabupaten",
+      "nama": "TASIKMALAYA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "TASIKMALAYA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "6"
+      ],
+      "jumlah_tpk_agregat_sementara": 1436,
+      "jumlah_tpkid_teramati_sementara": 1436,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar."
+    }
+  ],
+  "statistik": {
+    "jumlah_record": 52,
+    "tingkat": {
+      "provinsi": 2,
+      "kabupaten": 50
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "An interactive analytics dashboard for monitoring TPK data, providing insights for Kemendukbangga/BKKBN with national and provincial details to support decision-making.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

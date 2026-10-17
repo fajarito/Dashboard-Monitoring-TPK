@@ -1,0 +1,9 @@
+Indonesia Province GeoJSON
+Source: https://github.com/ans-4175/peta-indonesia-geojson
+Compiled from BAKOSURTANAL base maps and Dukcapil December 2019 boundaries.
+License: MIT, Copyright (c) 2021 Ahmad Anshorimuslim Syuhada.
+Boundary version contains 34 provinces. Newer Papua administrative splits are not represented.
+
+West Java ADM2 GeoJSON
+Source: geoBoundaries gbOpen IDN ADM2, based on BPS Indonesia, WFP and OCHA ROAP.
+License: CC BY 4.0.

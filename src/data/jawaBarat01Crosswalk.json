@@ -1,0 +1,205 @@
+{
+  "source": "Katalog kode BPS kecamatan Kabupaten Bogor dan chunk Jawa Barat 01-08",
+  "records": [
+    {
+      "reference_bps_code": "3201010",
+      "record_id": "JAWA BARAT|BOGOR|NANGGUNG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201020",
+      "record_id": "JAWA BARAT|BOGOR|LEUWILIANG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201021",
+      "record_id": "JAWA BARAT|BOGOR|LEUWISADENG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201030",
+      "record_id": "JAWA BARAT|BOGOR|PAMIJAHAN",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201040",
+      "record_id": "JAWA BARAT|BOGOR|CIBUNGBULANG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201050",
+      "record_id": "JAWA BARAT|BOGOR|CIAMPEA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201051",
+      "record_id": "JAWA BARAT|BOGOR|TENJOLAYA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201060",
+      "record_id": "JAWA BARAT|BOGOR|DRAMAGA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201070",
+      "record_id": "JAWA BARAT|BOGOR|CIOMAS",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201071",
+      "record_id": "JAWA BARAT|BOGOR|TAMANSARI",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201080",
+      "record_id": "JAWA BARAT|BOGOR|CIJERUK",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201081",
+      "record_id": "JAWA BARAT|BOGOR|CIGOMBONG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201090",
+      "record_id": "JAWA BARAT|BOGOR|CARINGIN",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201100",
+      "record_id": "JAWA BARAT|BOGOR|CIAWI",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201110",
+      "record_id": "JAWA BARAT|BOGOR|CISARUA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201120",
+      "record_id": "JAWA BARAT|BOGOR|MEGAMENDUNG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201130",
+      "record_id": "JAWA BARAT|BOGOR|SUKARAJA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201140",
+      "record_id": "JAWA BARAT|BOGOR|BABAKAN MADANG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201150",
+      "record_id": "JAWA BARAT|BOGOR|SUKAMAKMUR",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201160",
+      "record_id": "JAWA BARAT|BOGOR|CARIU",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201161",
+      "record_id": "JAWA BARAT|BOGOR|TANJUNGSARI",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201170",
+      "record_id": "JAWA BARAT|BOGOR|JONGGOL",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201180",
+      "record_id": "JAWA BARAT|BOGOR|CILEUNGSI",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201181",
+      "record_id": "JAWA BARAT|BOGOR|KLAPANUNGGAL",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201190",
+      "record_id": "JAWA BARAT|BOGOR|GUNUNG PUTRI",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201200",
+      "record_id": "JAWA BARAT|BOGOR|CITEUREUP",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201210",
+      "record_id": "JAWA BARAT|BOGOR|CIBINONG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201220",
+      "record_id": "JAWA BARAT|BOGOR|BOJONG GEDE",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201221",
+      "record_id": "JAWA BARAT|BOGOR|TAJURHALANG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201230",
+      "record_id": "JAWA BARAT|BOGOR|KEMANG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201231",
+      "record_id": "JAWA BARAT|BOGOR|RANCA BUNGUR",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201240",
+      "record_id": "JAWA BARAT|BOGOR|PARUNG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201241",
+      "record_id": "JAWA BARAT|BOGOR|CISEENG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201250",
+      "record_id": "JAWA BARAT|BOGOR|GUNUNG SINDUR",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201260",
+      "record_id": "JAWA BARAT|BOGOR|RUMPIN",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201270",
+      "record_id": "JAWA BARAT|BOGOR|CIGUDEG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201271",
+      "record_id": "JAWA BARAT|BOGOR|SUKAJAYA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201280",
+      "record_id": "JAWA BARAT|BOGOR|JASINGA",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201290",
+      "record_id": "JAWA BARAT|BOGOR|TENJO",
+      "parent_id": "JAWA BARAT|BOGOR"
+    },
+    {
+      "reference_bps_code": "3201300",
+      "record_id": "JAWA BARAT|BOGOR|PARUNG PANJANG",
+      "parent_id": "JAWA BARAT|BOGOR"
+    }
+  ]
+}

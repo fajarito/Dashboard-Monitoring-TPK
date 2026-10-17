@@ -1,0 +1,969 @@
+{
+  "metadata": {
+    "source": "tpk_staging_split_under_1mb.zip",
+    "status": "BELUM TERVALIDASI",
+    "record_count": 40
+  },
+  "wilayah": [
+    {
+      "id": "32/1/1",
+      "level": "kecamatan",
+      "nama": "CIBINONG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIBINONG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "1"
+      ],
+      "jumlah_tpk_agregat_sementara": 280,
+      "jumlah_tpkid_teramati_sementara": 280,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201210"
+    },
+    {
+      "id": "32/1/10",
+      "level": "kecamatan",
+      "nama": "PARUNG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "PARUNG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "10"
+      ],
+      "jumlah_tpk_agregat_sementara": 95,
+      "jumlah_tpkid_teramati_sementara": 95,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201240"
+    },
+    {
+      "id": "32/1/11",
+      "level": "kecamatan",
+      "nama": "GUNUNG SINDUR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "GUNUNG SINDUR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "11"
+      ],
+      "jumlah_tpk_agregat_sementara": 98,
+      "jumlah_tpkid_teramati_sementara": 98,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201250"
+    },
+    {
+      "id": "32/1/12",
+      "level": "kecamatan",
+      "nama": "KEMANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "KEMANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "12"
+      ],
+      "jumlah_tpk_agregat_sementara": 81,
+      "jumlah_tpkid_teramati_sementara": 81,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201230"
+    },
+    {
+      "id": "32/1/13",
+      "level": "kecamatan",
+      "nama": "BOJONG GEDE",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "BOJONG GEDE"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "13"
+      ],
+      "jumlah_tpk_agregat_sementara": 221,
+      "jumlah_tpkid_teramati_sementara": 221,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201220"
+    },
+    {
+      "id": "32/1/14",
+      "level": "kecamatan",
+      "nama": "LEUWILIANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "LEUWILIANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "14"
+      ],
+      "jumlah_tpk_agregat_sementara": 97,
+      "jumlah_tpkid_teramati_sementara": 97,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201020"
+    },
+    {
+      "id": "32/1/15",
+      "level": "kecamatan",
+      "nama": "CIAMPEA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIAMPEA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "15"
+      ],
+      "jumlah_tpk_agregat_sementara": 130,
+      "jumlah_tpkid_teramati_sementara": 130,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201050"
+    },
+    {
+      "id": "32/1/16",
+      "level": "kecamatan",
+      "nama": "CIBUNGBULANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIBUNGBULANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "16"
+      ],
+      "jumlah_tpk_agregat_sementara": 112,
+      "jumlah_tpkid_teramati_sementara": 112,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201040"
+    },
+    {
+      "id": "32/1/17",
+      "level": "kecamatan",
+      "nama": "PAMIJAHAN",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "PAMIJAHAN"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "17"
+      ],
+      "jumlah_tpk_agregat_sementara": 124,
+      "jumlah_tpkid_teramati_sementara": 124,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201030"
+    },
+    {
+      "id": "32/1/18",
+      "level": "kecamatan",
+      "nama": "RUMPIN",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "RUMPIN"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "18"
+      ],
+      "jumlah_tpk_agregat_sementara": 112,
+      "jumlah_tpkid_teramati_sementara": 112,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201260"
+    },
+    {
+      "id": "32/1/19",
+      "level": "kecamatan",
+      "nama": "JASINGA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "JASINGA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "19"
+      ],
+      "jumlah_tpk_agregat_sementara": 82,
+      "jumlah_tpkid_teramati_sementara": 82,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201280"
+    },
+    {
+      "id": "32/1/2",
+      "level": "kecamatan",
+      "nama": "GUNUNG PUTRI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "GUNUNG PUTRI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "2"
+      ],
+      "jumlah_tpk_agregat_sementara": 230,
+      "jumlah_tpkid_teramati_sementara": 230,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201190"
+    },
+    {
+      "id": "32/1/20",
+      "level": "kecamatan",
+      "nama": "PARUNG PANJANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "PARUNG PANJANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "20"
+      ],
+      "jumlah_tpk_agregat_sementara": 91,
+      "jumlah_tpkid_teramati_sementara": 91,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201300"
+    },
+    {
+      "id": "32/1/21",
+      "level": "kecamatan",
+      "nama": "NANGGUNG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "NANGGUNG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "21"
+      ],
+      "jumlah_tpk_agregat_sementara": 76,
+      "jumlah_tpkid_teramati_sementara": 76,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201010"
+    },
+    {
+      "id": "32/1/22",
+      "level": "kecamatan",
+      "nama": "CIGUDEG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIGUDEG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "22"
+      ],
+      "jumlah_tpk_agregat_sementara": 103,
+      "jumlah_tpkid_teramati_sementara": 103,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201270"
+    },
+    {
+      "id": "32/1/23",
+      "level": "kecamatan",
+      "nama": "TENJO",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "TENJO"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "23"
+      ],
+      "jumlah_tpk_agregat_sementara": 56,
+      "jumlah_tpkid_teramati_sementara": 56,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201290"
+    },
+    {
+      "id": "32/1/24",
+      "level": "kecamatan",
+      "nama": "CIAWI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIAWI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "24"
+      ],
+      "jumlah_tpk_agregat_sementara": 88,
+      "jumlah_tpkid_teramati_sementara": 88,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201100"
+    },
+    {
+      "id": "32/1/25",
+      "level": "kecamatan",
+      "nama": "CISARUA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CISARUA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "25"
+      ],
+      "jumlah_tpk_agregat_sementara": 98,
+      "jumlah_tpkid_teramati_sementara": 98,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201110"
+    },
+    {
+      "id": "32/1/26",
+      "level": "kecamatan",
+      "nama": "MEGAMENDUNG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "MEGAMENDUNG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "26"
+      ],
+      "jumlah_tpk_agregat_sementara": 82,
+      "jumlah_tpkid_teramati_sementara": 82,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201120"
+    },
+    {
+      "id": "32/1/27",
+      "level": "kecamatan",
+      "nama": "CARINGIN",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CARINGIN"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "27"
+      ],
+      "jumlah_tpk_agregat_sementara": 101,
+      "jumlah_tpkid_teramati_sementara": 101,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201090"
+    },
+    {
+      "id": "32/1/28",
+      "level": "kecamatan",
+      "nama": "CIJERUK",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIJERUK"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "28"
+      ],
+      "jumlah_tpk_agregat_sementara": 71,
+      "jumlah_tpkid_teramati_sementara": 71,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201080"
+    },
+    {
+      "id": "32/1/29",
+      "level": "kecamatan",
+      "nama": "CIOMAS",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIOMAS"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "29"
+      ],
+      "jumlah_tpk_agregat_sementara": 131,
+      "jumlah_tpkid_teramati_sementara": 131,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201070"
+    },
+    {
+      "id": "32/1/3",
+      "level": "kecamatan",
+      "nama": "CITEUREUP",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CITEUREUP"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "3"
+      ],
+      "jumlah_tpk_agregat_sementara": 164,
+      "jumlah_tpkid_teramati_sementara": 164,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201200"
+    },
+    {
+      "id": "32/1/30",
+      "level": "kecamatan",
+      "nama": "DRAMAGA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "DRAMAGA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "30"
+      ],
+      "jumlah_tpk_agregat_sementara": 85,
+      "jumlah_tpkid_teramati_sementara": 85,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201060"
+    },
+    {
+      "id": "32/1/31",
+      "level": "kecamatan",
+      "nama": "TAMANSARI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "TAMANSARI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "31"
+      ],
+      "jumlah_tpk_agregat_sementara": 84,
+      "jumlah_tpkid_teramati_sementara": 84,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201071"
+    },
+    {
+      "id": "32/1/32",
+      "level": "kecamatan",
+      "nama": "KLAPANUNGGAL",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "KLAPANUNGGAL"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "32"
+      ],
+      "jumlah_tpk_agregat_sementara": 98,
+      "jumlah_tpkid_teramati_sementara": 98,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201181"
+    },
+    {
+      "id": "32/1/33",
+      "level": "kecamatan",
+      "nama": "CISEENG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CISEENG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "33"
+      ],
+      "jumlah_tpk_agregat_sementara": 86,
+      "jumlah_tpkid_teramati_sementara": 86,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201241"
+    },
+    {
+      "id": "32/1/34",
+      "level": "kecamatan",
+      "nama": "RANCA BUNGUR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "RANCA BUNGUR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "34"
+      ],
+      "jumlah_tpk_agregat_sementara": 47,
+      "jumlah_tpkid_teramati_sementara": 47,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201231"
+    },
+    {
+      "id": "32/1/35",
+      "level": "kecamatan",
+      "nama": "SUKAJAYA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "SUKAJAYA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "35"
+      ],
+      "jumlah_tpk_agregat_sementara": 52,
+      "jumlah_tpkid_teramati_sementara": 52,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201271"
+    },
+    {
+      "id": "32/1/36",
+      "level": "kecamatan",
+      "nama": "TANJUNGSARI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "TANJUNGSARI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "36"
+      ],
+      "jumlah_tpk_agregat_sementara": 44,
+      "jumlah_tpkid_teramati_sementara": 44,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201161"
+    },
+    {
+      "id": "32/1/37",
+      "level": "kecamatan",
+      "nama": "TAJURHALANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "TAJURHALANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "37"
+      ],
+      "jumlah_tpk_agregat_sementara": 95,
+      "jumlah_tpkid_teramati_sementara": 95,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201221"
+    },
+    {
+      "id": "32/1/38",
+      "level": "kecamatan",
+      "nama": "CIGOMBONG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CIGOMBONG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "38"
+      ],
+      "jumlah_tpk_agregat_sementara": 75,
+      "jumlah_tpkid_teramati_sementara": 75,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201081"
+    },
+    {
+      "id": "32/1/39",
+      "level": "kecamatan",
+      "nama": "LEUWISADENG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "LEUWISADENG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "39"
+      ],
+      "jumlah_tpk_agregat_sementara": 55,
+      "jumlah_tpkid_teramati_sementara": 55,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201021"
+    },
+    {
+      "id": "32/1/4",
+      "level": "kecamatan",
+      "nama": "SUKARAJA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "SUKARAJA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "4"
+      ],
+      "jumlah_tpk_agregat_sementara": 159,
+      "jumlah_tpkid_teramati_sementara": 159,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201130"
+    },
+    {
+      "id": "32/1/40",
+      "level": "kecamatan",
+      "nama": "TENJOLAYA",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "TENJOLAYA"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "40"
+      ],
+      "jumlah_tpk_agregat_sementara": 49,
+      "jumlah_tpkid_teramati_sementara": 49,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201051"
+    },
+    {
+      "id": "32/1/5",
+      "level": "kecamatan",
+      "nama": "BABAKAN MADANG",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "BABAKAN MADANG"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "5"
+      ],
+      "jumlah_tpk_agregat_sementara": 88,
+      "jumlah_tpkid_teramati_sementara": 88,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201140"
+    },
+    {
+      "id": "32/1/6",
+      "level": "kecamatan",
+      "nama": "JONGGOL",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "JONGGOL"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "6"
+      ],
+      "jumlah_tpk_agregat_sementara": 111,
+      "jumlah_tpkid_teramati_sementara": 111,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201170"
+    },
+    {
+      "id": "32/1/7",
+      "level": "kecamatan",
+      "nama": "CILEUNGSI",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CILEUNGSI"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "7"
+      ],
+      "jumlah_tpk_agregat_sementara": 222,
+      "jumlah_tpkid_teramati_sementara": 222,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201180"
+    },
+    {
+      "id": "32/1/8",
+      "level": "kecamatan",
+      "nama": "CARIU",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "CARIU"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "8"
+      ],
+      "jumlah_tpk_agregat_sementara": 40,
+      "jumlah_tpkid_teramati_sementara": 40,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201160"
+    },
+    {
+      "id": "32/1/9",
+      "level": "kecamatan",
+      "nama": "SUKAMAKMUR",
+      "hierarki_nama": [
+        "JAWA BARAT",
+        "BOGOR",
+        "SUKAMAKMUR"
+      ],
+      "hierarki_kode": [
+        "32",
+        "1",
+        "9"
+      ],
+      "jumlah_tpk_agregat_sementara": 66,
+      "jumlah_tpkid_teramati_sementara": 66,
+      "keluarga_sasaran_tercatat": null,
+      "keluarga_berisiko_stunting_total_prioritas": null,
+      "rasio_sasaran_per_tpk": null,
+      "rasio_krs_per_tpk": null,
+      "status": "PERLU_VALIDASI",
+      "catatan": "Angka TPK berasal dari agregasi eksplorasi sebelumnya, bukan hasil audit ulang. Pembilang rasio belum dihasilkan dari metode sumber yang benar.",
+      "reference_bps_code": "3201150"
+    }
+  ]
+}
