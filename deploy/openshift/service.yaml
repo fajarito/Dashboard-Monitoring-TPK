@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-monitoring-tpk
+  labels:
+    app: dashboard-monitoring-tpk
+spec:
+  type: ClusterIP
+  selector:
+    app: dashboard-monitoring-tpk
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

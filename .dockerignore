@@ -1,0 +1,46 @@
+# Dependencies & build output
+node_modules
+.next
+out
+build
+coverage
+
+# VCS & editor
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Local env / secrets — never bake into image
+.env
+.env.*
+!.env.example
+
+# Design sandbox (Vite/Figma Make) — not part of Next runtime
+design
+
+# Docs / agent notes not needed at runtime
+*.md
+!README.md
+AGENTS.md
+
+# Logs & caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# Deploy manifests (applied by oc, not needed in image)
+deploy
+
+# Tests / misc
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
