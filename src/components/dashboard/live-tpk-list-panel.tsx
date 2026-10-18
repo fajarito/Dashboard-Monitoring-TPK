@@ -53,11 +53,19 @@ export function LiveTpkListPanel({
   const peringkatKab = usePeringkatKabupaten(provinsiApiId);
   const kabOptions: KabOption[] = useMemo(() => {
     const items = peringkatKab.payload?.items ?? [];
-    return items.map((item: PeringkatKabupatenItem) => ({
+    const mapped = items.map((item: PeringkatKabupatenItem) => ({
       id: item.id,
       label: item.nama,
     }));
-  }, [peringkatKab.payload]);
+    // Pastikan nilai awal (deep-link kabupatenId) tetap punya opsi sebelum ranking load.
+    if (
+      kabupatenId &&
+      !mapped.some((opt) => opt.id === kabupatenId)
+    ) {
+      mapped.unshift({ id: kabupatenId, label: `Kab/kota ${kabupatenId}` });
+    }
+    return mapped;
+  }, [peringkatKab.payload, kabupatenId]);
 
   const list = useTpkList({
     provinsiId: provinsiApiId,
