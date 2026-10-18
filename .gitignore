@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# OpenShift secrets with real values (use secret.yaml.example only)
+deploy/openshift/secret.yaml
+deploy/openshift/*.secret.yaml
+
 # vercel
 .vercel
 

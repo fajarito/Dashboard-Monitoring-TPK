@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-tpk-config
+  labels:
+    app: dashboard-monitoring-tpk
+data:
+  # Non-secret runtime config. DB URLs belong in Secret, not here.
+  DATA_SOURCE: "postgres"
+  PORT: "8080"
+  NODE_ENV: "production"
+  HOSTNAME: "0.0.0.0"
