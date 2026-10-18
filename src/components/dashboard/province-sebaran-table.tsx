@@ -61,6 +61,17 @@ function mergeProvinceWithRanking(
   };
 }
 
+function resolveProvinceBase(item: PeringkatProvinsiItem): Province | null {
+  const byId = provinces.find((entry) => entry.id === item.id);
+  if (byId) return byId;
+  // Live SQL memakai kode BPS (adminCode) sebagai id string, mis. "32".
+  const code = Number.parseInt(item.id, 10);
+  if (Number.isFinite(code) && code > 0) {
+    return provinces.find((entry) => entry.adminCode === code) ?? null;
+  }
+  return null;
+}
+
 export function ProvinceSebaranTable({
   compact = false,
   selectedId = null,
@@ -68,6 +79,7 @@ export function ProvinceSebaranTable({
   demoState = "ready",
   onRetryDemo,
   ranking = null,
+  dataSource = null,
 }: {
   /** Lebar kolom lebih sempit untuk layout berdampingan dengan kartu. */
   compact?: boolean;
@@ -76,51 +88,38 @@ export function ProvinceSebaranTable({
   onSelect?: (province: Province) => void;
   demoState?: DemoUiState;
   onRetryDemo?: () => void;
-  /** Dari GET /api/peringkat/provinsi — max 40; fallback ke mock lokal. */
+  /** Dari GET /api/peringkat/provinsi — max 40; tanpa fallback mock lokal. */
   ranking?: PeringkatProvinsiItem[] | null;
+  /** Sumber efektif dari meta.source API. */
+  dataSource?: "mock" | "postgres" | "postgres-error" | null;
 }) {
   const [hover, setHover] = useState<HoverState | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const rows = useMemo(() => {
-    const byId = new Map(provinces.map((entry) => [entry.id, entry]));
+    if (!ranking || ranking.length === 0) return [];
 
-    let ordered: Province[];
-    if (ranking && ranking.length > 0) {
-      ordered = ranking
-        .slice(0, 40)
-        .map((item) => {
-          const base = byId.get(item.id);
-          if (!base) {
-            // Provinsi dari API yang belum ada di mock lokal — baris minimal.
-            return {
-              id: item.id,
-              adminCode: 0,
-              name: item.nama,
-              capital: "",
-              tpk: item.tpk,
-              anggota: 0,
-              pkb: 0,
-              krs: item.krs,
-              baduta: 0,
-              balita: 0,
-              pus: 0,
-              ibuHamil: 0,
-            } satisfies Province;
-          }
-          return mergeProvinceWithRanking(base, item);
-        });
-    } else {
-      ordered = provinces
-        .slice()
-        .sort((a, b) => b.tpk - a.tpk || a.name.localeCompare(b.name, "id"));
-    }
-
-    return ordered.map((province, index): RowModel => {
-      const rankingItem = ranking?.find((item) => item.id === province.id);
+    return ranking.slice(0, 40).map((item, index): RowModel => {
+      const base = resolveProvinceBase(item);
+      const province = base
+        ? mergeProvinceWithRanking(base, item)
+        : ({
+            id: item.id,
+            adminCode: Number.parseInt(item.id, 10) || 0,
+            name: item.nama,
+            capital: "",
+            tpk: item.tpk,
+            anggota: 0,
+            pkb: 0,
+            krs: item.krs,
+            baduta: 0,
+            balita: 0,
+            pus: 0,
+            ibuHamil: 0,
+          } satisfies Province);
       const desa = estimateDesaForProvince(province);
       const krsPerTpk =
-        rankingItem?.rasio ?? getKrsPerTpkRatio(province.tpk, province.krs);
+        item.rasio ?? getKrsPerTpkRatio(province.tpk, province.krs);
       const desaPerPkb = getDesaPerPkbRatio(province.pkb, desa);
       return {
         province,
@@ -133,6 +132,13 @@ export function ProvinceSebaranTable({
       };
     });
   }, [ranking]);
+
+  const sourceBadge =
+    dataSource === "postgres"
+      ? { label: "Data live", className: "bg-emerald-50 text-emerald-700" }
+      : dataSource === "mock"
+        ? { label: "Data simulasi", className: "bg-amber-50 text-amber-700" }
+        : null;
 
   useEffect(() => {
     if (!selectedId) return;
@@ -182,9 +188,16 @@ export function ProvinceSebaranTable({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-extrabold tracking-wider text-amber-700 uppercase">
-            Data simulasi
-          </span>
+          {sourceBadge ? (
+            <span
+              className={cn(
+                "rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wider uppercase",
+                sourceBadge.className,
+              )}
+            >
+              {sourceBadge.label}
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-primary">
             <MapPinned className="size-3.5" aria-hidden />
             {formatNumber(rows.length)} provinsi
