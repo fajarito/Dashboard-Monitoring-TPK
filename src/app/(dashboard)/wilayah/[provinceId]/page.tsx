@@ -3,16 +3,13 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { DrilldownBreadcrumb } from "@/components/dashboard/drilldown-breadcrumb";
+import { LiveTpkListPanel } from "@/components/dashboard/live-tpk-list-panel";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
-import { TpkListTable } from "@/components/dashboard/tpk-list-table";
 import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
 import { WilayahIdentityCards } from "@/components/dashboard/wilayah-meta-cards";
 import { Button } from "@/components/ui/button";
-import {
-  getProvinceOrNull,
-  getTpkForScope,
-  summarizeTpkList,
-} from "@/lib/tpk-drilldown-data";
+import { getProvinsiApiId } from "@/lib/province-api-id";
+import { getProvinceOrNull } from "@/lib/tpk-drilldown-data";
 import {
   getKabupatenByProvince,
   summarizeChildRows,
@@ -37,8 +34,7 @@ export default async function ProvinceKabupatenPage({ params }: PageProps) {
 
   const kabList = getKabupatenByProvince(provinceId);
   const kabSummary = summarizeChildRows(kabList);
-  const tpkList = getTpkForScope({ provinceId });
-  const tpkSummary = summarizeTpkList(tpkList);
+  const provinsiApiId = getProvinsiApiId(province);
   const mapHref = `/?wilayah=prov-${provinceId}`;
 
   return (
@@ -101,21 +97,13 @@ export default async function ProvinceKabupatenPage({ params }: PageProps) {
         actionLabel="Kecamatan"
       />
 
-      <TpkListTable
-        list={tpkList}
-        provinceId={provinceId}
-        scopeName={province.name}
-        scopeFilterMode="kabupaten"
-        scopeFilters={kabList.map((kab) => ({
-          id: kab.id,
-          label: kab.name.replace(/^(Kota|Kabupaten)\s+/i, ""),
-        }))}
-      />
-
-      <p className="text-[11px] text-muted-foreground">
-        Cuplikan TPK di level ini: {tpkSummary.keluargaSasaran.toLocaleString("id-ID")}{" "}
-        keluarga sasaran dari {tpkList.length} tim (simulasi).
-      </p>
+      {provinsiApiId ? (
+        <LiveTpkListPanel
+          provinceSlug={provinceId}
+          provinsiApiId={provinsiApiId}
+          provinceName={province.name}
+        />
+      ) : null}
     </section>
   );
 }

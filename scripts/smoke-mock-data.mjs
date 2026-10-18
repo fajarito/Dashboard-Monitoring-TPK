@@ -29,6 +29,31 @@ async function check(path, expectSource) {
 await check("/api/ringkasan?tingkat=nasional", "mock");
 
 {
+  const path = "/api/ringkasan?tingkat=provinsi&id=12";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (json.tingkat !== "provinsi" || json.id !== "12") {
+    throw new Error(`${path} unexpected tingkat/id`);
+  }
+  console.log(`OK ${path} tpk=${json.jumlahTPK}`);
+}
+
+{
+  const path = "/api/ringkasan?tingkat=kabupaten&id=166";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (json.tingkat !== "kabupaten" || json.id !== "166") {
+    throw new Error(`${path} unexpected tingkat/id: ${json.tingkat}/${json.id}`);
+  }
+  if (typeof json.jumlahTPK !== "number") {
+    throw new Error(`${path} missing jumlahTPK`);
+  }
+  console.log(`OK ${path} tpk=${json.jumlahTPK} (Kota Depok)`);
+}
+
+{
   const path = "/api/peringkat/provinsi";
   const res = await fetch(`${base}${path}`);
   const json = await res.json();
@@ -50,6 +75,39 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
   console.log(
     `OK ${path} source=mock n=${json.items.length} sample id=${item.id} pkb=${item.pkb} desa=${item.desa} rasioPkbDesa=${item.rasioPkbDesa}`,
   );
+}
+
+{
+  const path = "/api/peringkat/kabupaten?provinsiId=12";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (!Array.isArray(json.items) || json.items.length === 0) {
+    throw new Error(`${path} empty items`);
+  }
+  const depok = json.items.find((i) => i.id === "166" || /depok/i.test(i.nama));
+  console.log(
+    `OK ${path} n=${json.items.length} depok=${depok ? `${depok.id}/${depok.tpk}` : "n/a"}`,
+  );
+}
+
+{
+  const path = "/api/tpk?provinsiId=12&page=1&pageSize=25";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json)}`);
+  if (!Array.isArray(json.items)) throw new Error(`${path} items missing`);
+  if (json.pageSize > 50) throw new Error(`${path} pageSize too large`);
+  console.log(`OK ${path} total=${json.total} pageItems=${json.items.length}`);
+}
+
+{
+  const path = "/api/tpk";
+  const res = await fetch(`${base}${path}`);
+  if (res.status !== 400) {
+    throw new Error(`${path} expected 400 without filter, got ${res.status}`);
+  }
+  console.log(`OK ${path} → 400 tanpa filter wilayah`);
 }
 
 console.log("smoke mock OK");

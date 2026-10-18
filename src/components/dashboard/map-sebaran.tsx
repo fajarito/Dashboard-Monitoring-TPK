@@ -22,6 +22,7 @@ import {
   parseDemoState,
   type DemoUiState,
 } from "@/components/dashboard/data-state";
+import { KabupatenSebaranTable } from "@/components/dashboard/kabupaten-sebaran-table";
 import { KomposisiPrioritasCard } from "@/components/dashboard/komposisi-prioritas-card";
 import { KomposisiTpkCard } from "@/components/dashboard/komposisi-tpk-card";
 import { ProvinceSebaranTable } from "@/components/dashboard/province-sebaran-table";
@@ -29,8 +30,11 @@ import { QuickProvincePicks } from "@/components/dashboard/quick-province-picks"
 import { RasioInsightPanels } from "@/components/dashboard/rasio-insight-panels";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { Button } from "@/components/ui/button";
+import type { PeringkatKabupatenItem } from "@/lib/data/types";
 import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
+import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
+import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
 import {
   formatNumber,
   metricHelp,
@@ -161,6 +165,10 @@ export function MapSebaran() {
   const [metric, setMetric] = useState<MetricKey>("tpk");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selected, setSelected] = useState<Province | null>(null);
+  const [selectedKab, setSelectedKab] = useState<{
+    id: string;
+    nama: string;
+  } | null>(null);
   const [focusedWilayah, setFocusedWilayah] = useState<WilayahSearchItem | null>(
     null,
   );
@@ -172,15 +180,28 @@ export function MapSebaran() {
     () => (selected ? getProvinsiApiId(selected) : null),
     [selected],
   );
-  const scopedRingkasan = useRingkasanScope(selectedProvinsiApiId);
+
+  const scopeInput = useMemo(() => {
+    if (selectedKab) {
+      return { tingkat: "kabupaten" as const, id: selectedKab.id };
+    }
+    if (selectedProvinsiApiId) {
+      return { tingkat: "provinsi" as const, id: selectedProvinsiApiId };
+    }
+    return { tingkat: null, id: null };
+  }, [selectedKab, selectedProvinsiApiId]);
+
+  const scopedRingkasan = useRingkasanScope(scopeInput);
+  const peringkatKab = usePeringkatKabupaten(selectedProvinsiApiId);
 
   /**
    * Ringkasan aktif untuk KPI/komposisi/rasio/indikator:
-   * filter provinsi → scoped; kosong → nasional dari useHomeAgregat.
+   * kab → provinsi → nasional (useHomeAgregat).
    */
-  const activeRingkasan = selected
-    ? scopedRingkasan.ringkasan
-    : homeAgregat.ringkasan;
+  const activeRingkasan =
+    selected || selectedKab
+      ? scopedRingkasan.ringkasan
+      : homeAgregat.ringkasan;
 
   const kpiTotals = useMemo(() => {
     if (!activeRingkasan) return null;
@@ -198,7 +219,7 @@ export function MapSebaran() {
     homeAgregat.peringkat?.meta.source ??
     null;
 
-  const scopeLabel = selected?.name ?? "Nasional";
+  const scopeLabel = selectedKab?.nama ?? selected?.name ?? "Nasional";
 
   const sasaranScope = useMemo(() => {
     if (!activeRingkasan) {
@@ -243,8 +264,11 @@ export function MapSebaran() {
 
   const retryAgregat = () => {
     homeAgregat.refetch();
-    if (selectedProvinsiApiId) {
+    if (scopeInput.id) {
       scopedRingkasan.refetch();
+    }
+    if (selectedProvinsiApiId) {
+      peringkatKab.refetch();
     }
     if (demoParam) {
       router.replace("/", { scroll: false });
@@ -259,7 +283,7 @@ export function MapSebaran() {
   const ringkasanState: DemoUiState = useMemo(() => {
     const forced = parseDemoState(demoParam);
     if (demoParam && forced !== "ready") return forced;
-    if (selected) {
+    if (selected || selectedKab) {
       if (scopedRingkasan.status === "loading" || scopedRingkasan.status === "idle") {
         return "loading";
       }
@@ -274,11 +298,22 @@ export function MapSebaran() {
   }, [
     demoParam,
     selected,
+    selectedKab,
     scopedRingkasan.status,
     scopedRingkasan.ringkasan,
     homeAgregat.status,
     homeAgregat.ringkasan,
   ]);
+
+  const kabTableState: DemoUiState = useMemo(() => {
+    if (!selected) return "ready";
+    if (peringkatKab.status === "loading" || peringkatKab.status === "idle") {
+      return "loading";
+    }
+    if (peringkatKab.status === "error") return "error";
+    if (!peringkatKab.payload?.items?.length) return "empty";
+    return "ready";
+  }, [selected, peringkatKab.status, peringkatKab.payload]);
 
   const peringkatState: DemoUiState = useMemo(() => {
     const forced = parseDemoState(demoParam);
@@ -311,12 +346,29 @@ export function MapSebaran() {
     if (province) {
       setSelected(province);
       setFocusedWilayah(item);
+      if (item.level === "kabupaten_kota") {
+        const kabApi = getKabupatenApiId(item.id);
+        if (kabApi) {
+          setSelectedKab({ id: kabApi, nama: item.name });
+        }
+      } else {
+        setSelectedKab(null);
+      }
     }
   }, [wilayahParam]);
 
   const clearFocus = () => {
     setFocusedWilayah(null);
     setSelected(null);
+    setSelectedKab(null);
+    if (wilayahParam) {
+      router.replace("/", { scroll: false });
+    }
+  };
+
+  const clearKabupaten = () => {
+    setSelectedKab(null);
+    setFocusedWilayah(null);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
     }
@@ -324,21 +376,32 @@ export function MapSebaran() {
 
   const selectProvince = (province: Province) => {
     setFocusedWilayah(null);
+    setSelectedKab(null);
     setSelected(province);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
     }
   };
 
-  const ringkasanErrorMessage = selected
-    ? scopedRingkasan.error ??
-      "Ringkasan provinsi tidak dapat dimuat. Coba lagi atau hapus pilihan wilayah."
-    : homeAgregat.error ??
-      "Kartu jumlah TPK, PKB, dan KRS tidak dapat dimuat. Coba lagi.";
+  const selectKabupaten = (item: PeringkatKabupatenItem) => {
+    setSelectedKab({ id: item.id, nama: item.nama });
+    setFocusedWilayah(null);
+  };
 
-  const ringkasanEmptyDescription = selected
-    ? `Agregat untuk ${selected.name} belum tersedia. Hapus pilihan wilayah atau muat ulang.`
-    : "Agregat nasional belum tersedia. Muat ulang atau periksa sumber data.";
+  const ringkasanErrorMessage = selectedKab
+    ? scopedRingkasan.error ??
+      "Ringkasan kabupaten/kota tidak dapat dimuat. Coba lagi atau hapus filter kab."
+    : selected
+      ? scopedRingkasan.error ??
+        "Ringkasan provinsi tidak dapat dimuat. Coba lagi atau hapus pilihan wilayah."
+      : homeAgregat.error ??
+        "Kartu jumlah TPK, PKB, dan KRS tidak dapat dimuat. Coba lagi.";
+
+  const ringkasanEmptyDescription = selectedKab
+    ? `Agregat untuk ${selectedKab.nama} belum tersedia. Hapus filter kab atau muat ulang.`
+    : selected
+      ? `Agregat untuk ${selected.name} belum tersedia. Hapus pilihan wilayah atau muat ulang.`
+      : "Agregat nasional belum tersedia. Muat ulang atau periksa sumber data.";
 
   return (
     <section className="animate-content-enter space-y-5">
@@ -402,9 +465,11 @@ export function MapSebaran() {
           <div className="design-card">
             <ErrorState
               title={
-                selected
-                  ? `Gagal memuat ringkasan ${selected.name}`
-                  : "Gagal memuat ringkasan"
+                selectedKab
+                  ? `Gagal memuat ringkasan ${selectedKab.nama}`
+                  : selected
+                    ? `Gagal memuat ringkasan ${selected.name}`
+                    : "Gagal memuat ringkasan"
               }
               description={ringkasanErrorMessage}
               onRetry={retryAgregat}
@@ -532,12 +597,18 @@ export function MapSebaran() {
         <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">
           <div>
             <div className="section-title">
-              {selected ? `Sebaran · ${selected.name}` : "Sebaran Nasional"}
+              {selectedKab
+                ? `Sebaran · ${selectedKab.nama}`
+                : selected
+                  ? `Sebaran · ${selected.name}`
+                  : "Sebaran Nasional"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {selected
-                ? "KPI di atas mengikuti agregat provinsi terpilih — tutup untuk kembali ke nasional"
-                : "Klik provinsi untuk memfilter ringkasan KPI"}
+              {selectedKab
+                ? "KPI mengikuti agregat kabupaten/kota — hapus filter kab untuk kembali ke provinsi"
+                : selected
+                  ? "KPI mengikuti agregat provinsi — pilih kab/kota di tabel bawah, atau tutup untuk nasional"
+                  : "Klik provinsi untuk memfilter ringkasan KPI"}
             </div>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-primary">
@@ -607,15 +678,30 @@ export function MapSebaran() {
 
       {/* Tabel peringkat | stack kartu komposisi */}
       <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.9fr)]">
-        <ProvinceSebaranTable
-          compact
-          selectedId={selected?.id ?? null}
-          onSelect={selectProvince}
-          ranking={homeAgregat.peringkat?.items ?? null}
-          dataSource={dataSource}
-          demoState={peringkatState}
-          onRetryDemo={retryAgregat}
-        />
+        {selected ? (
+          <KabupatenSebaranTable
+            items={peringkatKab.payload?.items ?? null}
+            selectedId={selectedKab?.id ?? null}
+            onSelect={selectKabupaten}
+            onClearKab={clearKabupaten}
+            provinceName={selected.name}
+            demoState={kabTableState}
+            onRetry={() => peringkatKab.refetch()}
+            dataSource={
+              peringkatKab.payload?.meta.source ?? dataSource ?? null
+            }
+          />
+        ) : (
+          <ProvinceSebaranTable
+            compact
+            selectedId={null}
+            onSelect={selectProvince}
+            ranking={homeAgregat.peringkat?.items ?? null}
+            dataSource={dataSource}
+            demoState={peringkatState}
+            onRetryDemo={retryAgregat}
+          />
+        )}
         <div className="flex min-w-0 flex-col gap-3">
           {activeRingkasan ? (
             <>
@@ -659,14 +745,25 @@ export function MapSebaran() {
             </div>
             <div className="min-w-0">
               <div className="text-[10px] font-extrabold tracking-wider text-primary uppercase">
-                {focusedWilayah
-                  ? "Hasil pencarian wilayah"
-                  : "Ringkasan wilayah"}
+                {selectedKab
+                  ? "Ringkasan kabupaten/kota"
+                  : focusedWilayah
+                    ? "Hasil pencarian wilayah"
+                    : "Ringkasan wilayah"}
               </div>
               <h2 className="mt-0.5 text-xl font-extrabold tracking-tight text-navy">
-                {focusedWilayah?.name ?? selected.name}
+                {selectedKab?.nama ?? focusedWilayah?.name ?? selected.name}
               </h2>
-              {focusedWilayah ? (
+              {selectedKab ? (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-primary uppercase">
+                    Kabupaten/Kota
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {selected.name}
+                  </span>
+                </div>
+              ) : focusedWilayah ? (
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-primary uppercase">
                     {wilayahLevelLabels[focusedWilayah.level]}
@@ -682,12 +779,21 @@ export function MapSebaran() {
               )}
             </div>
           </div>
-          {focusedWilayah && focusedWilayah.level !== "provinsi" ? (
+          {selectedKab ? (
+            <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Peta tetap menampilkan konteks provinsi{" "}
+              <span className="font-bold text-navy">{selected.name}</span>.
+              Angka KPI mengikuti agregat{" "}
+              <span className="font-bold text-navy">{selectedKab.nama}</span>.
+            </p>
+          ) : focusedWilayah &&
+            focusedWilayah.level !== "provinsi" &&
+            focusedWilayah.level !== "kabupaten_kota" ? (
             <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Peta menampilkan konteks provinsi{" "}
               <span className="font-bold text-navy">{selected.name}</span>.
-              Angka di bawah adalah agregat tingkat provinsi — filter
-              kabupaten/kecamatan menyusul.
+              Agregat kecamatan/desa belum tersedia — filter sampai
+              kabupaten/kota.
             </p>
           ) : null}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -732,17 +838,37 @@ export function MapSebaran() {
               asChild
               className="h-10 gap-2 rounded-xl bg-primary px-4 text-white shadow-[var(--shadow-button)] hover:bg-[var(--primary-dark)]"
             >
-              <Link href={drilldownHrefForSelection(selected.id, focusedWilayah)}>
-                {drilldownLabelForSelection(focusedWilayah)}
+              <Link
+                href={drilldownHrefForSelection(
+                  selected.id,
+                  focusedWilayah,
+                  selectedKab,
+                )}
+              >
+                {drilldownLabelForSelection(focusedWilayah, selectedKab)}
                 <UsersRound className="size-4" aria-hidden />
               </Link>
             </Button>
             <Link
-              href={`/wilayah/${selected.id}/tpk`}
+              href={
+                selectedKab
+                  ? `/wilayah/${selected.id}/tpk?kabupatenId=${encodeURIComponent(selectedKab.id)}`
+                  : `/wilayah/${selected.id}/tpk`
+              }
               className="text-[11px] font-bold text-primary hover:underline"
             >
               Atau langsung daftar TPK
             </Link>
+            {selectedKab ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl border-line"
+                onClick={clearKabupaten}
+              >
+                Kembali ke provinsi
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -754,10 +880,13 @@ export function MapSebaran() {
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
             {dataSource === "postgres"
-              ? "Angka di atas mengikuti agregat live tingkat provinsi."
-              : "Angka di atas mengikuti agregat simulasi tingkat provinsi."}{" "}
-            Telusuri berjenjang: provinsi → kabupaten/kota → kecamatan → daftar
-            TPK.
+              ? selectedKab
+                ? "Angka di atas mengikuti agregat live tingkat kabupaten/kota."
+                : "Angka di atas mengikuti agregat live tingkat provinsi."
+              : selectedKab
+                ? "Angka di atas mengikuti agregat simulasi tingkat kabupaten/kota."
+                : "Angka di atas mengikuti agregat simulasi tingkat provinsi."}{" "}
+            Telusuri berjenjang: provinsi → kabupaten/kota → daftar TPK.
           </p>
         </div>
       ) : null}
@@ -783,18 +912,25 @@ function SummaryStatSkeleton() {
   );
 }
 
-/** CTA hierarki: provinsi → kab list; kab → kec list; kec/desa → daftar TPK. */
+/** CTA hierarki: provinsi → kab list; kab → daftar TPK; kec/desa → daftar TPK. */
 function drilldownHrefForSelection(
   provinceId: string,
   focused: WilayahSearchItem | null,
+  kab: { id: string; nama: string } | null,
 ) {
+  if (kab) {
+    return `/wilayah/${provinceId}/tpk?kabupatenId=${encodeURIComponent(kab.id)}`;
+  }
   if (!focused || focused.level === "provinsi") {
     return `/wilayah/${provinceId}`;
   }
   if (focused.level === "kabupaten_kota") {
+    const apiId = getKabupatenApiId(focused.id);
+    if (apiId) {
+      return `/wilayah/${provinceId}/tpk?kabupatenId=${encodeURIComponent(apiId)}`;
+    }
     return `/wilayah/${provinceId}/kab/${focused.id}`;
   }
-  // Kecamatan Depok / lainnya → halaman kecamatan (daftar TPK)
   if (focused.level === "kecamatan" && focused.id.includes("-depok")) {
     return `/wilayah/${provinceId}/kab/kota-depok/kec/${focused.id}`;
   }
@@ -804,12 +940,18 @@ function drilldownHrefForSelection(
   return `/wilayah/${provinceId}`;
 }
 
-function drilldownLabelForSelection(focused: WilayahSearchItem | null) {
+function drilldownLabelForSelection(
+  focused: WilayahSearchItem | null,
+  kab: { id: string; nama: string } | null,
+) {
+  if (kab) {
+    return "Lihat daftar TPK di kab/kota";
+  }
   if (!focused || focused.level === "provinsi") {
     return "Lihat daftar kabupaten/kota";
   }
   if (focused.level === "kabupaten_kota") {
-    return "Lihat daftar kecamatan";
+    return "Lihat daftar TPK di kab/kota";
   }
   return "Lihat daftar TPK di kecamatan";
 }

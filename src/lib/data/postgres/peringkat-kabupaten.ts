@@ -1,0 +1,223 @@
+import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
+import { getPeringkatKabupatenMock } from "@/lib/data/mock/peringkat-kabupaten";
+import { PostgresDataError } from "@/lib/data/postgres/errors";
+import {
+  arePostgresPoolsConfigured,
+  getDwhPeriode,
+  queryPool,
+} from "@/lib/data/postgres/pools";
+import type {
+  PeringkatKabupatenItem,
+  PeringkatKabupatenPayload,
+} from "@/lib/data/types";
+import {
+  getDesaPerPkbRatio,
+  getKrsPerTpkRatio,
+  PKB_DESA_IDEAL_MAX,
+} from "@/lib/map-data";
+
+const MAX_ROWS = 80;
+
+type SigaKabRow = {
+  id_kabupaten: number;
+  tpk: number;
+  pkb: number;
+  desa: number;
+};
+
+type DwhKabRow = {
+  id_kabupaten: number;
+  krs: string | number;
+};
+
+type WilayahKabRow = {
+  id_kabupaten: number;
+  nama_kabupaten: string;
+};
+
+function toInt(value: string | number | null | undefined): number {
+  if (value == null) return 0;
+  const n =
+    typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function parseProvinsiIdParam(raw: string | null): number {
+  const trimmed = raw?.trim();
+  if (!trimmed) {
+    throw new PostgresDataError(
+      "missing_provinsi_id",
+      "Parameter provinsiId wajib (ProvinsiID / id_provinsi).",
+      { status: 400 },
+    );
+  }
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new PostgresDataError(
+      "invalid_provinsi_id",
+      `Parameter provinsiId tidak valid: "${trimmed}".`,
+      { status: 400 },
+    );
+  }
+  return n;
+}
+
+/** SIGA — TPK/PKB/desa per KabupatenID dalam satu ProvinsiID. */
+export const SQL_SIGA_PERINGKAT_KAB = `
+WITH tpk AS (
+  SELECT
+    t."KabupatenID" AS id_kabupaten,
+    COUNT(*)::int AS tpk
+  FROM "sigabaru"."dat_TPK" t
+  WHERE t."Status" = 1
+    AND t."ProvinsiID" = $1
+    AND t."KabupatenID" IS NOT NULL
+  GROUP BY t."KabupatenID"
+),
+pkb_aktif AS (
+  SELECT
+    p."KabupatenID" AS id_kabupaten,
+    TRIM(BOTH FROM p."PKBID") AS pkb_id
+  FROM "sigabaru"."dat_PKB" p
+  WHERE p."Status" = 1
+    AND p."ProvinsiID" = $1
+    AND p."KabupatenID" IS NOT NULL
+),
+pkb AS (
+  SELECT
+    id_kabupaten,
+    COUNT(*)::int AS pkb
+  FROM pkb_aktif
+  GROUP BY id_kabupaten
+),
+desa AS (
+  SELECT
+    pa.id_kabupaten,
+    COUNT(*)::int AS desa
+  FROM "sigabaru"."dat_KelurahanDesaBinaan" b
+  INNER JOIN pkb_aktif pa ON TRIM(BOTH FROM b."PKBID") = pa.pkb_id
+  WHERE b."Status" = 1
+  GROUP BY pa.id_kabupaten
+),
+ids AS (
+  SELECT id_kabupaten FROM tpk
+  UNION
+  SELECT id_kabupaten FROM pkb
+  UNION
+  SELECT id_kabupaten FROM desa
+)
+SELECT
+  i.id_kabupaten,
+  COALESCE(t.tpk, 0)::int AS tpk,
+  COALESCE(p.pkb, 0)::int AS pkb,
+  COALESCE(d.desa, 0)::int AS desa
+FROM ids i
+LEFT JOIN tpk t ON t.id_kabupaten = i.id_kabupaten
+LEFT JOIN pkb p ON p.id_kabupaten = i.id_kabupaten
+LEFT JOIN desa d ON d.id_kabupaten = i.id_kabupaten
+`;
+
+export const SQL_DWH_PERINGKAT_KAB = `
+SELECT
+  r."id_kabupaten" AS id_kabupaten,
+  COALESCE(SUM(r."total_prioritas"), 0) AS krs
+FROM "dwh_pk2025"."fs_stunting_by_rekap_rdk_pk25_semester1" r
+WHERE r."periode" = $2
+  AND r."id_provinsi" = $1
+GROUP BY r."id_kabupaten"
+`;
+
+export const SQL_WILAYAH_NAMA_KAB = `
+SELECT
+  k."id_kabupaten",
+  k."nama_kabupaten"
+FROM "pk2025"."v_kabupaten" k
+WHERE k."id_kabupaten" = ANY($1::int[])
+`;
+
+export async function getPeringkatKabupatenPostgres(
+  provinsiIdRaw: string,
+): Promise<PeringkatKabupatenPayload> {
+  if (!arePostgresPoolsConfigured()) {
+    return getPeringkatKabupatenMock(provinsiIdRaw);
+  }
+
+  const provinsiId = parseProvinsiIdParam(provinsiIdRaw);
+  const periode = getDwhPeriode();
+
+  const [siga, dwh] = await Promise.all([
+    queryPool<SigaKabRow>("siga", SQL_SIGA_PERINGKAT_KAB, [provinsiId]),
+    queryPool<DwhKabRow>("dwh", SQL_DWH_PERINGKAT_KAB, [provinsiId, periode]),
+  ]);
+
+  const sigaById = new Map<
+    number,
+    { tpk: number; pkb: number; desa: number }
+  >();
+  for (const row of siga.rows) {
+    sigaById.set(toInt(row.id_kabupaten), {
+      tpk: toInt(row.tpk),
+      pkb: toInt(row.pkb),
+      desa: toInt(row.desa),
+    });
+  }
+
+  const krsById = new Map<number, number>();
+  for (const row of dwh.rows) {
+    krsById.set(toInt(row.id_kabupaten), toInt(row.krs));
+  }
+
+  const ids = Array.from(
+    new Set([...sigaById.keys(), ...krsById.keys()]),
+  ).filter((id) => id > 0);
+
+  const namaById = new Map<number, string>();
+  if (ids.length > 0) {
+    const wilayah = await queryPool<WilayahKabRow>(
+      "wilayah",
+      SQL_WILAYAH_NAMA_KAB,
+      [ids],
+    );
+    for (const row of wilayah.rows) {
+      namaById.set(
+        toInt(row.id_kabupaten),
+        row.nama_kabupaten?.trim() || `Kabupaten ${row.id_kabupaten}`,
+      );
+    }
+  }
+
+  const items: PeringkatKabupatenItem[] = ids
+    .map((id) => {
+      const sigaRow = sigaById.get(id);
+      const tpk = sigaRow?.tpk ?? 0;
+      const pkb = sigaRow?.pkb ?? 0;
+      const desa = sigaRow?.desa ?? 0;
+      const krs = krsById.get(id) ?? 0;
+      const rasioPkbDesa = getDesaPerPkbRatio(pkb, desa);
+      return {
+        id: String(id),
+        nama: namaById.get(id) ?? `Kabupaten ${id}`,
+        tpk,
+        pkb,
+        desa,
+        krs,
+        rasio: getKrsPerTpkRatio(tpk, krs),
+        rasioPkbDesa,
+        warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+      };
+    })
+    .sort(
+      (a, b) => b.tpk - a.tpk || a.nama.localeCompare(b.nama, "id"),
+    )
+    .slice(0, MAX_ROWS);
+
+  return {
+    provinsiId: String(provinsiId),
+    items,
+    meta: {
+      cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
+      source: "postgres",
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}

@@ -40,6 +40,11 @@ type DwhRow = {
   air_tl: string | number;
 };
 
+export type WilayahFilter = {
+  provinsiId: number | null;
+  kabupatenId: number | null;
+};
+
 function toInt(value: string | number | null | undefined): number {
   if (value == null) return 0;
   const n =
@@ -47,25 +52,15 @@ function toInt(value: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * Parse id provinsi untuk filter.
- * Nasional → null. Provinsi membutuhkan id numerik (ProvinsiID / id_provinsi).
- */
-export function resolveProvinsiFilter(query: RingkasanQuery): number | null {
-  if (query.tingkat !== "provinsi") return null;
-  const raw = query.id?.trim();
-  if (!raw) {
-    throw new PostgresDataError(
-      "missing_provinsi_id",
-      "Parameter id wajib untuk tingkat=provinsi (ProvinsiID / id_provinsi).",
-      { status: 400 },
-    );
-  }
+function parsePositiveInt(
+  raw: string,
+  field: string,
+): number {
   const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) {
+  if (!Number.isFinite(n) || n <= 0) {
     throw new PostgresDataError(
-      "invalid_provinsi_id",
-      `Parameter id tidak valid: "${raw}". Harus angka ProvinsiID / id_provinsi.`,
+      `invalid_${field}`,
+      `Parameter id tidak valid: "${raw}". Harus angka ${field}.`,
       { status: 400 },
     );
   }
@@ -73,8 +68,53 @@ export function resolveProvinsiFilter(query: RingkasanQuery): number | null {
 }
 
 /**
+ * Resolve filter wilayah untuk ringkasan.
+ * - nasional → keduanya null
+ * - provinsi → ProvinsiID / id_provinsi
+ * - kabupaten → KabupatenID / id_kabupaten
+ */
+export function resolveWilayahFilter(query: RingkasanQuery): WilayahFilter {
+  if (query.tingkat === "nasional") {
+    return { provinsiId: null, kabupatenId: null };
+  }
+
+  const raw = query.id?.trim();
+  if (!raw) {
+    const field =
+      query.tingkat === "kabupaten"
+        ? "KabupatenID / id_kabupaten"
+        : "ProvinsiID / id_provinsi";
+    throw new PostgresDataError(
+      query.tingkat === "kabupaten"
+        ? "missing_kabupaten_id"
+        : "missing_provinsi_id",
+      `Parameter id wajib untuk tingkat=${query.tingkat} (${field}).`,
+      { status: 400 },
+    );
+  }
+
+  if (query.tingkat === "kabupaten") {
+    return {
+      provinsiId: null,
+      kabupatenId: parsePositiveInt(raw, "KabupatenID / id_kabupaten"),
+    };
+  }
+
+  return {
+    provinsiId: parsePositiveInt(raw, "ProvinsiID / id_provinsi"),
+    kabupatenId: null,
+  };
+}
+
+/** @deprecated gunakan resolveWilayahFilter — tetap diekspor untuk kompatibilitas. */
+export function resolveProvinsiFilter(query: RingkasanQuery): number | null {
+  return resolveWilayahFilter(query).provinsiId;
+}
+
+/**
  * SIGA — agregat TPK / anggota / PKB / desa binaan + komposisi StatusTPK.
  * Filter: Status=1; TRIM PKBID; tanpa by_name.
+ * $1 = ProvinsiID (nullable), $2 = KabupatenID (nullable).
  */
 export const SQL_SIGA_RINGKASAN = `
 WITH tpk_aktif AS (
@@ -82,6 +122,7 @@ WITH tpk_aktif AS (
   FROM "sigabaru"."dat_TPK" t
   WHERE t."Status" = 1
     AND ($1::int IS NULL OR t."ProvinsiID" = $1)
+    AND ($2::int IS NULL OR t."KabupatenID" = $2)
 ),
 anggota AS (
   SELECT
@@ -100,6 +141,7 @@ pkb_aktif AS (
   FROM "sigabaru"."dat_PKB" p
   WHERE p."Status" = 1
     AND ($1::int IS NULL OR p."ProvinsiID" = $1)
+    AND ($2::int IS NULL OR p."KabupatenID" = $2)
 ),
 binaan AS (
   SELECT COUNT(*)::int AS jumlah_desa
@@ -123,6 +165,7 @@ CROSS JOIN binaan b
 /**
  * DWH — SUM grain RT dari by_rekap (jangan SUM jml_klg_*_prov).
  * RTLH tidak ada di DWH → null di payload.
+ * $1 = id_provinsi, $2 = id_kabupaten, $3 = periode.
  */
 export const SQL_DWH_RINGKASAN = `
 SELECT
@@ -140,8 +183,9 @@ SELECT
   COALESCE(SUM(r."jamban_layak_tidak"), 0) AS jamban_tl,
   COALESCE(SUM(r."sumber_air_layak_tidak"), 0) AS air_tl
 FROM "dwh_pk2025"."fs_stunting_by_rekap_rdk_pk25_semester1" r
-WHERE r."periode" = $2
+WHERE r."periode" = $3
   AND ($1::int IS NULL OR r."id_provinsi" = $1)
+  AND ($2::int IS NULL OR r."id_kabupaten" = $2)
 `;
 
 export async function getRingkasanPostgres(
@@ -152,12 +196,19 @@ export async function getRingkasanPostgres(
     return getRingkasanMock(query);
   }
 
-  const provinsiId = resolveProvinsiFilter(query);
+  const filter = resolveWilayahFilter(query);
   const periode = getDwhPeriode();
 
   const [siga, dwh] = await Promise.all([
-    queryPool<SigaRow>("siga", SQL_SIGA_RINGKASAN, [provinsiId]),
-    queryPool<DwhRow>("dwh", SQL_DWH_RINGKASAN, [provinsiId, periode]),
+    queryPool<SigaRow>("siga", SQL_SIGA_RINGKASAN, [
+      filter.provinsiId,
+      filter.kabupatenId,
+    ]),
+    queryPool<DwhRow>("dwh", SQL_DWH_RINGKASAN, [
+      filter.provinsiId,
+      filter.kabupatenId,
+      periode,
+    ]),
   ]);
 
   const s = siga.rows[0] ?? {
@@ -181,18 +232,24 @@ export async function getRingkasanPostgres(
   const bidan = toInt(s.bidan);
   const pkk = toInt(s.pkk);
   const kaderKb = toInt(s.kader_kb);
-  // FILTER NOT IN (1,2,3) incl. NULL ≡ jumlah_anggota − bidan − pkk − kader_kb.
   const lainnya = toInt(s.lainnya);
 
   const rasioTPK_KRS = getKrsPerTpkRatio(jumlahTPK, jumlahKRS);
   const rasioPKB_desa = getDesaPerPkbRatio(jumlahPKB, jumlahDesa);
 
+  let tingkat: RingkasanPayload["tingkat"] = "nasional";
+  let id: string | null = null;
+  if (query.tingkat === "kabupaten" && filter.kabupatenId != null) {
+    tingkat = "kabupaten";
+    id = String(filter.kabupatenId);
+  } else if (query.tingkat === "provinsi" && filter.provinsiId != null) {
+    tingkat = "provinsi";
+    id = String(filter.provinsiId);
+  }
+
   return {
-    tingkat: query.tingkat === "provinsi" ? "provinsi" : "nasional",
-    id:
-      query.tingkat === "provinsi" && provinsiId != null
-        ? String(provinsiId)
-        : null,
+    tingkat,
+    id,
     jumlahTPK,
     jumlahAnggota,
     jumlahPKB,
@@ -215,7 +272,6 @@ export async function getRingkasanPostgres(
       balita: toInt(d?.balita),
       jambanTL: toInt(d?.jamban_tl),
       airTL: toInt(d?.air_tl),
-      // RTLH belum ada di DWH.
       rtlh: null,
     },
     komposisiTPK: {
