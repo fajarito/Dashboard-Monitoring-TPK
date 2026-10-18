@@ -37,7 +37,8 @@ DATA_SOURCE=mock
 # DATABASE_URL_DWH=postgres://...
 ```
 
-Jika `DATA_SOURCE=postgres` tetapi URL pool kosong / query live belum siap, API **fallback ke mock** agar home tetap hidup.
+Jika `DATA_SOURCE=postgres` tetapi **salah satu URL pool kosong**, API **fallback ke mock** (agar lokal tanpa DB tetap hidup).  
+Jika ketiga URL terisi tetapi query gagal → **HTTP 503** JSON jelas (`meta.source=postgres-error`), **bukan** mock diam-diam.
 
 **Jangan commit URL database / password.** Simpan hanya di Secret OpenShift atau `.env.local` (sudah di `.gitignore`).
 
@@ -118,5 +119,6 @@ pnpm dev
 
 ## Catatan
 
-- Adapter Postgres masih **stub** (struktur pool siap; SQL MV belum).
+- Adapter Postgres **live** untuk `/api/ringkasan` dan `/api/peringkat/provinsi` (agregat SIGA + DWH rekap; nama via `pk2025.v_provinsi`). Tidak scan `by_name`.
+- RTLH di DWH belum ada → `indikator.rtlh = null` pada sumber postgres.
 - GeoJSON batas provinsi di `public/data/`.

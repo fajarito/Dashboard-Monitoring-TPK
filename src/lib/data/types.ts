@@ -1,6 +1,7 @@
 /** Kontrak respons API ringkasan & peringkat (fase 1). */
 
-export type DataSource = "mock" | "postgres";
+/** Sumber efektif payload, atau postgres-error pada respons 503. */
+export type DataSource = "mock" | "postgres" | "postgres-error";
 
 export type RingkasanTingkat = "nasional" | "provinsi";
 

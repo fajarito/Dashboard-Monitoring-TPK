@@ -72,12 +72,13 @@ export async function fetchRingkasan(
 
   let payload: RingkasanPayload;
   if (source === "postgres") {
-    // Jika env pool kosong, postgres stub sudah fallback mock.
+    // URL kosong → mock; URL ada tapi query gagal → throw (jangan cache error).
     payload = await getRingkasanPostgres(query);
   } else {
     payload = getRingkasanMock(query);
   }
 
+  // Cache hanya payload sukses (mock atau postgres).
   return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
 }
 
