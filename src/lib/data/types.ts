@@ -76,9 +76,17 @@ export type PeringkatProvinsiItem = {
   id: string;
   nama: string;
   tpk: number;
+  /** COUNT dat_PKB Status=1 per ProvinsiID. */
+  pkb: number;
+  /** COUNT desa binaan aktif join PKB aktif, group by PKB.ProvinsiID. */
+  desa: number;
   krs: number;
-  /** KRS ÷ TPK. */
+  /** KRS ÷ TPK (sama getKrsPerTpkRatio). */
   rasio: number;
+  /** desa ÷ PKB (sama getDesaPerPkbRatio). */
+  rasioPkbDesa: number;
+  /** true jika rasioPkbDesa > 2. */
+  warningBeban: boolean;
 };
 
 export type PeringkatProvinsiPayload = {

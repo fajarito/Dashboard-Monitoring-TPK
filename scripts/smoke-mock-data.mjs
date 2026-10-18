@@ -27,5 +27,29 @@ async function check(path, expectSource) {
 }
 
 await check("/api/ringkasan?tingkat=nasional", "mock");
-await check("/api/peringkat/provinsi", "mock");
+
+{
+  const path = "/api/peringkat/provinsi";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json)}`);
+  }
+  if (json?.meta?.source !== "mock") {
+    throw new Error(`${path} meta.source=${json?.meta?.source}, expected mock`);
+  }
+  const item = json?.items?.[0];
+  for (const key of ["id", "nama", "tpk", "pkb", "desa", "krs", "rasio", "rasioPkbDesa", "warningBeban"]) {
+    if (item == null || item[key] === undefined) {
+      throw new Error(`${path} items[0] missing ${key}`);
+    }
+  }
+  if (typeof item.pkb !== "number" || typeof item.desa !== "number") {
+    throw new Error(`${path} pkb/desa must be numbers`);
+  }
+  console.log(
+    `OK ${path} source=mock n=${json.items.length} sample id=${item.id} pkb=${item.pkb} desa=${item.desa} rasioPkbDesa=${item.rasioPkbDesa}`,
+  );
+}
+
 console.log("smoke mock OK");

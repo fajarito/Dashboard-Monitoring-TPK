@@ -12,7 +12,9 @@ export const revalidate = 0;
 
 /**
  * GET /api/peringkat/provinsi
- * List ringan untuk tabel ranking (id, nama, tpk, krs, rasio) — max 40 baris.
+ * List ringan untuk tabel ranking — max 40 baris.
+ * Field: id (id_provinsi), nama, tpk, pkb, desa, krs, rasio (KRS/TPK),
+ * rasioPkbDesa, warningBeban.
  * Jika DATA_SOURCE=postgres dan pool terisi tetapi query gagal → 503 JSON jelas.
  */
 export async function GET() {
