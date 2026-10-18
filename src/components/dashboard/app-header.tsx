@@ -13,9 +13,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { resolveSourceBadge } from "@/lib/data-source-badge";
+import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
+import { cn } from "@/lib/utils";
 
 export function AppHeader() {
   const [open, setOpen] = useState(false);
+  const homeAgregat = useHomeAgregat();
+  const dataSource =
+    homeAgregat.ringkasan?.meta.source ??
+    homeAgregat.peringkat?.meta.source ??
+    null;
+  const sourceBadge = resolveSourceBadge(dataSource);
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur-xl">
@@ -56,9 +65,16 @@ export function AppHeader() {
         <WilayahSearch className="hidden min-w-0 max-w-xs flex-1 md:block 2xl:max-w-sm" />
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="hidden rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-extrabold tracking-wider text-amber-700 md:inline">
-            DATA SIMULASI
-          </span>
+          {sourceBadge ? (
+            <span
+              className={cn(
+                "hidden rounded-full px-3 py-1.5 text-[10px] font-extrabold tracking-wider md:inline",
+                sourceBadge.className,
+              )}
+            >
+              {sourceBadge.labelUpper}
+            </span>
+          ) : null}
           <Button
             type="button"
             variant="outline"

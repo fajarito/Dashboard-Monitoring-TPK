@@ -434,6 +434,7 @@ export function MapSebaran() {
           <SasaranIndikatorPanel
             scopeLabel={sasaranScope.scopeLabel}
             counts={sasaranScope.counts}
+            dataSource={selected ? "mock" : dataSource}
           />
         ) : null}
 

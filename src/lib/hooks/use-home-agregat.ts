@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import type {
   PeringkatProvinsiPayload,
@@ -14,6 +14,32 @@ export type HomeAgregatState = {
   error: string | null;
   refetch: () => void;
 };
+
+type Snapshot = {
+  status: "loading" | "ready" | "error";
+  ringkasan: RingkasanPayload | null;
+  peringkat: PeringkatProvinsiPayload | null;
+  error: string | null;
+};
+
+const listeners = new Set<() => void>();
+
+let snapshot: Snapshot = {
+  status: "loading",
+  ringkasan: null,
+  peringkat: null,
+  error: null,
+};
+let generation = 0;
+let started = false;
+
+function emit() {
+  for (const listener of listeners) listener();
+}
+
+function getSnapshot() {
+  return snapshot;
+}
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
@@ -34,53 +60,74 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function load(gen: number) {
+  snapshot = {
+    status: "loading",
+    ringkasan: null,
+    peringkat: null,
+    error: null,
+  };
+  emit();
+
+  try {
+    const [ringkasanRes, peringkatRes] = await Promise.all([
+      fetchJson<RingkasanPayload>("/api/ringkasan?tingkat=nasional"),
+      fetchJson<PeringkatProvinsiPayload>("/api/peringkat/provinsi"),
+    ]);
+    if (gen !== generation) return;
+    snapshot = {
+      status: "ready",
+      ringkasan: ringkasanRes,
+      peringkat: peringkatRes,
+      error: null,
+    };
+    emit();
+  } catch (err) {
+    if (gen !== generation) return;
+    snapshot = {
+      status: "error",
+      ringkasan: null,
+      peringkat: null,
+      error: err instanceof Error ? err.message : "Gagal memuat agregat",
+    };
+    emit();
+  }
+}
+
+function ensureStarted() {
+  if (started) return;
+  started = true;
+  generation = 1;
+  void load(1);
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  ensureStarted();
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 /**
  * Ambil agregat home: max 2 request paralel (ringkasan + peringkat).
+ * State di-share antar konsumen (header + MapSebaran) agar tidak double-fetch.
  * Tidak memuat by_name / daftar keluarga.
  */
 export function useHomeAgregat(): HomeAgregatState {
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading",
-  );
-  const [ringkasan, setRingkasan] = useState<RingkasanPayload | null>(null);
-  const [peringkat, setPeringkat] = useState<PeringkatProvinsiPayload | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const refetch = useCallback(() => {
-    setTick((value) => value + 1);
+    started = true;
+    generation += 1;
+    void load(generation);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    setError(null);
-
-    (async () => {
-      try {
-        const [ringkasanRes, peringkatRes] = await Promise.all([
-          fetchJson<RingkasanPayload>("/api/ringkasan?tingkat=nasional"),
-          fetchJson<PeringkatProvinsiPayload>("/api/peringkat/provinsi"),
-        ]);
-        if (cancelled) return;
-        setRingkasan(ringkasanRes);
-        setPeringkat(peringkatRes);
-        setStatus("ready");
-      } catch (err) {
-        if (cancelled) return;
-        setRingkasan(null);
-        setPeringkat(null);
-        setError(err instanceof Error ? err.message : "Gagal memuat agregat");
-        setStatus("error");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [tick]);
-
-  return { status, ringkasan, peringkat, error, refetch };
+  return {
+    status: current.status,
+    ringkasan: current.ringkasan,
+    peringkat: current.peringkat,
+    error: current.error,
+    refetch,
+  };
 }
