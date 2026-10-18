@@ -14,17 +14,52 @@ import {
 } from "@/lib/map-data";
 import { cn } from "@/lib/utils";
 
-export function RasioInsightPanels() {
-  const krsPerTpk = useMemo(
-    () => getKrsPerTpkRatio(nationalTotals.tpk, nationalTotals.krs),
-    [],
-  );
-  const desaPerPkb = useMemo(
-    () => getDesaPerPkbRatio(nationalTotals.pkb, nationalDesaKelurahan),
-    [],
-  );
-  const krsPerTpkRounded = Math.round(krsPerTpk);
-  const pkbBebanBerat = desaPerPkb > PKB_DESA_IDEAL_MAX;
+export type RasioInsightValues = {
+  jumlahTPK: number;
+  jumlahKRS: number;
+  jumlahPKB: number;
+  rasioTPK_KRS: number;
+  rasioPKB_desa: number;
+  warningBeban: boolean;
+  /** Jumlah desa untuk footnote; opsional. */
+  jumlahDesa?: number;
+  sourceLabel?: string;
+};
+
+export function RasioInsightPanels({
+  values,
+}: {
+  /** Jika kosong, pakai agregat mock lokal (fallback UI). */
+  values?: RasioInsightValues | null;
+}) {
+  const resolved = useMemo(() => {
+    if (values) return values;
+    const rasioTPK_KRS = getKrsPerTpkRatio(
+      nationalTotals.tpk,
+      nationalTotals.krs,
+    );
+    const rasioPKB_desa = getDesaPerPkbRatio(
+      nationalTotals.pkb,
+      nationalDesaKelurahan,
+    );
+    return {
+      jumlahTPK: nationalTotals.tpk,
+      jumlahKRS: nationalTotals.krs,
+      jumlahPKB: nationalTotals.pkb,
+      rasioTPK_KRS,
+      rasioPKB_desa,
+      warningBeban: rasioPKB_desa > PKB_DESA_IDEAL_MAX,
+      jumlahDesa: nationalDesaKelurahan,
+      sourceLabel: "simulasi",
+    } satisfies RasioInsightValues;
+  }, [values]);
+
+  const krsPerTpkRounded = Math.round(resolved.rasioTPK_KRS);
+  const pkbBebanBerat = resolved.warningBeban;
+  const desaLabel = resolved.jumlahDesa
+    ? formatNumber(resolved.jumlahDesa)
+    : null;
+  const source = resolved.sourceLabel ?? "agregat";
 
   return (
     <div className="grid gap-2.5 lg:grid-cols-2">
@@ -36,7 +71,7 @@ export function RasioInsightPanels() {
         leftLabel="1 TPK"
         heroValue={formatNumber(krsPerTpkRounded)}
         heroUnit="KRS"
-        footnote={`Dari ${formatNumber(nationalTotals.tpk)} TPK · ${formatNumber(nationalTotals.krs)} KRS · simulasi`}
+        footnote={`Dari ${formatNumber(resolved.jumlahTPK)} TPK · ${formatNumber(resolved.jumlahKRS)} KRS · ${source}`}
       />
 
       <RatioPanelShell
@@ -45,10 +80,14 @@ export function RasioInsightPanels() {
         eyebrow="Rasio PKB : Desa/Kelurahan"
         description="Rata-rata desa/kelurahan yang dibina satu PKB"
         leftLabel="1 PKB"
-        heroValue={formatRatioValue(desaPerPkb, 1)}
+        heroValue={formatRatioValue(resolved.rasioPKB_desa, 1)}
         heroUnit="desa"
         heroTone={pkbBebanBerat ? "warm" : "calm"}
-        footnote={`Dari ${formatNumber(nationalTotals.pkb)} PKB · ${formatNumber(nationalDesaKelurahan)} desa · simulasi`}
+        footnote={
+          desaLabel
+            ? `Dari ${formatNumber(resolved.jumlahPKB)} PKB · ${desaLabel} desa · ${source}`
+            : `Dari ${formatNumber(resolved.jumlahPKB)} PKB · ${source}`
+        }
         status={
           pkbBebanBerat ? (
             <StatusChip

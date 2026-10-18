@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   buildConicGradient,
@@ -9,32 +9,64 @@ import {
   getKomposisiPercent,
   komposisiPilar,
   komposisiTotalAnggota,
-  komposisiTotalLabel,
+  type KomposisiPillar,
 } from "@/lib/komposisi-data";
 import { formatNumber } from "@/lib/map-data";
 import { cn } from "@/lib/utils";
+
+export type KomposisiTpkCounts = {
+  bidan: number;
+  pkk: number;
+  kaderKb: number;
+};
 
 type KomposisiTpkCardProps = {
   /** `full` untuk halaman Komposisi; `compact` di bawah peta. */
   variant?: "full" | "compact";
   className?: string;
   showDetailLink?: boolean;
+  /** Override dari API ringkasan; fallback ke data simulasi lokal. */
+  counts?: KomposisiTpkCounts | null;
 };
+
+function pillarsFromCounts(counts: KomposisiTpkCounts): KomposisiPillar[] {
+  const byId: Record<KomposisiPillar["id"], number> = {
+    nakes: counts.bidan,
+    pkk: counts.pkk,
+    kb: counts.kaderKb,
+  };
+  return komposisiPilar.map((item) => ({
+    ...item,
+    value: byId[item.id],
+  }));
+}
 
 export function KomposisiTpkCard({
   variant = "full",
   className,
   showDetailLink = false,
+  counts = null,
 }: KomposisiTpkCardProps) {
   const [revealed, setRevealed] = useState(false);
 
+  const pillars = useMemo(
+    () => (counts ? pillarsFromCounts(counts) : komposisiPilar),
+    [counts],
+  );
+  const totalAnggota = useMemo(
+    () => pillars.reduce((sum, item) => sum + item.value, 0),
+    [pillars],
+  );
+  const totalLabel = formatNumber(totalAnggota);
+
   useEffect(() => {
+    setRevealed(false);
     const frame = requestAnimationFrame(() => setRevealed(true));
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [totalAnggota]);
 
   const compact = variant === "compact";
-  const gradient = buildConicGradient();
+  const gradient = buildConicGradient(pillars, totalAnggota);
 
   return (
     <section
@@ -105,10 +137,10 @@ export function KomposisiTpkCard({
           )}
           style={{ background: gradient }}
           role="img"
-          aria-label={`Donut komposisi TPK: ${komposisiPilar
+          aria-label={`Donut komposisi TPK: ${pillars
             .map(
               (item) =>
-                `${item.label} ${formatKomposisiPercent(item.value)}`,
+                `${item.label} ${formatKomposisiPercent(item.value, totalAnggota)}`,
             )
             .join(", ")}`}
         >
@@ -125,7 +157,7 @@ export function KomposisiTpkCard({
                   compact ? "text-base" : "text-2xl sm:text-[1.65rem]",
                 )}
               >
-                {komposisiTotalLabel}
+                {totalLabel}
               </div>
               <div
                 className={cn(
@@ -146,8 +178,8 @@ export function KomposisiTpkCard({
           )}
           role="list"
         >
-          {komposisiPilar.map((item, index) => {
-            const percent = getKomposisiPercent(item.value);
+          {pillars.map((item, index) => {
+            const percent = getKomposisiPercent(item.value, totalAnggota);
             return (
               <li key={item.id}>
                 <div className="flex items-baseline justify-between gap-2">
@@ -183,7 +215,7 @@ export function KomposisiTpkCard({
                         compact ? "text-[12px]" : "text-sm",
                       )}
                     >
-                      {formatKomposisiPercent(item.value)}
+                      {formatKomposisiPercent(item.value, totalAnggota)}
                     </div>
                     <div
                       className={cn(
@@ -222,8 +254,8 @@ export function KomposisiTpkCard({
         <p className="relative mt-5 rounded-xl bg-blue-50/80 px-3.5 py-3 text-[11px] leading-relaxed text-blue-900/80">
           <span className="font-bold text-primary">Catatan:</span> angka
           dijumlahkan dari anggota unik tiap TPK (total{" "}
-          {formatNumber(komposisiTotalAnggota)} orang). Proporsi tiga pilar
-          bersifat simulasi untuk demo visual.
+          {formatNumber(counts ? totalAnggota : komposisiTotalAnggota)} orang).
+          Proporsi tiga pilar bersifat simulasi untuk demo visual.
         </p>
       ) : null}
     </section>
