@@ -117,6 +117,7 @@ const PRIORITAS_COLORS: Record<string, string> = {
   p3: "#3b82f6",
   p4: "#93c5fd",
   bukan: "#94a3b8",
+  tidakRisiko: "#86efac",
 };
 
 function slicesFromRingkasanPrioritas(
@@ -126,6 +127,7 @@ function slicesFromRingkasanPrioritas(
     prioritas3: number;
     prioritas4: number;
     bukan: number;
+    tidakRisiko: number;
   },
   total: number,
 ): PrioritasSlice[] {
@@ -135,7 +137,12 @@ function slicesFromRingkasanPrioritas(
       { id: "p2", label: "Prioritas 2", value: prioritas.prioritas2 },
       { id: "p3", label: "Prioritas 3", value: prioritas.prioritas3 },
       { id: "p4", label: "Prioritas 4", value: prioritas.prioritas4 },
-      { id: "bukan", label: "Bukan Prioritas", value: prioritas.bukan },
+      { id: "bukan", label: "Bukan prioritas", value: prioritas.bukan },
+      {
+        id: "tidakRisiko",
+        label: "Tidak berisiko",
+        value: prioritas.tidakRisiko,
+      },
     ];
   return entries.map((entry) => ({
     ...entry,
@@ -545,6 +552,9 @@ export function MapSebaran() {
             variant="compact"
             showDetailLink
             counts={homeAgregat.ringkasan?.komposisiTPK ?? null}
+            totalAnggotaOverride={
+              homeAgregat.ringkasan?.jumlahAnggota ?? null
+            }
           />
           <KomposisiPrioritasCard
             scopeLabel={prioritas.scopeLabel}

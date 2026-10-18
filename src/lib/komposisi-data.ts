@@ -1,8 +1,8 @@
 import { formatNumber, nationalTotals } from "@/lib/map-data";
 
-/** Tiga pilar anggota TPK (simulasi nasional, selaras total anggota). */
+/** Pilar / kategori anggota TPK (simulasi nasional, selaras total anggota). */
 export type KomposisiPillar = {
-  id: "nakes" | "pkk" | "kb";
+  id: "nakes" | "pkk" | "kb" | "lainnya";
   label: string;
   shortLabel: string;
   description: string;
@@ -14,20 +14,23 @@ export type KomposisiPillar = {
 const totalAnggota = nationalTotals.anggota;
 
 /**
- * Proporsi simulasi mendekati ideal TPK (≈ sepertiga tiap pilar),
- * dengan sedikit variasi agar terbaca realistis. Jumlah = total anggota.
+ * Proporsi simulasi: tiga peran utama + sisa “Lainnya”
+ * (~6% mendekati selisih live StatusTPK di luar 1/2/3).
+ * Jumlah = total anggota.
  */
 const shares = {
-  nakes: 0.345,
-  pkk: 0.338,
-  kb: 0.317,
+  nakes: 0.325,
+  pkk: 0.318,
+  kb: 0.297,
+  lainnya: 0.06,
 } as const;
 
 function splitTotal(total: number) {
   const nakes = Math.round(total * shares.nakes);
   const pkk = Math.round(total * shares.pkk);
-  const kb = total - nakes - pkk;
-  return { nakes, pkk, kb };
+  const kb = Math.round(total * shares.kb);
+  const lainnya = Math.max(0, total - nakes - pkk - kb);
+  return { nakes, pkk, kb, lainnya };
 }
 
 const counts = splitTotal(totalAnggota);
@@ -59,6 +62,16 @@ export const komposisiPilar: KomposisiPillar[] = [
     value: counts.kb,
     color: "#7c8cf8",
     trackClass: "bg-[#7c8cf8]",
+  },
+  {
+    id: "lainnya",
+    label: "Lainnya",
+    shortLabel: "Lainnya",
+    description:
+      "Anggota TPK dengan StatusTPK di luar Bidan/PKK/Kader KB (termasuk kosong).",
+    value: counts.lainnya,
+    color: "#94a3b8",
+    trackClass: "bg-[#94a3b8]",
   },
 ];
 

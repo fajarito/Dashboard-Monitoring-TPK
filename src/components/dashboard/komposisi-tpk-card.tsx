@@ -18,6 +18,8 @@ export type KomposisiTpkCounts = {
   bidan: number;
   pkk: number;
   kaderKb: number;
+  /** StatusTPK di luar 1/2/3 (termasuk NULL). Opsional untuk payload lama. */
+  lainnya?: number;
 };
 
 type KomposisiTpkCardProps = {
@@ -27,13 +29,28 @@ type KomposisiTpkCardProps = {
   showDetailLink?: boolean;
   /** Override dari API ringkasan; fallback ke data simulasi lokal. */
   counts?: KomposisiTpkCounts | null;
+  /**
+   * Total anggota (kartu atas jumlahAnggota). Jika diisi, donut memakai ini
+   * sebagai denominator — Lainnya = total − bidan − pkk − kaderKb bila perlu.
+   */
+  totalAnggotaOverride?: number | null;
 };
 
-function pillarsFromCounts(counts: KomposisiTpkCounts): KomposisiPillar[] {
+function pillarsFromCounts(
+  counts: KomposisiTpkCounts,
+  totalOverride?: number | null,
+): KomposisiPillar[] {
+  const known = counts.bidan + counts.pkk + counts.kaderKb;
+  const total =
+    totalOverride != null && totalOverride > 0
+      ? totalOverride
+      : known + (counts.lainnya ?? 0);
+  const lainnya = Math.max(0, counts.lainnya ?? total - known);
   const byId: Record<KomposisiPillar["id"], number> = {
     nakes: counts.bidan,
     pkk: counts.pkk,
     kb: counts.kaderKb,
+    lainnya,
   };
   return komposisiPilar.map((item) => ({
     ...item,
@@ -46,17 +63,23 @@ export function KomposisiTpkCard({
   className,
   showDetailLink = false,
   counts = null,
+  totalAnggotaOverride = null,
 }: KomposisiTpkCardProps) {
   const [revealed, setRevealed] = useState(false);
 
   const pillars = useMemo(
-    () => (counts ? pillarsFromCounts(counts) : komposisiPilar),
-    [counts],
+    () =>
+      counts
+        ? pillarsFromCounts(counts, totalAnggotaOverride)
+        : komposisiPilar,
+    [counts, totalAnggotaOverride],
   );
-  const totalAnggota = useMemo(
-    () => pillars.reduce((sum, item) => sum + item.value, 0),
-    [pillars],
-  );
+  const totalAnggota = useMemo(() => {
+    if (totalAnggotaOverride != null && totalAnggotaOverride > 0) {
+      return totalAnggotaOverride;
+    }
+    return pillars.reduce((sum, item) => sum + item.value, 0);
+  }, [pillars, totalAnggotaOverride]);
   const totalLabel = formatNumber(totalAnggota);
 
   useEffect(() => {
@@ -85,7 +108,7 @@ export function KomposisiTpkCard({
 
       <div className="relative flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="eyebrow">Tiga pilar TPK</div>
+          <div className="eyebrow">Komposisi anggota</div>
           <h2
             id="komposisi-tpk-title"
             className={cn(
@@ -98,7 +121,7 @@ export function KomposisiTpkCard({
           {!compact ? (
             <p className="mt-1 max-w-md text-xs text-muted-foreground">
               Porsi anggota nasional menurut peran: tenaga kesehatan, kader PKK,
-              dan kader KB/PPKBD.
+              kader KB/PPKBD, dan lainnya.
             </p>
           ) : null}
         </div>
@@ -252,10 +275,10 @@ export function KomposisiTpkCard({
 
       {!compact ? (
         <p className="relative mt-5 rounded-xl bg-blue-50/80 px-3.5 py-3 text-[11px] leading-relaxed text-blue-900/80">
-          <span className="font-bold text-primary">Catatan:</span> angka
-          dijumlahkan dari anggota unik tiap TPK (total{" "}
+          <span className="font-bold text-primary">Catatan:</span> total chart
+          = jumlah anggota TPK aktif (Status=1), termasuk slice Lainnya untuk
+          StatusTPK di luar 1/2/3 (total{" "}
           {formatNumber(counts ? totalAnggota : komposisiTotalAnggota)} orang).
-          Proporsi tiga pilar bersifat simulasi untuk demo visual.
         </p>
       ) : null}
     </section>

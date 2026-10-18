@@ -21,6 +21,7 @@ type SigaRow = {
   bidan: number;
   pkk: number;
   kader_kb: number;
+  lainnya: number;
 };
 
 type DwhRow = {
@@ -31,6 +32,7 @@ type DwhRow = {
   prioritas_3: string | number;
   prioritas_4: string | number;
   bukan_prioritas: string | number;
+  tidak_risiko_stunting: string | number;
   bumil: string | number;
   baduta: string | number;
   balita: string | number;
@@ -86,7 +88,10 @@ anggota AS (
     COUNT(*)::int AS jumlah_anggota,
     COUNT(*) FILTER (WHERE a."StatusTPK" = 1)::int AS bidan,
     COUNT(*) FILTER (WHERE a."StatusTPK" = 2)::int AS pkk,
-    COUNT(*) FILTER (WHERE a."StatusTPK" = 3)::int AS kader_kb
+    COUNT(*) FILTER (WHERE a."StatusTPK" = 3)::int AS kader_kb,
+    COUNT(*) FILTER (
+      WHERE a."StatusTPK" IS NULL OR a."StatusTPK" NOT IN (1, 2, 3)
+    )::int AS lainnya
   FROM "sigabaru"."dat_AnggotaTPK" a
   INNER JOIN tpk_aktif t ON t."TPKID" = a."TPKID"
 ),
@@ -109,7 +114,8 @@ SELECT
   COALESCE(b.jumlah_desa, 0) AS jumlah_desa,
   COALESCE(a.bidan, 0) AS bidan,
   COALESCE(a.pkk, 0) AS pkk,
-  COALESCE(a.kader_kb, 0) AS kader_kb
+  COALESCE(a.kader_kb, 0) AS kader_kb,
+  COALESCE(a.lainnya, 0) AS lainnya
 FROM anggota a
 CROSS JOIN binaan b
 `;
@@ -127,6 +133,7 @@ SELECT
   COALESCE(SUM(r."prioritas_3"), 0) AS prioritas_3,
   COALESCE(SUM(r."prioritas_4"), 0) AS prioritas_4,
   COALESCE(SUM(r."bukan_prioritas"), 0) AS bukan_prioritas,
+  COALESCE(SUM(r."tidak_risiko_stunting"), 0) AS tidak_risiko_stunting,
   COALESCE(SUM(r."pus_hamil"), 0) AS bumil,
   COALESCE(SUM(r."baduta"), 0) AS baduta,
   COALESCE(SUM(r."balita"), 0) AS balita,
@@ -161,6 +168,7 @@ export async function getRingkasanPostgres(
     bidan: 0,
     pkk: 0,
     kader_kb: 0,
+    lainnya: 0,
   };
   const d = dwh.rows[0];
 
@@ -170,6 +178,11 @@ export async function getRingkasanPostgres(
   const jumlahDesa = toInt(s.jumlah_desa);
   const jumlahKRS = toInt(d?.jumlah_krs);
   const jumlahSasaran = toInt(d?.jumlah_sasaran);
+  const bidan = toInt(s.bidan);
+  const pkk = toInt(s.pkk);
+  const kaderKb = toInt(s.kader_kb);
+  // FILTER NOT IN (1,2,3) incl. NULL ≡ jumlah_anggota − bidan − pkk − kader_kb.
+  const lainnya = toInt(s.lainnya);
 
   const rasioTPK_KRS = getKrsPerTpkRatio(jumlahTPK, jumlahKRS);
   const rasioPKB_desa = getDesaPerPkbRatio(jumlahPKB, jumlahDesa);
@@ -194,6 +207,7 @@ export async function getRingkasanPostgres(
       prioritas3: toInt(d?.prioritas_3),
       prioritas4: toInt(d?.prioritas_4),
       bukan: toInt(d?.bukan_prioritas),
+      tidakRisiko: toInt(d?.tidak_risiko_stunting),
     },
     indikator: {
       bumil: toInt(d?.bumil),
@@ -205,9 +219,10 @@ export async function getRingkasanPostgres(
       rtlh: null,
     },
     komposisiTPK: {
-      bidan: toInt(s.bidan),
-      pkk: toInt(s.pkk),
-      kaderKb: toInt(s.kader_kb),
+      bidan,
+      pkk,
+      kaderKb,
+      lainnya,
     },
     meta: {
       cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
