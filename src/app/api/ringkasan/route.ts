@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /**
- * GET /api/ringkasan?tingkat=nasional|provinsi&id=
+ * GET /api/ringkasan?tingkat=nasional|provinsi|kabupaten&id=
+ * Alias tingkat: kab → kabupaten. id = ProvinsiID / KabupatenID (bukan BPS).
  * Satu payload agregat untuk first paint home (tanpa by_name).
  * Jika DATA_SOURCE=postgres dan pool terisi tetapi query gagal → 503 JSON jelas.
  */

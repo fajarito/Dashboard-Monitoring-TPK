@@ -3,15 +3,14 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { DrilldownBreadcrumb } from "@/components/dashboard/drilldown-breadcrumb";
+import { LiveTpkListPanel } from "@/components/dashboard/live-tpk-list-panel";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
-import { TpkListTable } from "@/components/dashboard/tpk-list-table";
 import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
 import { WilayahIdentityCards } from "@/components/dashboard/wilayah-meta-cards";
 import { Button } from "@/components/ui/button";
-import {
-  getProvinceOrNull,
-  getTpkForScope,
-} from "@/lib/tpk-drilldown-data";
+import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
+import { getProvinsiApiId } from "@/lib/province-api-id";
+import { getProvinceOrNull } from "@/lib/tpk-drilldown-data";
 import {
   getKabupatenById,
   summarizeChildRows,
@@ -37,7 +36,8 @@ export default async function KabupatenKecamatanPage({ params }: PageProps) {
 
   const kecList = kab.kecamatan;
   const summary = summarizeChildRows(kecList);
-  const tpkList = getTpkForScope({ provinceId, kabupatenId: kab.id });
+  const provinsiApiId = getProvinsiApiId(province);
+  const kabupatenApiId = getKabupatenApiId(kab.id);
   const provinceHref = `/wilayah/${provinceId}`;
 
   return (
@@ -101,16 +101,14 @@ export default async function KabupatenKecamatanPage({ params }: PageProps) {
         actionLabel="Buka"
       />
 
-      <TpkListTable
-        list={tpkList}
-        provinceId={provinceId}
-        scopeName={kab.name}
-        scopeFilterMode="kecamatan"
-        scopeFilters={kecList.map((kec) => ({
-          id: kec.id,
-          label: kec.name,
-        }))}
-      />
+      {provinsiApiId ? (
+        <LiveTpkListPanel
+          provinceSlug={provinceId}
+          provinsiApiId={provinsiApiId}
+          initialKabupatenId={kabupatenApiId}
+          provinceName={`${kab.name} · ${province.name}`}
+        />
+      ) : null}
     </section>
   );
 }

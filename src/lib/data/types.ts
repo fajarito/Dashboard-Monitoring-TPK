@@ -3,7 +3,7 @@
 /** Sumber efektif payload, atau postgres-error pada respons 503. */
 export type DataSource = "mock" | "postgres" | "postgres-error";
 
-export type RingkasanTingkat = "nasional" | "provinsi";
+export type RingkasanTingkat = "nasional" | "provinsi" | "kabupaten";
 
 export type KomposisiPrioritas = {
   prioritas1: number;
@@ -94,7 +94,67 @@ export type PeringkatProvinsiPayload = {
   meta: RingkasanMeta;
 };
 
+/** Ranking kab/kota dalam satu provinsi (id = id_kabupaten). */
+export type PeringkatKabupatenItem = {
+  id: string;
+  nama: string;
+  tpk: number;
+  pkb: number;
+  desa: number;
+  krs: number;
+  rasio: number;
+  rasioPkbDesa: number;
+  warningBeban: boolean;
+};
+
+export type PeringkatKabupatenPayload = {
+  provinsiId: string;
+  items: PeringkatKabupatenItem[];
+  meta: RingkasanMeta;
+};
+
 export type RingkasanQuery = {
   tingkat: RingkasanTingkat;
   id?: string | null;
+};
+
+/** Query daftar TPK paging — filter wilayah wajib (hindari full scan). */
+export type TpkListQuery = {
+  provinsiId: number | null;
+  kabupatenId: number | null;
+  /** Cari NamaTPK (opsional). */
+  q: string | null;
+  page: number;
+  pageSize: number;
+};
+
+export type TpkListItem = {
+  tpkId: string;
+  nama: string | null;
+  nomorRegister: string | null;
+  kodeTpk: string | null;
+  alamat: string | null;
+  provinsiId: number | null;
+  kabupatenId: number | null;
+  kecamatanId: number | null;
+  kelurahanId: number | null;
+  namaKabupaten: string | null;
+  namaKecamatan: string | null;
+  namaKelurahan: string | null;
+  jumlahAnggota: number;
+  status: number | null;
+};
+
+export type TpkListPayload = {
+  items: TpkListItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  filters: {
+    provinsiId: number | null;
+    kabupatenId: number | null;
+    q: string | null;
+  };
+  meta: RingkasanMeta;
 };

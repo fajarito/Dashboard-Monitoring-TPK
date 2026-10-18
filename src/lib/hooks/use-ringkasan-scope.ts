@@ -2,13 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { RingkasanPayload } from "@/lib/data/types";
+import type { RingkasanPayload, RingkasanTingkat } from "@/lib/data/types";
+
+export type RingkasanScopeInput = {
+  /** null = idle (pakai agregat nasional dari useHomeAgregat). */
+  tingkat: Extract<RingkasanTingkat, "provinsi" | "kabupaten"> | null;
+  id: string | null;
+};
 
 export type RingkasanScopeState = {
   status: "idle" | "loading" | "ready" | "error";
   ringkasan: RingkasanPayload | null;
   error: string | null;
-  /** id API yang sedang diminta (null = nasional / tanpa filter). */
+  tingkat: RingkasanScopeInput["tingkat"];
+  /** id API yang sedang diminta (null = tanpa filter scoped). */
+  id: string | null;
+  /** @deprecated alias id untuk kompatibilitas pemanggil lama. */
   provinsiId: string | null;
   refetch: () => void;
 };
@@ -38,19 +47,30 @@ async function fetchRingkasan(
 
 /**
  * Ringkasan aktif untuk filter home.
- * - `provinsiId` null → idle (pemakai pakai agregat nasional dari useHomeAgregat).
- * - string → GET /api/ringkasan?tingkat=provinsi&id=…
+ * - tingkat/id null → idle
+ * - provinsi → GET /api/ringkasan?tingkat=provinsi&id=…
+ * - kabupaten → GET /api/ringkasan?tingkat=kabupaten&id=…
+ *
+ * Overload: `useRingkasanScope(provinsiId: string | null)` tetap didukung.
  */
 export function useRingkasanScope(
-  provinsiId: string | null,
+  scopeOrProvinsiId: RingkasanScopeInput | string | null,
 ): RingkasanScopeState {
+  const scope: RingkasanScopeInput =
+    typeof scopeOrProvinsiId === "string" || scopeOrProvinsiId === null
+      ? {
+          tingkat: scopeOrProvinsiId ? "provinsi" : null,
+          id: scopeOrProvinsiId,
+        }
+      : scopeOrProvinsiId;
+
   const [tick, setTick] = useState(0);
-  const [state, setState] = useState<
-    Omit<RingkasanScopeState, "refetch">
-  >({
+  const [state, setState] = useState<Omit<RingkasanScopeState, "refetch">>({
     status: "idle",
     ringkasan: null,
     error: null,
+    tingkat: null,
+    id: null,
     provinsiId: null,
   });
 
@@ -59,25 +79,31 @@ export function useRingkasanScope(
   }, []);
 
   useEffect(() => {
-    if (!provinsiId) {
+    if (!scope.tingkat || !scope.id) {
       setState({
         status: "idle",
         ringkasan: null,
         error: null,
+        tingkat: null,
+        id: null,
         provinsiId: null,
       });
       return;
     }
 
     const controller = new AbortController();
+    const tingkat = scope.tingkat;
+    const id = scope.id;
     setState({
       status: "loading",
       ringkasan: null,
       error: null,
-      provinsiId,
+      tingkat,
+      id,
+      provinsiId: tingkat === "provinsi" ? id : null,
     });
 
-    const url = `/api/ringkasan?tingkat=provinsi&id=${encodeURIComponent(provinsiId)}`;
+    const url = `/api/ringkasan?tingkat=${encodeURIComponent(tingkat)}&id=${encodeURIComponent(id)}`;
     void fetchRingkasan(url, controller.signal)
       .then((payload) => {
         if (controller.signal.aborted) return;
@@ -85,7 +111,9 @@ export function useRingkasanScope(
           status: "ready",
           ringkasan: payload,
           error: null,
-          provinsiId,
+          tingkat,
+          id,
+          provinsiId: tingkat === "provinsi" ? id : null,
         });
       })
       .catch((err: unknown) => {
@@ -96,13 +124,17 @@ export function useRingkasanScope(
           error:
             err instanceof Error
               ? err.message
-              : "Gagal memuat ringkasan provinsi",
-          provinsiId,
+              : tingkat === "kabupaten"
+                ? "Gagal memuat ringkasan kabupaten/kota"
+                : "Gagal memuat ringkasan provinsi",
+          tingkat,
+          id,
+          provinsiId: tingkat === "provinsi" ? id : null,
         });
       });
 
     return () => controller.abort();
-  }, [provinsiId, tick]);
+  }, [scope.tingkat, scope.id, tick]);
 
   return { ...state, refetch };
 }
