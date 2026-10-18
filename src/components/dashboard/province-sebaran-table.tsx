@@ -27,9 +27,9 @@ import {
   getDesaPerPkbRatio,
   getKrsPerTpkRatio,
   PKB_DESA_IDEAL_MAX,
-  provinces,
   type Province,
 } from "@/lib/map-data";
+import { resolveProvinceFromPeringkatId } from "@/lib/province-api-id";
 import { getKeluargaSasaranForProvince } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
 
@@ -63,14 +63,9 @@ function mergeProvinceWithRanking(
 }
 
 function resolveProvinceBase(item: PeringkatProvinsiItem): Province | null {
-  const byId = provinces.find((entry) => entry.id === item.id);
-  if (byId) return byId;
-  // Live SQL memakai kode BPS (adminCode) sebagai id string, mis. "32".
-  const code = Number.parseInt(item.id, 10);
-  if (Number.isFinite(code) && code > 0) {
-    return provinces.find((entry) => entry.adminCode === code) ?? null;
-  }
-  return null;
+  // Live: id = id_provinsi (mis. "12" = Jawa Barat). Mock: id = slug ("jabar").
+  // Jangan cocokkan ke adminCode BPS — bentrok (12 BPS = Sumut, 12 internal = Jabar).
+  return resolveProvinceFromPeringkatId(item.id, item.nama);
 }
 
 export function ProvinceSebaranTable({
