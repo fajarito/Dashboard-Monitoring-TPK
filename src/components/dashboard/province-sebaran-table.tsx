@@ -18,6 +18,7 @@ import {
   type DemoUiState,
 } from "@/components/dashboard/data-state";
 import { GlossaryTerm } from "@/components/dashboard/glossary-term";
+import type { PeringkatProvinsiItem } from "@/lib/data/types";
 import {
   estimateDesaForProvince,
   formatNumber,
@@ -47,12 +48,26 @@ type HoverState = {
   left: number;
 };
 
+function mergeProvinceWithRanking(
+  base: Province,
+  item?: PeringkatProvinsiItem,
+): Province {
+  if (!item) return base;
+  return {
+    ...base,
+    name: item.nama || base.name,
+    tpk: item.tpk,
+    krs: item.krs,
+  };
+}
+
 export function ProvinceSebaranTable({
   compact = false,
   selectedId = null,
   onSelect,
   demoState = "ready",
   onRetryDemo,
+  ranking = null,
 }: {
   /** Lebar kolom lebih sempit untuk layout berdampingan dengan kartu. */
   compact?: boolean;
@@ -61,18 +76,51 @@ export function ProvinceSebaranTable({
   onSelect?: (province: Province) => void;
   demoState?: DemoUiState;
   onRetryDemo?: () => void;
+  /** Dari GET /api/peringkat/provinsi — max 40; fallback ke mock lokal. */
+  ranking?: PeringkatProvinsiItem[] | null;
 }) {
   const [hover, setHover] = useState<HoverState | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const rows = useMemo(() => {
-    const sorted = provinces
-      .slice()
-      .sort((a, b) => b.tpk - a.tpk || a.name.localeCompare(b.name, "id"));
+    const byId = new Map(provinces.map((entry) => [entry.id, entry]));
 
-    return sorted.map((province, index): RowModel => {
+    let ordered: Province[];
+    if (ranking && ranking.length > 0) {
+      ordered = ranking
+        .slice(0, 40)
+        .map((item) => {
+          const base = byId.get(item.id);
+          if (!base) {
+            // Provinsi dari API yang belum ada di mock lokal — baris minimal.
+            return {
+              id: item.id,
+              adminCode: 0,
+              name: item.nama,
+              capital: "",
+              tpk: item.tpk,
+              anggota: 0,
+              pkb: 0,
+              krs: item.krs,
+              baduta: 0,
+              balita: 0,
+              pus: 0,
+              ibuHamil: 0,
+            } satisfies Province;
+          }
+          return mergeProvinceWithRanking(base, item);
+        });
+    } else {
+      ordered = provinces
+        .slice()
+        .sort((a, b) => b.tpk - a.tpk || a.name.localeCompare(b.name, "id"));
+    }
+
+    return ordered.map((province, index): RowModel => {
+      const rankingItem = ranking?.find((item) => item.id === province.id);
       const desa = estimateDesaForProvince(province);
-      const krsPerTpk = getKrsPerTpkRatio(province.tpk, province.krs);
+      const krsPerTpk =
+        rankingItem?.rasio ?? getKrsPerTpkRatio(province.tpk, province.krs);
       const desaPerPkb = getDesaPerPkbRatio(province.pkb, desa);
       return {
         province,
@@ -84,7 +132,7 @@ export function ProvinceSebaranTable({
         bebanBerat: desaPerPkb > PKB_DESA_IDEAL_MAX,
       };
     });
-  }, []);
+  }, [ranking]);
 
   useEffect(() => {
     if (!selectedId) return;

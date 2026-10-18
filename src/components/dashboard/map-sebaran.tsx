@@ -27,6 +27,7 @@ import { QuickProvincePicks } from "@/components/dashboard/quick-province-picks"
 import { RasioInsightPanels } from "@/components/dashboard/rasio-insight-panels";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { Button } from "@/components/ui/button";
+import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
 import {
   formatNumber,
   metricHelp,
@@ -42,6 +43,8 @@ import { mapNoDataColor } from "@/lib/navigation";
 import {
   getPrioritasKomposisi,
   getSasaranForScope,
+  type PrioritasSlice,
+  type SasaranCounts,
 } from "@/lib/sasaran-indikator";
 import {
   getWilayahById,
@@ -102,6 +105,40 @@ const kpiCards: {
   },
 ];
 
+const PRIORITAS_COLORS: Record<string, string> = {
+  p1: "#0b4dd8",
+  p2: "#155eef",
+  p3: "#3b82f6",
+  p4: "#93c5fd",
+  bukan: "#94a3b8",
+};
+
+function slicesFromRingkasanPrioritas(
+  prioritas: {
+    prioritas1: number;
+    prioritas2: number;
+    prioritas3: number;
+    prioritas4: number;
+    bukan: number;
+  },
+  total: number,
+): PrioritasSlice[] {
+  const entries: Array<{ id: PrioritasSlice["id"]; label: string; value: number }> =
+    [
+      { id: "p1", label: "Prioritas 1", value: prioritas.prioritas1 },
+      { id: "p2", label: "Prioritas 2", value: prioritas.prioritas2 },
+      { id: "p3", label: "Prioritas 3", value: prioritas.prioritas3 },
+      { id: "p4", label: "Prioritas 4", value: prioritas.prioritas4 },
+      { id: "bukan", label: "Bukan Prioritas", value: prioritas.bukan },
+    ];
+  return entries.map((entry) => ({
+    ...entry,
+    share: total > 0 ? entry.value / total : 0,
+    color: PRIORITAS_COLORS[entry.id] ?? "#94a3b8",
+    percent: total > 0 ? (entry.value / total) * 100 : 0,
+  }));
+}
+
 export function MapSebaran() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -116,19 +153,68 @@ export function MapSebaran() {
   const [demoState, setDemoState] = useState<DemoUiState>(() =>
     parseDemoState(demoParam),
   );
+  const homeAgregat = useHomeAgregat();
 
   useEffect(() => {
     setDemoState(parseDemoState(demoParam));
   }, [demoParam]);
   const legend = useMemo(() => getLegendRanges(metric), [metric]);
-  const sasaranScope = useMemo(
-    () => getSasaranForScope(selected),
-    [selected],
-  );
-  const prioritas = useMemo(
-    () => getPrioritasKomposisi(selected),
-    [selected],
-  );
+
+  /** KPI nasional: API ringkasan, fallback mock lokal jika fetch gagal. */
+  const kpiTotals = useMemo(() => {
+    if (homeAgregat.ringkasan) {
+      return {
+        tpk: homeAgregat.ringkasan.jumlahTPK,
+        anggota: homeAgregat.ringkasan.jumlahAnggota,
+        pkb: homeAgregat.ringkasan.jumlahPKB,
+        krs: homeAgregat.ringkasan.jumlahKRS,
+      };
+    }
+    return nationalTotals;
+  }, [homeAgregat.ringkasan]);
+
+  const sasaranScope = useMemo(() => {
+    // Drill provinsi tetap dari helper lokal; nasional dari API jika ada.
+    if (selected) return getSasaranForScope(selected);
+    if (homeAgregat.ringkasan) {
+      const ind = homeAgregat.ringkasan.indikator;
+      const counts: SasaranCounts = {
+        ibuHamil: ind.bumil,
+        baduta: ind.baduta,
+        balita: ind.balita,
+        jambanTidakLayak: ind.jambanTL,
+        sumberAirTidakLayak: ind.airTL,
+        rtlh: ind.rtlh ?? 0,
+      };
+      return { scopeLabel: "Nasional", counts };
+    }
+    return getSasaranForScope(null);
+  }, [selected, homeAgregat.ringkasan]);
+
+  const prioritas = useMemo(() => {
+    if (selected) return getPrioritasKomposisi(selected);
+    if (homeAgregat.ringkasan) {
+      const total = homeAgregat.ringkasan.jumlahSasaran;
+      return {
+        scopeLabel: "Nasional",
+        total,
+        slices: slicesFromRingkasanPrioritas(
+          homeAgregat.ringkasan.komposisiPrioritas,
+          total,
+        ),
+      };
+    }
+    return getPrioritasKomposisi(null);
+  }, [selected, homeAgregat.ringkasan]);
+
+  /** Demo query (?demo=) menang; selain itu ikut status fetch agregat. */
+  const panelState: DemoUiState = useMemo(() => {
+    const forced = parseDemoState(demoParam);
+    if (demoParam && forced !== "ready") return forced;
+    if (homeAgregat.status === "loading") return "loading";
+    if (homeAgregat.status === "error") return "error";
+    return "ready";
+  }, [demoParam, homeAgregat.status]);
 
   useEffect(() => {
     if (!wilayahParam) {
@@ -247,9 +333,16 @@ export function MapSebaran() {
                   </span>
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-                  <span className="text-[2rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[2.25rem]">
-                    {formatNumber(nationalTotals[card.key])}
-                  </span>
+                  {panelState === "loading" ? (
+                    <span
+                      className="mt-1 h-9 w-28 animate-pulse rounded-lg bg-slate-100"
+                      aria-hidden
+                    />
+                  ) : (
+                    <span className="text-[2rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[2.25rem]">
+                      {formatNumber(kpiTotals[card.key])}
+                    </span>
+                  )}
                   <span className="text-[11px] font-medium text-slate-400">
                     {card.unit}
                   </span>
@@ -278,7 +371,24 @@ export function MapSebaran() {
           counts={sasaranScope.counts}
         />
 
-        <RasioInsightPanels />
+        <RasioInsightPanels
+          values={
+            homeAgregat.ringkasan
+              ? {
+                  jumlahTPK: homeAgregat.ringkasan.jumlahTPK,
+                  jumlahKRS: homeAgregat.ringkasan.jumlahKRS,
+                  jumlahPKB: homeAgregat.ringkasan.jumlahPKB,
+                  rasioTPK_KRS: homeAgregat.ringkasan.rasioTPK_KRS,
+                  rasioPKB_desa: homeAgregat.ringkasan.rasioPKB_desa,
+                  warningBeban: homeAgregat.ringkasan.warningBeban,
+                  sourceLabel:
+                    homeAgregat.ringkasan.meta.source === "mock"
+                      ? "simulasi"
+                      : "live",
+                }
+              : null
+          }
+        />
       </div>
 
       <div className="design-card overflow-hidden">
@@ -295,6 +405,7 @@ export function MapSebaran() {
         </div>
 
         <div className="relative mt-2">
+          {/* Peta pakai GeoJSON lokal; jangan blokir first paint menunggu API. */}
           {demoState === "loading" ? (
             <MapSkeleton />
           ) : (
@@ -305,6 +416,7 @@ export function MapSebaran() {
               forceError={demoState === "error"}
               onRetryError={() => {
                 setDemoState("ready");
+                homeAgregat.refetch();
                 router.replace("/", { scroll: false });
               }}
             />
@@ -357,14 +469,26 @@ export function MapSebaran() {
           compact
           selectedId={selected?.id ?? null}
           onSelect={selectProvince}
-          demoState={demoState === "loading" || demoState === "empty" || demoState === "error" ? demoState : "ready"}
+          ranking={homeAgregat.peringkat?.items ?? null}
+          demoState={
+            panelState === "loading" ||
+            panelState === "empty" ||
+            (panelState === "error" && Boolean(demoParam))
+              ? panelState
+              : "ready"
+          }
           onRetryDemo={() => {
             setDemoState("ready");
+            homeAgregat.refetch();
             router.replace("/", { scroll: false });
           }}
         />
         <div className="flex min-w-0 flex-col gap-3">
-          <KomposisiTpkCard variant="compact" showDetailLink />
+          <KomposisiTpkCard
+            variant="compact"
+            showDetailLink
+            counts={homeAgregat.ringkasan?.komposisiTPK ?? null}
+          />
           <KomposisiPrioritasCard
             scopeLabel={prioritas.scopeLabel}
             total={prioritas.total}
