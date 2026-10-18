@@ -30,6 +30,7 @@ import { RasioInsightPanels } from "@/components/dashboard/rasio-insight-panels"
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { Button } from "@/components/ui/button";
 import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
+import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import {
   formatNumber,
   metricHelp,
@@ -41,9 +42,9 @@ import {
 } from "@/lib/map-data";
 import { getLegendRanges } from "@/lib/map-style";
 import { mapNoDataColor } from "@/lib/navigation";
+import { getProvinsiApiId } from "@/lib/province-api-id";
 import {
   getPrioritasKomposisi,
-  getSasaranForScope,
   type PrioritasSlice,
   type SasaranCounts,
 } from "@/lib/sasaran-indikator";
@@ -77,8 +78,8 @@ const kpiCards: {
     key: "tpk",
     label: "Jumlah TPK",
     unit: "tim",
-    noteLive: "Agregat nasional (live)",
-    noteMock: "Agregat nasional (simulasi)",
+    noteLive: "Agregat wilayah (live)",
+    noteMock: "Agregat wilayah (simulasi)",
     icon: Users,
     color: "bg-blue-100 text-blue-700",
   },
@@ -86,8 +87,8 @@ const kpiCards: {
     key: "anggota",
     label: "Jumlah Anggota TPK",
     unit: "orang",
-    noteLive: "Agregat nasional (live)",
-    noteMock: "Agregat nasional (simulasi)",
+    noteLive: "Agregat wilayah (live)",
+    noteMock: "Agregat wilayah (simulasi)",
     icon: UsersRound,
     color: "bg-cyan-100 text-cyan-700",
   },
@@ -166,58 +167,85 @@ export function MapSebaran() {
   const homeAgregat = useHomeAgregat();
   const legend = useMemo(() => getLegendRanges(metric), [metric]);
 
-  /** KPI nasional: hanya dari GET /api/ringkasan — tanpa fallback mock. */
+  /** id_provinsi untuk API — bukan slug UI / adminCode BPS. */
+  const selectedProvinsiApiId = useMemo(
+    () => (selected ? getProvinsiApiId(selected) : null),
+    [selected],
+  );
+  const scopedRingkasan = useRingkasanScope(selectedProvinsiApiId);
+
+  /**
+   * Ringkasan aktif untuk KPI/komposisi/rasio/indikator:
+   * filter provinsi → scoped; kosong → nasional dari useHomeAgregat.
+   */
+  const activeRingkasan = selected
+    ? scopedRingkasan.ringkasan
+    : homeAgregat.ringkasan;
+
   const kpiTotals = useMemo(() => {
-    if (!homeAgregat.ringkasan) return null;
+    if (!activeRingkasan) return null;
     return {
-      tpk: homeAgregat.ringkasan.jumlahTPK,
-      anggota: homeAgregat.ringkasan.jumlahAnggota,
-      pkb: homeAgregat.ringkasan.jumlahPKB,
-      krs: homeAgregat.ringkasan.jumlahKRS,
+      tpk: activeRingkasan.jumlahTPK,
+      anggota: activeRingkasan.jumlahAnggota,
+      pkb: activeRingkasan.jumlahPKB,
+      krs: activeRingkasan.jumlahKRS,
     };
-  }, [homeAgregat.ringkasan]);
+  }, [activeRingkasan]);
 
   const dataSource =
+    activeRingkasan?.meta.source ??
     homeAgregat.ringkasan?.meta.source ??
     homeAgregat.peringkat?.meta.source ??
     null;
 
+  const scopeLabel = selected?.name ?? "Nasional";
+
   const sasaranScope = useMemo(() => {
-    // Drill provinsi tetap dari helper lokal; nasional dari API jika ada.
-    if (selected) return getSasaranForScope(selected);
-    if (homeAgregat.ringkasan) {
-      const ind = homeAgregat.ringkasan.indikator;
-      const counts: SasaranCounts = {
-        ibuHamil: ind.bumil,
-        baduta: ind.baduta,
-        balita: ind.balita,
-        jambanTidakLayak: ind.jambanTL,
-        sumberAirTidakLayak: ind.airTL,
-        rtlh: ind.rtlh ?? 0,
+    if (!activeRingkasan) {
+      return {
+        scopeLabel,
+        counts: {
+          ibuHamil: 0,
+          baduta: 0,
+          balita: 0,
+          jambanTidakLayak: 0,
+          sumberAirTidakLayak: 0,
+          rtlh: 0,
+        } satisfies SasaranCounts,
       };
-      return { scopeLabel: "Nasional", counts };
     }
-    return getSasaranForScope(null);
-  }, [selected, homeAgregat.ringkasan]);
+    const ind = activeRingkasan.indikator;
+    const counts: SasaranCounts = {
+      ibuHamil: ind.bumil,
+      baduta: ind.baduta,
+      balita: ind.balita,
+      jambanTidakLayak: ind.jambanTL,
+      sumberAirTidakLayak: ind.airTL,
+      rtlh: ind.rtlh ?? 0,
+    };
+    return { scopeLabel, counts };
+  }, [activeRingkasan, scopeLabel]);
 
   const prioritas = useMemo(() => {
-    if (selected) return getPrioritasKomposisi(selected);
-    if (homeAgregat.ringkasan) {
-      const total = homeAgregat.ringkasan.jumlahSasaran;
-      return {
-        scopeLabel: "Nasional",
-        total,
-        slices: slicesFromRingkasanPrioritas(
-          homeAgregat.ringkasan.komposisiPrioritas,
-          total,
-        ),
-      };
+    if (!activeRingkasan) {
+      return getPrioritasKomposisi(null);
     }
-    return getPrioritasKomposisi(null);
-  }, [selected, homeAgregat.ringkasan]);
+    const total = activeRingkasan.jumlahSasaran;
+    return {
+      scopeLabel,
+      total,
+      slices: slicesFromRingkasanPrioritas(
+        activeRingkasan.komposisiPrioritas,
+        total,
+      ),
+    };
+  }, [activeRingkasan, scopeLabel]);
 
   const retryAgregat = () => {
     homeAgregat.refetch();
+    if (selectedProvinsiApiId) {
+      scopedRingkasan.refetch();
+    }
     if (demoParam) {
       router.replace("/", { scroll: false });
     }
@@ -226,15 +254,31 @@ export function MapSebaran() {
   /**
    * Status kartu ringkasan vs tabel peringkat dipisah agar empty ranking
    * tidak mengosongkan KPI. Query ?demo= tetap untuk smoke UI.
+   * Saat provinsi dipilih, status mengikuti fetch scoped.
    */
   const ringkasanState: DemoUiState = useMemo(() => {
     const forced = parseDemoState(demoParam);
     if (demoParam && forced !== "ready") return forced;
+    if (selected) {
+      if (scopedRingkasan.status === "loading" || scopedRingkasan.status === "idle") {
+        return "loading";
+      }
+      if (scopedRingkasan.status === "error") return "error";
+      if (!scopedRingkasan.ringkasan) return "empty";
+      return "ready";
+    }
     if (homeAgregat.status === "loading") return "loading";
     if (homeAgregat.status === "error") return "error";
     if (!homeAgregat.ringkasan) return "empty";
     return "ready";
-  }, [demoParam, homeAgregat.status, homeAgregat.ringkasan]);
+  }, [
+    demoParam,
+    selected,
+    scopedRingkasan.status,
+    scopedRingkasan.ringkasan,
+    homeAgregat.status,
+    homeAgregat.ringkasan,
+  ]);
 
   const peringkatState: DemoUiState = useMemo(() => {
     const forced = parseDemoState(demoParam);
@@ -285,6 +329,16 @@ export function MapSebaran() {
       router.replace("/", { scroll: false });
     }
   };
+
+  const ringkasanErrorMessage = selected
+    ? scopedRingkasan.error ??
+      "Ringkasan provinsi tidak dapat dimuat. Coba lagi atau hapus pilihan wilayah."
+    : homeAgregat.error ??
+      "Kartu jumlah TPK, PKB, dan KRS tidak dapat dimuat. Coba lagi.";
+
+  const ringkasanEmptyDescription = selected
+    ? `Agregat untuk ${selected.name} belum tersedia. Hapus pilihan wilayah atau muat ulang.`
+    : "Agregat nasional belum tersedia. Muat ulang atau periksa sumber data.";
 
   return (
     <section className="animate-content-enter space-y-5">
@@ -347,11 +401,12 @@ export function MapSebaran() {
         {ringkasanState === "error" ? (
           <div className="design-card">
             <ErrorState
-              title="Gagal memuat ringkasan"
-              description={
-                homeAgregat.error ??
-                "Kartu jumlah TPK, PKB, dan KRS tidak dapat dimuat. Coba lagi."
+              title={
+                selected
+                  ? `Gagal memuat ringkasan ${selected.name}`
+                  : "Gagal memuat ringkasan"
               }
+              description={ringkasanErrorMessage}
               onRetry={retryAgregat}
             />
           </div>
@@ -360,16 +415,28 @@ export function MapSebaran() {
           <div className="design-card">
             <EmptyState
               title="Ringkasan masih kosong"
-              description="Agregat nasional belum tersedia. Muat ulang atau periksa sumber data."
+              description={ringkasanEmptyDescription}
               action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 rounded-xl border-line"
-                  onClick={retryAgregat}
-                >
-                  Muat ulang
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selected ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl border-line"
+                      onClick={clearFocus}
+                    >
+                      Kembali ke nasional
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl border-line"
+                    onClick={retryAgregat}
+                  >
+                    Muat ulang
+                  </Button>
+                </div>
               }
             />
           </div>
@@ -437,27 +504,25 @@ export function MapSebaran() {
         </div>
         ) : null}
 
-        {selected || homeAgregat.ringkasan ? (
+        {activeRingkasan ? (
           <SasaranIndikatorPanel
             scopeLabel={sasaranScope.scopeLabel}
             counts={sasaranScope.counts}
-            dataSource={selected ? "mock" : dataSource}
+            dataSource={dataSource}
           />
         ) : null}
 
-        {homeAgregat.ringkasan ? (
+        {activeRingkasan ? (
           <RasioInsightPanels
             values={{
-              jumlahTPK: homeAgregat.ringkasan.jumlahTPK,
-              jumlahKRS: homeAgregat.ringkasan.jumlahKRS,
-              jumlahPKB: homeAgregat.ringkasan.jumlahPKB,
-              rasioTPK_KRS: homeAgregat.ringkasan.rasioTPK_KRS,
-              rasioPKB_desa: homeAgregat.ringkasan.rasioPKB_desa,
-              warningBeban: homeAgregat.ringkasan.warningBeban,
+              jumlahTPK: activeRingkasan.jumlahTPK,
+              jumlahKRS: activeRingkasan.jumlahKRS,
+              jumlahPKB: activeRingkasan.jumlahPKB,
+              rasioTPK_KRS: activeRingkasan.rasioTPK_KRS,
+              rasioPKB_desa: activeRingkasan.rasioPKB_desa,
+              warningBeban: activeRingkasan.warningBeban,
               sourceLabel:
-                homeAgregat.ringkasan.meta.source === "mock"
-                  ? "simulasi"
-                  : "live",
+                activeRingkasan.meta.source === "mock" ? "simulasi" : "live",
             }}
           />
         ) : null}
@@ -466,9 +531,13 @@ export function MapSebaran() {
       <div className="design-card overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">
           <div>
-            <div className="section-title">Sebaran Nasional</div>
+            <div className="section-title">
+              {selected ? `Sebaran · ${selected.name}` : "Sebaran Nasional"}
+            </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Klik provinsi untuk melihat ringkasan singkat
+              {selected
+                ? "KPI di atas mengikuti agregat provinsi terpilih — tutup untuk kembali ke nasional"
+                : "Klik provinsi untuk memfilter ringkasan KPI"}
             </div>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-primary">
@@ -548,20 +617,29 @@ export function MapSebaran() {
           onRetryDemo={retryAgregat}
         />
         <div className="flex min-w-0 flex-col gap-3">
-          <KomposisiTpkCard
-            variant="compact"
-            showDetailLink
-            counts={homeAgregat.ringkasan?.komposisiTPK ?? null}
-            totalAnggotaOverride={
-              homeAgregat.ringkasan?.jumlahAnggota ?? null
-            }
-          />
-          <KomposisiPrioritasCard
-            scopeLabel={prioritas.scopeLabel}
-            total={prioritas.total}
-            slices={prioritas.slices}
-            compact
-          />
+          {activeRingkasan ? (
+            <>
+              <KomposisiTpkCard
+                variant="compact"
+                showDetailLink
+                counts={activeRingkasan.komposisiTPK}
+                totalAnggotaOverride={activeRingkasan.jumlahAnggota}
+              />
+              <KomposisiPrioritasCard
+                scopeLabel={prioritas.scopeLabel}
+                total={prioritas.total}
+                slices={prioritas.slices}
+                compact
+              />
+            </>
+          ) : ringkasanState === "loading" ? (
+            <div className="design-card space-y-3 p-6">
+              <div className="h-4 w-40 animate-pulse rounded bg-slate-100" />
+              <div className="mx-auto size-36 animate-pulse rounded-full bg-slate-100" />
+              <div className="h-3 w-full animate-pulse rounded bg-slate-100" />
+              <div className="h-3 w-3/4 animate-pulse rounded bg-slate-100" />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -608,27 +686,46 @@ export function MapSebaran() {
             <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               Peta menampilkan konteks provinsi{" "}
               <span className="font-bold text-navy">{selected.name}</span>.
-              Angka di bawah adalah agregat provinsi (simulasi) — lanjut ke
-              daftar berjenjang untuk detail kabupaten/kecamatan.
+              Angka di bawah adalah agregat tingkat provinsi — filter
+              kabupaten/kecamatan menyusul.
             </p>
           ) : null}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryStat
-              label="Jumlah TPK"
-              value={formatNumber(selected.tpk)}
-            />
-            <SummaryStat
-              label="Keluarga berisiko stunting"
-              value={formatNumber(selected.krs)}
-            />
-            <SummaryStat
-              label="Anggota TPK"
-              value={formatNumber(selected.anggota)}
-            />
-            <SummaryStat
-              label="Koordinator PKB/PLKB"
-              value={formatNumber(selected.pkb)}
-            />
+            {scopedRingkasan.status === "loading" || !kpiTotals ? (
+              <>
+                <SummaryStatSkeleton />
+                <SummaryStatSkeleton />
+                <SummaryStatSkeleton />
+                <SummaryStatSkeleton />
+              </>
+            ) : scopedRingkasan.status === "error" ? (
+              <div className="sm:col-span-2 lg:col-span-4">
+                <ErrorState
+                  title="Gagal memuat angka wilayah"
+                  description={ringkasanErrorMessage}
+                  onRetry={retryAgregat}
+                />
+              </div>
+            ) : (
+              <>
+                <SummaryStat
+                  label="Jumlah TPK"
+                  value={formatNumber(kpiTotals.tpk)}
+                />
+                <SummaryStat
+                  label="Keluarga berisiko stunting"
+                  value={formatNumber(kpiTotals.krs)}
+                />
+                <SummaryStat
+                  label="Anggota TPK"
+                  value={formatNumber(kpiTotals.anggota)}
+                />
+                <SummaryStat
+                  label="Koordinator PKB/PLKB"
+                  value={formatNumber(kpiTotals.pkb)}
+                />
+              </>
+            )}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button
@@ -646,10 +743,21 @@ export function MapSebaran() {
             >
               Atau langsung daftar TPK
             </Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl border-line"
+              onClick={clearFocus}
+            >
+              Kembali ke nasional
+            </Button>
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-            Angka di atas adalah data simulasi untuk demo visual. Telusuri
-            berjenjang: provinsi → kabupaten/kota → kecamatan → daftar TPK.
+            {dataSource === "postgres"
+              ? "Angka di atas mengikuti agregat live tingkat provinsi."
+              : "Angka di atas mengikuti agregat simulasi tingkat provinsi."}{" "}
+            Telusuri berjenjang: provinsi → kabupaten/kota → kecamatan → daftar
+            TPK.
           </p>
         </div>
       ) : null}
@@ -662,6 +770,15 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-line bg-slate-50/70 px-4 py-4 sm:px-5">
       <div className="text-[10px] font-bold text-muted-foreground">{label}</div>
       <div className="mt-1.5 text-lg font-extrabold text-navy">{value}</div>
+    </div>
+  );
+}
+
+function SummaryStatSkeleton() {
+  return (
+    <div className="rounded-xl border border-line bg-slate-50/70 px-4 py-4 sm:px-5">
+      <div className="h-3 w-20 animate-pulse rounded bg-slate-200" aria-hidden />
+      <div className="mt-2.5 h-6 w-24 animate-pulse rounded bg-slate-200" aria-hidden />
     </div>
   );
 }

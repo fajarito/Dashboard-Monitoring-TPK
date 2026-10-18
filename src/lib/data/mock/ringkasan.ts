@@ -4,7 +4,6 @@ import {
   nationalDesaKelurahan,
   nationalTotals,
   PKB_DESA_IDEAL_MAX,
-  provinces,
 } from "@/lib/map-data";
 import {
   getNationalSasaran,
@@ -12,6 +11,10 @@ import {
   getProvinceSasaran,
 } from "@/lib/sasaran-indikator";
 import { komposisiPilar } from "@/lib/komposisi-data";
+import {
+  getProvinsiApiId,
+  resolveProvinceFromRingkasanId,
+} from "@/lib/province-api-id";
 
 import type {
   DataSource,
@@ -82,9 +85,7 @@ function buildNasional(): RingkasanPayload {
 }
 
 function buildProvinsi(id: string): RingkasanPayload | null {
-  const province = provinces.find(
-    (entry) => entry.id === id || String(entry.adminCode) === id,
-  );
+  const province = resolveProvinceFromRingkasanId(id);
   if (!province) return null;
 
   const prioritas = getPrioritasKomposisi(province);
@@ -112,7 +113,7 @@ function buildProvinsi(id: string): RingkasanPayload | null {
 
   return {
     tingkat: "provinsi",
-    id: province.id,
+    id: getProvinsiApiId(province) ?? province.id,
     jumlahTPK: province.tpk,
     jumlahAnggota: province.anggota,
     jumlahPKB: province.pkb,
