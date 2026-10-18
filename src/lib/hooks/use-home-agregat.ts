@@ -22,7 +22,14 @@ async function fetchJson<T>(url: string): Promise<T> {
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status} untuk ${url}`);
+    let detail = `HTTP ${response.status}`;
+    try {
+      const body = (await response.json()) as { message?: string };
+      if (body?.message) detail = body.message;
+    } catch {
+      /* ignore non-JSON error body */
+    }
+    throw new Error(`${detail} (${url})`);
   }
   return (await response.json()) as T;
 }
