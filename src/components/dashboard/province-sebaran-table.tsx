@@ -21,7 +21,6 @@ import { GlossaryTerm } from "@/components/dashboard/glossary-term";
 import type { PeringkatProvinsiItem } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
 import {
-  estimateDesaForProvince,
   formatNumber,
   formatRatioValue,
   getDesaPerPkbRatio,
@@ -58,12 +57,13 @@ function mergeProvinceWithRanking(
     ...base,
     name: item.nama || base.name,
     tpk: item.tpk,
+    pkb: item.pkb,
     krs: item.krs,
   };
 }
 
 function resolveProvinceBase(item: PeringkatProvinsiItem): Province | null {
-  // Live: id = id_provinsi (mis. "12" = Jawa Barat). Mock: id = slug ("jabar").
+  // Live + mock: id = id_provinsi (mis. "12" = Jawa Barat). Slug tetap didukung.
   // Jangan cocokkan ke adminCode BPS — bentrok (12 BPS = Sumut, 12 internal = Jabar).
   return resolveProvinceFromPeringkatId(item.id, item.nama);
 }
@@ -106,17 +106,19 @@ export function ProvinceSebaranTable({
             capital: "",
             tpk: item.tpk,
             anggota: 0,
-            pkb: 0,
+            pkb: item.pkb,
             krs: item.krs,
             baduta: 0,
             balita: 0,
             pus: 0,
             ibuHamil: 0,
           } satisfies Province);
-      const desa = estimateDesaForProvince(province);
+      // Live fields dari API — jangan estimateDesaForProvince / mock province.pkb.
+      const desa = item.desa;
       const krsPerTpk =
         item.rasio ?? getKrsPerTpkRatio(province.tpk, province.krs);
-      const desaPerPkb = getDesaPerPkbRatio(province.pkb, desa);
+      const desaPerPkb =
+        item.rasioPkbDesa ?? getDesaPerPkbRatio(province.pkb, desa);
       return {
         province,
         rank: index + 1,
@@ -124,7 +126,7 @@ export function ProvinceSebaranTable({
         desa,
         krsPerTpk,
         desaPerPkb,
-        bebanBerat: desaPerPkb > PKB_DESA_IDEAL_MAX,
+        bebanBerat: item.warningBeban ?? desaPerPkb > PKB_DESA_IDEAL_MAX,
       };
     });
   }, [ranking]);
