@@ -17,8 +17,9 @@ export default function KomposisiPage() {
         <div className="eyebrow">Fase 2 · Tim pendamping</div>
         <h1 className="page-title">Komposisi Tim</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Lihat susunan anggota Tim Pendamping Keluarga menurut tiga pilar
-          peran — agar pimpinan cepat paham siapa yang ada di lapangan.
+          Lihat susunan anggota Tim Pendamping Keluarga menurut peran
+          (nakes, PKK, kader KB, dan lainnya) — agar pimpinan cepat paham
+          siapa yang ada di lapangan.
         </p>
       </div>
 

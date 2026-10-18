@@ -10,7 +10,13 @@ export type KomposisiPrioritas = {
   prioritas2: number;
   prioritas3: number;
   prioritas4: number;
+  /** Bagian total_prioritas (KRS) yang bukan P1–P4. */
   bukan: number;
+  /**
+   * SUM(tidak_risiko_stunting) — sisa sasaran di luar KRS.
+   * jumlahSasaran = (P1…P4 + bukan) + tidakRisiko.
+   */
+  tidakRisiko: number;
 };
 
 export type IndikatorRingkasan = {
@@ -33,6 +39,11 @@ export type KomposisiTPK = {
   bidan: number;
   pkk: number;
   kaderKb: number;
+  /**
+   * Anggota StatusTPK di luar 1/2/3 (termasuk NULL).
+   * jumlahAnggota = bidan + pkk + kaderKb + lainnya.
+   */
+  lainnya: number;
 };
 
 export type RingkasanMeta = {

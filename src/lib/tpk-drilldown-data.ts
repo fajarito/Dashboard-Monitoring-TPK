@@ -585,16 +585,16 @@ export function getTpkPrioritasKomposisi(tpk: TpkUnit): {
   slices: PrioritasSlice[];
 } {
   const total = tpk.keluarga.length;
-  const counts = Object.fromEntries(
+  const counts: Partial<Record<PrioritasKey, number>> = Object.fromEntries(
     PRIORITY_META.map((item) => [item.id, 0]),
-  ) as Record<PrioritasKey, number>;
+  );
 
   for (const item of tpk.keluarga) {
-    counts[item.prioritas] += 1;
+    counts[item.prioritas] = (counts[item.prioritas] ?? 0) + 1;
   }
 
   const slices: PrioritasSlice[] = PRIORITY_META.map((item) => {
-    const value = counts[item.id];
+    const value = counts[item.id] ?? 0;
     return {
       id: item.id,
       label: item.label,
@@ -626,7 +626,8 @@ export const prioritasLabels: Record<PrioritasKey, string> = {
   p2: "Prioritas 2",
   p3: "Prioritas 3",
   p4: "Prioritas 4",
-  bukan: "Bukan Prioritas",
+  bukan: "Bukan prioritas",
+  tidakRisiko: "Tidak berisiko",
 };
 
 export function googleMapsSearchUrl(query: string) {

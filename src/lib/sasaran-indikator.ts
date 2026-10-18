@@ -1,4 +1,4 @@
-import { provinces, type Province } from "@/lib/map-data";
+import { nationalTotals, provinces, type Province } from "@/lib/map-data";
 
 export type SasaranKey =
   | "ibuHamil"
@@ -102,7 +102,13 @@ export function getSasaranForScope(province: Province | null): {
   };
 }
 
-export type PrioritasKey = "p1" | "p2" | "p3" | "p4" | "bukan";
+export type PrioritasKey =
+  | "p1"
+  | "p2"
+  | "p3"
+  | "p4"
+  | "bukan"
+  | "tidakRisiko";
 
 export type PrioritasSlice = {
   id: PrioritasKey;
@@ -113,8 +119,12 @@ export type PrioritasSlice = {
   percent: number;
 };
 
-const PRIORITY_SHARES: {
-  id: PrioritasKey;
+/**
+ * Share relatif di dalam total_prioritas/KRS (P1–P4 + bukan).
+ * Tidak berisiko dihitung terpisah ≈ 2.204 × KRS (rasio live ~33,3 jt / 15,1 jt).
+ */
+const KRS_SHARES: {
+  id: Exclude<PrioritasKey, "tidakRisiko">;
   label: string;
   share: number;
   color: string;
@@ -123,17 +133,19 @@ const PRIORITY_SHARES: {
   { id: "p2", label: "Prioritas 2", share: 0.26, color: "#155eef" },
   { id: "p3", label: "Prioritas 3", share: 0.18, color: "#3b82f6" },
   { id: "p4", label: "Prioritas 4", share: 0.14, color: "#93c5fd" },
-  { id: "bukan", label: "Bukan Prioritas", share: 0.2, color: "#94a3b8" },
+  { id: "bukan", label: "Bukan prioritas", share: 0.2, color: "#94a3b8" },
 ];
 
+/** Rasio live: SUM(tidak_risiko_stunting) / SUM(total_prioritas). */
+const TIDAK_RISIKO_PER_KRS = 33307229 / 15111630;
+
+function krsBase(province: Province | null) {
+  return province ? province.krs : nationalTotals.krs;
+}
+
 function keluargaSasaranBase(province: Province | null) {
-  if (province) {
-    return Math.round(province.krs * 1.45 + province.ibuHamil * 0.8);
-  }
-  return provinces.reduce(
-    (sum, item) => sum + Math.round(item.krs * 1.45 + item.ibuHamil * 0.8),
-    0,
-  );
+  const krs = krsBase(province);
+  return krs + Math.round(krs * TIDAK_RISIKO_PER_KRS);
 }
 
 /** Estimasi keluarga sasaran per provinsi (simulasi, selaras komposisi prioritas). */
@@ -146,13 +158,16 @@ export function getPrioritasKomposisi(province: Province | null): {
   total: number;
   slices: PrioritasSlice[];
 } {
-  const total = keluargaSasaranBase(province);
+  const krs = krsBase(province);
+  const tidakRisiko = Math.round(krs * TIDAK_RISIKO_PER_KRS);
+  const total = krs + tidakRisiko;
+
   let allocated = 0;
-  const slices = PRIORITY_SHARES.map((item, index) => {
-    const isLast = index === PRIORITY_SHARES.length - 1;
+  const krsSlices: PrioritasSlice[] = KRS_SHARES.map((item, index) => {
+    const isLast = index === KRS_SHARES.length - 1;
     const value = isLast
-      ? Math.max(0, total - allocated)
-      : Math.round(total * item.share);
+      ? Math.max(0, krs - allocated)
+      : Math.round(krs * item.share);
     allocated += isLast ? 0 : value;
     return {
       ...item,
@@ -160,6 +175,18 @@ export function getPrioritasKomposisi(province: Province | null): {
       percent: total > 0 ? (value / total) * 100 : 0,
     };
   });
+
+  const slices: PrioritasSlice[] = [
+    ...krsSlices,
+    {
+      id: "tidakRisiko",
+      label: "Tidak berisiko",
+      share: total > 0 ? tidakRisiko / total : 0,
+      color: "#86efac",
+      value: tidakRisiko,
+      percent: total > 0 ? (tidakRisiko / total) * 100 : 0,
+    },
+  ];
 
   return {
     scopeLabel: province?.name ?? "Nasional",

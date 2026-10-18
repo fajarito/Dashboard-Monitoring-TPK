@@ -55,8 +55,8 @@ export function KomposisiPrioritasCard({
             }
           >
             {compact
-              ? `Prioritas 1–4 · ${scopeLabel}`
-              : `Prioritas 1–4 dan bukan prioritas · ${scopeLabel}`}
+              ? `P1–P4 · bukan · tidak berisiko · ${scopeLabel}`
+              : `Prioritas 1–4, bukan prioritas, dan tidak berisiko · ${scopeLabel}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">

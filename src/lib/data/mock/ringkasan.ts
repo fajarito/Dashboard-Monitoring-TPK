@@ -22,7 +22,7 @@ import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
 
 const SOURCE: DataSource = "mock";
 
-function pillarValue(id: "nakes" | "pkk" | "kb") {
+function pillarValue(id: "nakes" | "pkk" | "kb" | "lainnya") {
   return komposisiPilar.find((item) => item.id === id)?.value ?? 0;
 }
 
@@ -56,6 +56,7 @@ function buildNasional(): RingkasanPayload {
       prioritas3: byId.p3 ?? 0,
       prioritas4: byId.p4 ?? 0,
       bukan: byId.bukan ?? 0,
+      tidakRisiko: byId.tidakRisiko ?? 0,
     },
     indikator: {
       bumil: sasaran.ibuHamil,
@@ -70,6 +71,7 @@ function buildNasional(): RingkasanPayload {
       bidan: pillarValue("nakes"),
       pkk: pillarValue("pkk"),
       kaderKb: pillarValue("kb"),
+      lainnya: pillarValue("lainnya"),
     },
     meta: {
       cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
@@ -103,9 +105,10 @@ function buildProvinsi(id: string): RingkasanPayload | null {
 
   // Komposisi TPK proporsional terhadap anggota provinsi (simulasi).
   const anggota = province.anggota;
-  const bidan = Math.round(anggota * 0.345);
-  const pkk = Math.round(anggota * 0.338);
-  const kaderKb = Math.max(0, anggota - bidan - pkk);
+  const bidan = Math.round(anggota * 0.325);
+  const pkk = Math.round(anggota * 0.318);
+  const kaderKb = Math.round(anggota * 0.297);
+  const lainnya = Math.max(0, anggota - bidan - pkk - kaderKb);
 
   return {
     tingkat: "provinsi",
@@ -124,6 +127,7 @@ function buildProvinsi(id: string): RingkasanPayload | null {
       prioritas3: byId.p3 ?? 0,
       prioritas4: byId.p4 ?? 0,
       bukan: byId.bukan ?? 0,
+      tidakRisiko: byId.tidakRisiko ?? 0,
     },
     indikator: {
       bumil: sasaran.ibuHamil,
@@ -133,7 +137,7 @@ function buildProvinsi(id: string): RingkasanPayload | null {
       airTL: sasaran.sumberAirTidakLayak,
       rtlh: sasaran.rtlh,
     },
-    komposisiTPK: { bidan, pkk, kaderKb },
+    komposisiTPK: { bidan, pkk, kaderKb, lainnya },
     meta: {
       cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
       source: SOURCE,
