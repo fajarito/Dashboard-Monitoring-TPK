@@ -19,6 +19,7 @@ import {
 } from "@/components/dashboard/data-state";
 import { GlossaryTerm } from "@/components/dashboard/glossary-term";
 import type { PeringkatProvinsiItem } from "@/lib/data/types";
+import { resolveSourceBadge } from "@/lib/data-source-badge";
 import {
   estimateDesaForProvince,
   formatNumber,
@@ -133,12 +134,7 @@ export function ProvinceSebaranTable({
     });
   }, [ranking]);
 
-  const sourceBadge =
-    dataSource === "postgres"
-      ? { label: "Data live", className: "bg-emerald-50 text-emerald-700" }
-      : dataSource === "mock"
-        ? { label: "Data simulasi", className: "bg-amber-50 text-amber-700" }
-        : null;
+  const sourceBadge = resolveSourceBadge(dataSource);
 
   useEffect(() => {
     if (!selectedId) return;

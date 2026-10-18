@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 
 import { GlossaryTerm } from "@/components/dashboard/glossary-term";
+import type { DataSource } from "@/lib/data/types";
+import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { formatNumber } from "@/lib/map-data";
 import {
   sasaranKeys,
@@ -20,6 +22,7 @@ import {
   type SasaranCounts,
   type SasaranKey,
 } from "@/lib/sasaran-indikator";
+import { cn } from "@/lib/utils";
 
 const sasaranGlossaryId: Record<SasaranKey, string> = {
   ibuHamil: "ibu-hamil",
@@ -116,6 +119,7 @@ export function SasaranIndikatorPanel({
   counts,
   keluargaSasaran,
   krs,
+  dataSource = "mock",
 }: {
   scopeLabel: string;
   counts: SasaranCounts;
@@ -123,6 +127,11 @@ export function SasaranIndikatorPanel({
   keluargaSasaran?: number;
   /** Keluarga Berisiko Stunting — ejaan Berisiko. */
   krs?: number;
+  /**
+   * Sumber efektif dari meta.source API (home nasional).
+   * Default mock — halaman drilldown wilayah masih simulasi lokal.
+   */
+  dataSource?: DataSource | null;
 }) {
   const extras: ExtraCard[] = [];
   if (keluargaSasaran != null) {
@@ -145,6 +154,7 @@ export function SasaranIndikatorPanel({
   }
 
   const hasExtras = extras.length > 0;
+  const sourceBadge = resolveSourceBadge(dataSource);
 
   return (
     <section aria-label={`Indikator sasaran ${scopeLabel}`}>
@@ -158,9 +168,16 @@ export function SasaranIndikatorPanel({
             <span className="font-semibold text-navy">{scopeLabel}</span>
           </p>
         </div>
-        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-amber-700 uppercase">
-          Data simulasi
-        </span>
+        {sourceBadge ? (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider uppercase",
+              sourceBadge.className,
+            )}
+          >
+            {sourceBadge.label}
+          </span>
+        ) : null}
       </div>
 
       <div
