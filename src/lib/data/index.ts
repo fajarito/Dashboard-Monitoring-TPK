@@ -26,6 +26,7 @@ import type {
   RingkasanTingkat,
   TpkListPayload,
   TpkListQuery,
+  TpkListSort,
 } from "@/lib/data/types";
 
 export type {
@@ -41,9 +42,12 @@ export type {
   RingkasanPayload,
   RingkasanQuery,
   RingkasanTingkat,
+  TpkListIndikator,
   TpkListItem,
   TpkListPayload,
+  TpkListPkb,
   TpkListQuery,
+  TpkListSort,
 } from "@/lib/data/types";
 
 export {
@@ -74,6 +78,24 @@ export function parseRingkasanQuery(
     tingkat,
     id: id && id.trim() ? id.trim() : null,
   };
+}
+
+const TPK_SORT_VALUES: readonly TpkListSort[] = [
+  "nama",
+  "krs-desc",
+  "krs-asc",
+  "ibuHamil-desc",
+  "baduta-desc",
+  "balita-desc",
+  "rtlh-desc",
+] as const;
+
+function parseTpkListSort(raw: string | null): TpkListSort {
+  const value = raw?.trim() as TpkListSort | undefined;
+  if (value && (TPK_SORT_VALUES as readonly string[]).includes(value)) {
+    return value;
+  }
+  return "krs-desc";
 }
 
 export function parseTpkListQuery(searchParams: URLSearchParams): TpkListQuery {
@@ -107,6 +129,7 @@ export function parseTpkListQuery(searchParams: URLSearchParams): TpkListQuery {
     q,
     page,
     pageSize,
+    sort: parseTpkListSort(searchParams.get("sort")),
   };
 }
 
@@ -197,6 +220,7 @@ export async function fetchTpkList(
     query.provinsiId ?? "",
     query.kabupatenId ?? "",
     query.q ?? "",
+    query.sort,
     query.page,
     query.pageSize,
   ]);

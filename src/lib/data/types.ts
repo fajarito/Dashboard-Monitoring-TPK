@@ -122,6 +122,16 @@ export type RingkasanQuery = {
   id?: string | null;
 };
 
+/** Urutan daftar TPK — metrik dari rollup kelurahan (by_rekap), bukan by_name. */
+export type TpkListSort =
+  | "nama"
+  | "krs-desc"
+  | "krs-asc"
+  | "ibuHamil-desc"
+  | "baduta-desc"
+  | "balita-desc"
+  | "rtlh-desc";
+
 /** Query daftar TPK paging — filter wilayah wajib (hindari full scan). */
 export type TpkListQuery = {
   provinsiId: number | null;
@@ -130,6 +140,37 @@ export type TpkListQuery = {
   q: string | null;
   page: number;
   pageSize: number;
+  /** Default krs-desc bila data indikator ada; mock/postgres sama. */
+  sort: TpkListSort;
+};
+
+/** PKB/PLKB aktif untuk desa TPK (via dat_KelurahanDesaBinaan). */
+export type TpkListPkb = {
+  pkbId: string;
+  nama: string | null;
+  /** 1 → PKB, 2 → PLKB (JabatanPKBAtauPLKBID). */
+  jabatan: "PKB" | "PLKB" | null;
+  /**
+   * Jenjang detail (huruf JabatanPKBID / JabatanBPLKBID) bila ada.
+   * Label resmi Terampil/Mahir/… belum dikunci → boleh kode huruf mentah.
+   */
+  jabatanDetail: string | null;
+  nik: string | null;
+  noHp: string | null;
+};
+
+/**
+ * Indikator kelurahan dari SUM(by_rekap) grain RT → id_kelurahan.
+ * null = join miss / DWH belum siap → UI tampilkan "—".
+ * rtlh selalu null (kolom tidak ada di DWH).
+ */
+export type TpkListIndikator = {
+  bumil: number | null;
+  baduta: number | null;
+  balita: number | null;
+  jambanTL: number | null;
+  airTL: number | null;
+  rtlh: null;
 };
 
 export type TpkListItem = {
@@ -147,6 +188,16 @@ export type TpkListItem = {
   namaKelurahan: string | null;
   jumlahAnggota: number;
   status: number | null;
+  /** SUM(jumlah_keluarga_sasaran) di kelurahan TPK. */
+  keluargaSasaran: number | null;
+  /** SUM(total_prioritas) = KRS di kelurahan TPK. */
+  krs: number | null;
+  indikator: TpkListIndikator;
+  /**
+   * PKB/PLKB binaan desa (Status=1). null jika tidak ada join.
+   * Jika >1 PKB aktif per desa: pilih TRIM(PKBID) terkecil (dokumentasi di adapter).
+   */
+  pkb: TpkListPkb | null;
 };
 
 export type TpkListPayload = {
