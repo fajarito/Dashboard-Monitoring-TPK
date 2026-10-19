@@ -174,7 +174,10 @@ export function LiveTpkListPanel({
   const isFiltered = Boolean(kabupatenId || debouncedQ.trim());
   const total = list.payload?.total ?? 0;
   const totalPages = list.payload?.totalPages ?? 0;
-  const scopeTotal = ringkasan?.jumlahTPK ?? total;
+  // Unfiltered: N/N from list. Filtered: N dari list vs M dari ringkasan scope (jujur).
+  const scopeTotal = isFiltered
+    ? Math.max(ringkasan?.jumlahTPK ?? total, total)
+    : total;
 
   const pageItems = useMemo(() => {
     const items = list.payload?.items ?? [];
