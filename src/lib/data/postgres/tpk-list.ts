@@ -114,9 +114,11 @@ FROM "sigabaru"."dat_TPK" t
 WHERE t."Status" = 1
   AND ($1::int IS NULL OR t."ProvinsiID" = $1)
   AND ($2::int IS NULL OR t."KabupatenID" = $2)
+  AND ($3::int IS NULL OR t."KecamatanID" = $3)
+  AND ($4::int IS NULL OR t."KelurahanID" = $4)
   AND (
-    $3::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $3 || '%'
+    $5::text IS NULL
+    OR t."NamaTPK" ILIKE '%' || $5 || '%'
   )
 `;
 
@@ -148,9 +150,11 @@ FROM (
   WHERE t."Status" = 1
     AND ($1::int IS NULL OR t."ProvinsiID" = $1)
     AND ($2::int IS NULL OR t."KabupatenID" = $2)
+    AND ($3::int IS NULL OR t."KecamatanID" = $3)
+    AND ($4::int IS NULL OR t."KelurahanID" = $4)
     AND (
-      $3::text IS NULL
-      OR t."NamaTPK" ILIKE '%' || $3 || '%'
+      $5::text IS NULL
+      OR t."NamaTPK" ILIKE '%' || $5 || '%'
     )
   ORDER BY
     t."TPKID",
@@ -160,7 +164,7 @@ FROM (
 ORDER BY
   u.namatpk ASC NULLS LAST,
   u.tpkid ASC
-LIMIT $4 OFFSET $5
+LIMIT $6 OFFSET $7
 `;
 
 /**
@@ -176,9 +180,11 @@ FROM "sigabaru"."dat_TPK" t
 WHERE t."Status" = 1
   AND ($1::int IS NULL OR t."ProvinsiID" = $1)
   AND ($2::int IS NULL OR t."KabupatenID" = $2)
+  AND ($3::int IS NULL OR t."KecamatanID" = $3)
+  AND ($4::int IS NULL OR t."KelurahanID" = $4)
   AND (
-    $3::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $3 || '%'
+    $5::text IS NULL
+    OR t."NamaTPK" ILIKE '%' || $5 || '%'
   )
 ORDER BY
   t."TPKID",
@@ -227,9 +233,11 @@ SELECT
   COALESCE(SUM(r."jamban_layak_tidak"), 0) AS jamban_tl,
   COALESCE(SUM(r."sumber_air_layak_tidak"), 0) AS air_tl
 FROM "dwh_pk2025"."fs_stunting_by_rekap_rdk_pk25_semester1" r
-WHERE r."periode" = $3
+WHERE r."periode" = $5
   AND ($1::int IS NULL OR r."id_provinsi" = $1)
   AND ($2::int IS NULL OR r."id_kabupaten" = $2)
+  AND ($3::int IS NULL OR r."id_kecamatan" = $3)
+  AND ($4::int IS NULL OR r."id_kelurahan" = $4)
 GROUP BY r."id_kelurahan"
 `;
 
@@ -291,11 +299,13 @@ FROM "sigabaru"."dat_TPK" t
 WHERE t."Status" = 1
   AND ($1::int IS NULL OR t."ProvinsiID" = $1)
   AND ($2::int IS NULL OR t."KabupatenID" = $2)
+  AND ($3::int IS NULL OR t."KecamatanID" = $3)
+  AND ($4::int IS NULL OR t."KelurahanID" = $4)
   AND (
-    $3::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $3 || '%'
+    $5::text IS NULL
+    OR t."NamaTPK" ILIKE '%' || $5 || '%'
   )
-  AND t."KelurahanID" = ANY($4::int[])
+  AND t."KelurahanID" = ANY($6::int[])
 GROUP BY t."KelurahanID"
 `;
 
@@ -399,16 +409,27 @@ function sortMetric(
 export async function getKelurahanRekapMap(
   provinsiId: number | null,
   kabupatenId: number | null,
+  kecamatanId: number | null = null,
+  kelurahanId: number | null = null,
 ): Promise<Map<number, KelurahanRekap>> {
   const empty = new Map<number, KelurahanRekap>();
   if (!getPoolConfigs().dwh.ready) return empty;
-  if (provinsiId == null && kabupatenId == null) return empty;
+  if (
+    provinsiId == null &&
+    kabupatenId == null &&
+    kecamatanId == null &&
+    kelurahanId == null
+  ) {
+    return empty;
+  }
 
   const periode = getDwhPeriode();
   const key = cacheKey([
     "kelurahan-rekap",
     provinsiId ?? "",
     kabupatenId ?? "",
+    kecamatanId ?? "",
+    kelurahanId ?? "",
     periode,
   ]);
   const hit = getCached<Map<number, KelurahanRekap>>(key);
@@ -418,6 +439,8 @@ export async function getKelurahanRekapMap(
     const res = await queryPool<KelurahanRekapRow>("dwh", SQL_KELURAHAN_REKAP, [
       provinsiId,
       kabupatenId,
+      kecamatanId,
+      kelurahanId,
       periode,
     ]);
     const map = new Map<number, KelurahanRekap>();
@@ -510,7 +533,14 @@ async function fetchTpkCountByKelurahan(
     const res = await queryPool<TpkSeDesaRow>(
       "siga",
       SQL_TPK_COUNT_BY_KELURAHAN,
-      [query.provinsiId, query.kabupatenId, q, kelIds],
+      [
+        query.provinsiId,
+        query.kabupatenId,
+        query.kecamatanId,
+        query.kelurahanId,
+        q,
+        kelIds,
+      ],
     );
     for (const row of res.rows) {
       map.set(toInt(row.kelurahanid), toInt(row.n));
@@ -670,7 +700,12 @@ async function enrichPageRows(
   const [names, rekapMap, pkbMap, anggotaMap, tpkSeDesaMap] =
     await Promise.all([
       lookupWilayahNames(rows),
-      getKelurahanRekapMap(query.provinsiId, query.kabupatenId),
+      getKelurahanRekapMap(
+        query.provinsiId,
+        query.kabupatenId,
+        query.kecamatanId,
+        query.kelurahanId,
+      ),
       fetchPkbByKelurahan(kelIds),
       fetchAnggotaByTpkIds(tpkIds),
       fetchTpkCountByKelurahan(query, q, kelIds),
@@ -701,6 +736,8 @@ async function fetchPageByNama(
   const pageRes = await queryPool<SigaTpkRow>("siga", SQL_TPK_PAGE, [
     query.provinsiId,
     query.kabupatenId,
+    query.kecamatanId,
+    query.kelurahanId,
     q,
     query.pageSize,
     offset,
@@ -720,14 +757,21 @@ async function fetchPageByMetricSort(
     queryPool<SigaIdRow>("siga", SQL_TPK_IDS, [
       query.provinsiId,
       query.kabupatenId,
+      query.kecamatanId,
+      query.kelurahanId,
       q,
     ]),
-    getKelurahanRekapMap(query.provinsiId, query.kabupatenId),
+    getKelurahanRekapMap(
+      query.provinsiId,
+      query.kabupatenId,
+      query.kecamatanId,
+      query.kelurahanId,
+    ),
   ]);
 
   const asc = query.sort === "krs-asc";
   // Safety net: DISTINCT ON di SQL + dedupe di app (TPKID bukan PK formal).
-  const uniqueIds = dedupeSigaRows(idsRes.rows);
+  const uniqueIds: SigaIdRow[] = dedupeSigaRows(idsRes.rows);
 
   const ranked = uniqueIds.slice().sort((a, b) => {
     const kelA = a.kelurahanid != null ? toInt(a.kelurahanid) : null;
@@ -768,10 +812,15 @@ export async function getTpkListPostgres(
     return getTpkListMock(query);
   }
 
-  if (query.provinsiId == null && query.kabupatenId == null) {
+  if (
+    query.provinsiId == null &&
+    query.kabupatenId == null &&
+    query.kecamatanId == null &&
+    query.kelurahanId == null
+  ) {
     throw new PostgresDataError(
       "missing_wilayah_filter",
-      "Daftar TPK membutuhkan provinsiId dan/atau kabupatenId (hindari full scan).",
+      "Daftar TPK membutuhkan filter wilayah (hindari full scan).",
       { status: 400 },
     );
   }
@@ -782,6 +831,8 @@ export async function getTpkListPostgres(
   const countRes = await queryPool<CountRow>("siga", SQL_TPK_COUNT, [
     query.provinsiId,
     query.kabupatenId,
+    query.kecamatanId,
+    query.kelurahanId,
     q,
   ]);
   const total = toInt(countRes.rows[0]?.total);
@@ -826,6 +877,8 @@ export async function getTpkListPostgres(
     filters: {
       provinsiId: query.provinsiId,
       kabupatenId: query.kabupatenId,
+      kecamatanId: query.kecamatanId,
+      kelurahanId: query.kelurahanId,
       q,
     },
     meta: {

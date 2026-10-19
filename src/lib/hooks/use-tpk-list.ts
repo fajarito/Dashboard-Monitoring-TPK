@@ -7,6 +7,8 @@ import type { TpkListPayload, TpkListSort } from "@/lib/data/types";
 export type TpkListFilters = {
   provinsiId: string | null;
   kabupatenId: string | null;
+  kecamatanId?: string | null;
+  kelurahanId?: string | null;
   q: string;
   page: number;
   pageSize?: number;
@@ -22,7 +24,7 @@ export type TpkListState = {
 
 /**
  * Daftar TPK live/mock dengan paging server-side.
- * Butuh provinsiId dan/atau kabupatenId.
+ * Butuh minimal satu filter wilayah.
  */
 export function useTpkList(filters: TpkListFilters): TpkListState {
   const [tick, setTick] = useState(0);
@@ -38,13 +40,15 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
 
   const provinsiId = filters.provinsiId;
   const kabupatenId = filters.kabupatenId;
+  const kecamatanId = filters.kecamatanId ?? null;
+  const kelurahanId = filters.kelurahanId ?? null;
   const q = filters.q;
   const page = filters.page;
   const pageSize = filters.pageSize ?? 25;
   const sort = filters.sort ?? "krs-desc";
 
   useEffect(() => {
-    if (!provinsiId && !kabupatenId) {
+    if (!provinsiId && !kabupatenId && !kecamatanId && !kelurahanId) {
       setState({ status: "idle", payload: null, error: null });
       return;
     }
@@ -55,6 +59,8 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
     const params = new URLSearchParams();
     if (provinsiId) params.set("provinsiId", provinsiId);
     if (kabupatenId) params.set("kabupatenId", kabupatenId);
+    if (kecamatanId) params.set("kecamatanId", kecamatanId);
+    if (kelurahanId) params.set("kelurahanId", kelurahanId);
     if (q.trim()) params.set("q", q.trim());
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
@@ -94,7 +100,17 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
       });
 
     return () => controller.abort();
-  }, [provinsiId, kabupatenId, q, page, pageSize, sort, tick]);
+  }, [
+    provinsiId,
+    kabupatenId,
+    kecamatanId,
+    kelurahanId,
+    q,
+    page,
+    pageSize,
+    sort,
+    tick,
+  ]);
 
   return { ...state, refetch };
 }

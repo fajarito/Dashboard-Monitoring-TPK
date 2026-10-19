@@ -12,6 +12,11 @@ import {
   KABUPATEN_ID_BY_SLUG,
 } from "@/lib/kabupaten-api-id";
 import {
+  getKecamatanApiId,
+  getKecamatanSlugByApiId,
+  KECAMATAN_ID_BY_SLUG,
+} from "@/lib/kecamatan-api-id";
+import {
   PROVINSI_ID_BY_SLUG,
   resolveProvinceFromRingkasanId,
 } from "@/lib/province-api-id";
@@ -32,6 +37,17 @@ function slugForKabupatenId(kabupatenId: number | null): string | null {
     ([, id]) => id === kabupatenId,
   );
   return entry?.[0] ?? null;
+}
+
+function slugForKecamatanId(kecamatanId: number | null): string | null {
+  if (kecamatanId == null) return null;
+  return (
+    getKecamatanSlugByApiId(kecamatanId) ??
+    Object.entries(KECAMATAN_ID_BY_SLUG).find(
+      ([, id]) => id === kecamatanId,
+    )?.[0] ??
+    null
+  );
 }
 
 function emptyIndikator(): TpkListIndikator {
@@ -78,7 +94,9 @@ function toItem(
     alamat: null,
     provinsiId: provinceApiId,
     kabupatenId: Number.isFinite(kabApi) ? kabApi : null,
-    kecamatanId: null,
+    kecamatanId: tpk.kecamatanId
+      ? Number.parseInt(getKecamatanApiId(tpk.kecamatanId) ?? "", 10) || null
+      : null,
     kelurahanId: null,
     namaKabupaten: tpk.kabupaten,
     namaKecamatan: tpk.kecamatan,
@@ -144,6 +162,7 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
     "jabar";
 
   const kabSlug = slugForKabupatenId(query.kabupatenId);
+  const kecSlug = slugForKecamatanId(query.kecamatanId);
 
   // Jika hanya kabupaten (mis. 166) tanpa provinsi → jabar.
   if (query.kabupatenId != null && query.provinsiId == null) {
@@ -158,7 +177,18 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
   let list = getTpkForScope({
     provinceId: provinceSlug,
     kabupatenId: kabSlug ?? undefined,
+    kecamatanId: kecSlug ?? undefined,
   });
+
+  if (query.kecamatanId != null && !kecSlug) {
+    // id numerik tanpa slug mock → filter by resolved api id on mapped items later
+    list = list.filter((tpk) => {
+      const id = tpk.kecamatanId
+        ? Number.parseInt(getKecamatanApiId(tpk.kecamatanId) ?? "", 10)
+        : NaN;
+      return id === query.kecamatanId;
+    });
+  }
 
   const q = query.q?.trim().toLowerCase();
   if (q) {
@@ -197,6 +227,8 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
     filters: {
       provinsiId: query.provinsiId ?? provinceApiId ?? null,
       kabupatenId: query.kabupatenId,
+      kecamatanId: query.kecamatanId,
+      kelurahanId: query.kelurahanId,
       q: query.q?.trim() || null,
     },
     meta: {

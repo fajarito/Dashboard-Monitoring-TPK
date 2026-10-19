@@ -323,8 +323,79 @@ function buildKabupaten(id: string): RingkasanPayload | null {
   };
 }
 
+function buildScopedFromKabupaten(
+  tingkat: "kecamatan" | "kelurahan",
+  id: string,
+  shareHint: number,
+): RingkasanPayload {
+  // Skala dari ringkasan kab Depok bila id tidak punya hierarki mock.
+  const base = buildKabupaten("166") ?? buildNasional();
+  const seed = Number.parseInt(id, 10) || 1;
+  const share = shareHint + ((seed * 13) % 30) / 1000;
+  const scale = (n: number) => Math.max(0, Math.round(n * share));
+  const jumlahTPK = Math.max(1, scale(base.jumlahTPK));
+  const jumlahAnggota = scale(base.jumlahAnggota);
+  const jumlahPKB = Math.max(1, scale(base.jumlahPKB));
+  const jumlahKRS = scale(base.jumlahKRS);
+  const jumlahSasaran = scale(base.jumlahSasaran);
+  const desa =
+    tingkat === "kelurahan"
+      ? 1
+      : Math.max(1, scale(Math.max(base.jumlahPKB * 2, 8)));
+  const bidan = Math.round(jumlahAnggota * 0.325);
+  const pkk = Math.round(jumlahAnggota * 0.318);
+  const kaderKb = Math.round(jumlahAnggota * 0.297);
+  const lainnya = Math.max(0, jumlahAnggota - bidan - pkk - kaderKb);
+  const rasioTPK_KRS = getKrsPerTpkRatio(jumlahTPK, jumlahKRS);
+  const rasioPKB_desa = getDesaPerPkbRatio(jumlahPKB, desa);
+  return {
+    tingkat,
+    id,
+    jumlahTPK,
+    jumlahAnggota,
+    jumlahPKB,
+    jumlahKRS,
+    jumlahSasaran,
+    rasioTPK_KRS,
+    rasioPKB_desa,
+    warningBeban: rasioPKB_desa > PKB_DESA_IDEAL_MAX,
+    komposisiPrioritas: {
+      prioritas1: scale(base.komposisiPrioritas.prioritas1),
+      prioritas2: scale(base.komposisiPrioritas.prioritas2),
+      prioritas3: scale(base.komposisiPrioritas.prioritas3),
+      prioritas4: scale(base.komposisiPrioritas.prioritas4),
+      bukan: scale(base.komposisiPrioritas.bukan),
+      tidakRisiko: scale(base.komposisiPrioritas.tidakRisiko),
+    },
+    indikator: {
+      bumil: scale(base.indikator.bumil),
+      baduta: scale(base.indikator.baduta),
+      balita: scale(base.indikator.balita),
+      jambanTL: scale(base.indikator.jambanTL),
+      airTL: scale(base.indikator.airTL),
+      rtlh: scale(base.indikator.rtlh ?? 0),
+    },
+    komposisiTPK: { bidan, pkk, kaderKb, lainnya },
+    meta: {
+      cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
+      source: SOURCE,
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 /** Adapter mock — bentuk respons sama dengan kontrak live. */
 export function getRingkasanMock(query: RingkasanQuery): RingkasanPayload {
+  if (query.tingkat === "kelurahan") {
+    const id = query.id?.trim();
+    if (!id) return buildNasional();
+    return buildScopedFromKabupaten("kelurahan", id, 0.04);
+  }
+  if (query.tingkat === "kecamatan") {
+    const id = query.id?.trim();
+    if (!id) return buildNasional();
+    return buildScopedFromKabupaten("kecamatan", id, 0.08);
+  }
   if (query.tingkat === "kabupaten") {
     const id = query.id?.trim();
     if (!id) return buildNasional();

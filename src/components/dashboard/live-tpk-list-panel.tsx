@@ -15,11 +15,15 @@ import { TpkScopeSummaryCards } from "@/components/dashboard/tpk-scope-summary-c
 import { Button } from "@/components/ui/button";
 import type {
   PeringkatKabupatenItem,
+  PeringkatKecamatanItem,
+  PeringkatKelurahanItem,
   TpkListItem,
   TpkListPkb,
   TpkListSort,
 } from "@/lib/data/types";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
+import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
+import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { useTpkList } from "@/lib/hooks/use-tpk-list";
 import { formatNumber } from "@/lib/map-data";
@@ -33,7 +37,10 @@ import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
-type KabOption = { id: string; label: string };
+type WilayahOption = { id: string; label: string };
+
+/** Level halaman → opsi filter anak + typeahead cari wilayah. */
+export type TpkFilterLevel = "kabupaten" | "kecamatan" | "kelurahan" | "none";
 
 type SortKey = TpkListSort | "prioritas-tinggi";
 
@@ -123,28 +130,43 @@ export function LiveTpkListPanel({
   provinceSlug,
   provinsiApiId,
   initialKabupatenId = null,
+  initialKecamatanId = null,
+  initialKelurahanId = null,
   provinceName,
   /** Kartu ringkasan Tim/Anggota/PKB — matikan di halaman yang sudah punya KPI. */
   showSummaryCards = true,
+  /**
+   * Provinsi → filter kab; kabupaten → filter kec;
+   * kecamatan → filter desa/kel; none → tanpa dropdown.
+   */
+  filterLevel = "kabupaten",
 }: {
   provinceSlug: string;
   /** id_provinsi numerik (string). */
   provinsiApiId: string;
   initialKabupatenId?: string | null;
+  initialKecamatanId?: string | null;
+  initialKelurahanId?: string | null;
   provinceName: string;
   showSummaryCards?: boolean;
+  filterLevel?: TpkFilterLevel;
 }) {
   const [kabupatenId, setKabupatenId] = useState(initialKabupatenId ?? "");
+  const [kecamatanId, setKecamatanId] = useState(initialKecamatanId ?? "");
+  const [kelurahanId, setKelurahanId] = useState(initialKelurahanId ?? "");
   const [query, setQuery] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<SortKey>("krs-desc");
   const [onlyPrioritasTinggi, setOnlyPrioritasTinggi] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   useEffect(() => {
     setKabupatenId(initialKabupatenId ?? "");
+    setKecamatanId(initialKecamatanId ?? "");
+    setKelurahanId(initialKelurahanId ?? "");
     setPage(1);
-  }, [initialKabupatenId]);
+  }, [initialKabupatenId, initialKecamatanId, initialKelurahanId]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(query), 300);
@@ -153,40 +175,145 @@ export function LiveTpkListPanel({
 
   useEffect(() => {
     setPage(1);
-  }, [kabupatenId, debouncedQ, sortKey, onlyPrioritasTinggi]);
+  }, [
+    kabupatenId,
+    kecamatanId,
+    kelurahanId,
+    debouncedQ,
+    sortKey,
+    onlyPrioritasTinggi,
+  ]);
 
-  const peringkatKab = usePeringkatKabupaten(provinsiApiId);
-  const kabOptions: KabOption[] = useMemo(() => {
-    const items = peringkatKab.payload?.items ?? [];
-    const mapped = items.map((item: PeringkatKabupatenItem) => ({
-      id: item.id,
-      label: item.nama,
-    }));
-    if (kabupatenId && !mapped.some((opt) => opt.id === kabupatenId)) {
-      mapped.unshift({ id: kabupatenId, label: `Kab/kota ${kabupatenId}` });
+  const peringkatKab = usePeringkatKabupaten(
+    filterLevel === "kabupaten" ? provinsiApiId : null,
+  );
+  const peringkatKec = usePeringkatKecamatan(
+    filterLevel === "kecamatan" && (initialKabupatenId || kabupatenId)
+      ? initialKabupatenId || kabupatenId
+      : null,
+  );
+  const peringkatKel = usePeringkatKelurahan(
+    filterLevel === "kelurahan" && (initialKecamatanId || kecamatanId)
+      ? initialKecamatanId || kecamatanId
+      : null,
+  );
+
+  const childOptions: WilayahOption[] = useMemo(() => {
+    if (filterLevel === "kabupaten") {
+      const items = peringkatKab.payload?.items ?? [];
+      const mapped = items.map((item: PeringkatKabupatenItem) => ({
+        id: item.id,
+        label: item.nama,
+      }));
+      if (kabupatenId && !mapped.some((opt) => opt.id === kabupatenId)) {
+        mapped.unshift({ id: kabupatenId, label: `Kab/kota ${kabupatenId}` });
+      }
+      return mapped;
     }
-    return mapped;
-  }, [peringkatKab.payload, kabupatenId]);
+    if (filterLevel === "kecamatan") {
+      const items = peringkatKec.payload?.items ?? [];
+      const mapped = items.map((item: PeringkatKecamatanItem) => ({
+        id: item.id,
+        label: item.nama,
+      }));
+      if (kecamatanId && !mapped.some((opt) => opt.id === kecamatanId)) {
+        mapped.unshift({
+          id: kecamatanId,
+          label: `Kecamatan ${kecamatanId}`,
+        });
+      }
+      return mapped;
+    }
+    if (filterLevel === "kelurahan") {
+      const items = peringkatKel.payload?.items ?? [];
+      const mapped = items.map((item: PeringkatKelurahanItem) => ({
+        id: item.id,
+        label: item.nama,
+      }));
+      if (kelurahanId && !mapped.some((opt) => opt.id === kelurahanId)) {
+        mapped.unshift({
+          id: kelurahanId,
+          label: `Desa/Kel. ${kelurahanId}`,
+        });
+      }
+      return mapped;
+    }
+    return [];
+  }, [
+    filterLevel,
+    peringkatKab.payload,
+    peringkatKec.payload,
+    peringkatKel.payload,
+    kabupatenId,
+    kecamatanId,
+    kelurahanId,
+  ]);
 
-  const selectedKabLabel = useMemo(() => {
-    if (!kabupatenId) return null;
+  const filterLabel =
+    filterLevel === "kabupaten"
+      ? "Kabupaten/Kota"
+      : filterLevel === "kecamatan"
+        ? "Kecamatan"
+        : filterLevel === "kelurahan"
+          ? "Desa/Kelurahan"
+          : null;
+
+  const selectedChildId =
+    filterLevel === "kabupaten"
+      ? kabupatenId
+      : filterLevel === "kecamatan"
+        ? kecamatanId
+        : filterLevel === "kelurahan"
+          ? kelurahanId
+          : "";
+
+  function setSelectedChildId(id: string) {
+    if (filterLevel === "kabupaten") {
+      setKabupatenId(id);
+      setKecamatanId("");
+      setKelurahanId("");
+    } else if (filterLevel === "kecamatan") {
+      setKecamatanId(id);
+      setKelurahanId("");
+    } else if (filterLevel === "kelurahan") {
+      setKelurahanId(id);
+    }
+  }
+
+  /** Typeahead wilayah: hanya opsi dalam scope halaman (bukan nasional). */
+  const wilayahSuggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return childOptions
+      .filter((opt) => opt.label.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [childOptions, query]);
+
+  const selectedChildLabel = useMemo(() => {
+    if (!selectedChildId) return null;
     return (
-      kabOptions.find((opt) => opt.id === kabupatenId)?.label ??
-      `Kab/kota ${kabupatenId}`
+      childOptions.find((opt) => opt.id === selectedChildId)?.label ??
+      selectedChildId
     );
-  }, [kabupatenId, kabOptions]);
+  }, [selectedChildId, childOptions]);
 
-  const scopeLabel = selectedKabLabel ?? provinceName;
+  const scopeLabel = selectedChildLabel ?? provinceName;
 
   const ringkasanScope = useRingkasanScope(
-    kabupatenId
-      ? { tingkat: "kabupaten", id: kabupatenId }
-      : { tingkat: "provinsi", id: provinsiApiId },
+    kelurahanId
+      ? { tingkat: "kelurahan", id: kelurahanId }
+      : kecamatanId
+        ? { tingkat: "kecamatan", id: kecamatanId }
+        : kabupatenId
+          ? { tingkat: "kabupaten", id: kabupatenId }
+          : { tingkat: "provinsi", id: provinsiApiId },
   );
 
   const list = useTpkList({
     provinsiId: provinsiApiId,
     kabupatenId: kabupatenId || null,
+    kecamatanId: kecamatanId || null,
+    kelurahanId: kelurahanId || null,
     q: debouncedQ,
     page,
     pageSize: PAGE_SIZE,
@@ -212,7 +339,12 @@ export function LiveTpkListPanel({
         ? "PKB/PLKB unik (simulasi)"
         : "PKB/PLKB di wilayah";
 
-  const isFiltered = Boolean(kabupatenId || debouncedQ.trim());
+  const isFiltered = Boolean(
+    (filterLevel === "kabupaten" && kabupatenId) ||
+      (filterLevel === "kecamatan" && kecamatanId) ||
+      (filterLevel === "kelurahan" && kelurahanId) ||
+      debouncedQ.trim(),
+  );
   const total = list.payload?.total ?? 0;
   const totalPages = list.payload?.totalPages ?? 0;
   // Unfiltered: N/N from list. Filtered: N dari list vs M dari ringkasan scope (jujur).
@@ -304,40 +436,102 @@ export function LiveTpkListPanel({
         </div>
 
         <div className="space-y-2.5 border-b border-line px-6 py-4">
-          <label className="relative block">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
-              aria-hidden
-            />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari nama TPK, desa, kecamatan, atau PKB…"
-              className="h-9 w-full rounded-xl border border-line bg-white pr-3 pl-9 text-[12px] text-navy outline-none ring-primary/30 placeholder:text-slate-400 focus:ring-2"
-              aria-label="Cari daftar TPK"
-            />
-          </label>
-
-          <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto]">
-            <label className="block min-w-0">
-              <span className="mb-1 block text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
-                Filter kabupaten/kota
-              </span>
-              <select
-                value={kabupatenId}
-                onChange={(e) => setKabupatenId(e.target.value)}
-                className={selectClass}
-                aria-label="Filter kabupaten/kota"
-              >
-                <option value="">Semua kabupaten/kota</option>
-                {kabOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+          <div className="relative">
+            <label className="relative block">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setSuggestOpen(true);
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                onBlur={() => {
+                  // Delay agar klik suggestion sempat terproses.
+                  window.setTimeout(() => setSuggestOpen(false), 150);
+                }}
+                placeholder={
+                  filterLabel
+                    ? `Cari nama / wilayah di ${provinceName}…`
+                    : "Cari nama TPK…"
+                }
+                className="h-9 w-full rounded-xl border border-line bg-white pr-3 pl-9 text-[12px] text-navy outline-none ring-primary/30 placeholder:text-slate-400 focus:ring-2"
+                aria-label="Cari nama atau wilayah dalam lingkup halaman"
+                aria-autocomplete="list"
+                aria-expanded={suggestOpen && wilayahSuggestions.length > 0}
+              />
             </label>
+            {suggestOpen && wilayahSuggestions.length > 0 ? (
+              <ul
+                className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-line bg-white py-1 shadow-[var(--shadow-soft)]"
+                role="listbox"
+                aria-label={`Wilayah dalam ${provinceName}`}
+              >
+                {wilayahSuggestions.map((opt) => (
+                  <li key={opt.id} role="option">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px] hover:bg-blue-50"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setSelectedChildId(opt.id);
+                        setQuery("");
+                        setSuggestOpen(false);
+                      }}
+                    >
+                      <span className="font-semibold text-navy">{opt.label}</span>
+                      <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                        {filterLabel}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {suggestOpen &&
+            query.trim().length >= 2 &&
+            wilayahSuggestions.length === 0 &&
+            filterLabel ? (
+              <p className="mt-1 text-[11px] text-slate-400">
+                Tidak ada {filterLabel.toLowerCase()} cocok di lingkup{" "}
+                <span className="font-semibold text-navy">{provinceName}</span>
+                . Ketik lanjut untuk cari nama TPK.
+              </p>
+            ) : null}
+          </div>
+
+          <div
+            className={cn(
+              "grid gap-2.5",
+              filterLabel
+                ? "sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto]"
+                : "sm:grid-cols-[minmax(0,1fr)_auto]",
+            )}
+          >
+            {filterLabel ? (
+              <label className="block min-w-0">
+                <span className="mb-1 block text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
+                  Filter {filterLabel.toLowerCase()}
+                </span>
+                <select
+                  value={selectedChildId}
+                  onChange={(e) => setSelectedChildId(e.target.value)}
+                  className={selectClass}
+                  aria-label={`Filter ${filterLabel}`}
+                >
+                  <option value="">Semua {filterLabel.toLowerCase()}</option>
+                  {childOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
             <label className="block min-w-0">
               <span className="mb-1 block text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
@@ -458,7 +652,7 @@ export function LiveTpkListPanel({
                           description={
                             onlyPrioritasTinggi
                               ? "Data keluarga prioritas per TPK belum live. Matikan filter untuk melihat daftar dari API."
-                              : "Ubah kata kunci atau kabupaten/kota — atau hapus filter untuk melihat seluruh daftar."
+                              : "Ubah kata kunci atau filter wilayah — atau hapus filter untuk melihat seluruh daftar."
                           }
                           action={
                             onlyPrioritasTinggi || isFiltered ? (
@@ -467,8 +661,21 @@ export function LiveTpkListPanel({
                                 className="text-[12px] font-bold text-primary hover:underline"
                                 onClick={() => {
                                   setOnlyPrioritasTinggi(false);
-                                  setKabupatenId("");
                                   setQuery("");
+                                  if (filterLevel === "kabupaten") {
+                                    setKabupatenId("");
+                                    setKecamatanId("");
+                                    setKelurahanId("");
+                                  } else if (filterLevel === "kecamatan") {
+                                    setKecamatanId("");
+                                    setKelurahanId("");
+                                    // Pertahankan kab halaman
+                                    setKabupatenId(initialKabupatenId ?? "");
+                                  } else if (filterLevel === "kelurahan") {
+                                    setKelurahanId("");
+                                    setKabupatenId(initialKabupatenId ?? "");
+                                    setKecamatanId(initialKecamatanId ?? "");
+                                  }
                                 }}
                               >
                                 Hapus semua filter

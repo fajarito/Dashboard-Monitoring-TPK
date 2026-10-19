@@ -3,7 +3,12 @@
 /** Sumber efektif payload, atau postgres-error pada respons 503. */
 export type DataSource = "mock" | "postgres" | "postgres-error";
 
-export type RingkasanTingkat = "nasional" | "provinsi" | "kabupaten";
+export type RingkasanTingkat =
+  | "nasional"
+  | "provinsi"
+  | "kabupaten"
+  | "kecamatan"
+  | "kelurahan";
 
 export type KomposisiPrioritas = {
   prioritas1: number;
@@ -117,6 +122,48 @@ export type PeringkatKabupatenPayload = {
   meta: RingkasanMeta;
 };
 
+/** Ranking kecamatan dalam satu kabupaten (id = id_kecamatan). */
+export type PeringkatKecamatanItem = {
+  id: string;
+  nama: string;
+  tpk: number;
+  pkb: number;
+  desa: number;
+  krs: number;
+  keluargaSasaran: number;
+  rasio: number;
+  rasioPkbDesa: number;
+  warningBeban: boolean;
+  indikator: IndikatorRingkasan;
+};
+
+export type PeringkatKecamatanPayload = {
+  kabupatenId: string;
+  items: PeringkatKecamatanItem[];
+  meta: RingkasanMeta;
+};
+
+/** Ranking desa/kelurahan dalam satu kecamatan (id = id_kelurahan). */
+export type PeringkatKelurahanItem = {
+  id: string;
+  nama: string;
+  tpk: number;
+  pkb: number;
+  desa: number;
+  krs: number;
+  keluargaSasaran: number;
+  rasio: number;
+  rasioPkbDesa: number;
+  warningBeban: boolean;
+  indikator: IndikatorRingkasan;
+};
+
+export type PeringkatKelurahanPayload = {
+  kecamatanId: string;
+  items: PeringkatKelurahanItem[];
+  meta: RingkasanMeta;
+};
+
 export type RingkasanQuery = {
   tingkat: RingkasanTingkat;
   id?: string | null;
@@ -136,7 +183,9 @@ export type TpkListSort =
 export type TpkListQuery = {
   provinsiId: number | null;
   kabupatenId: number | null;
-  /** Cari NamaTPK (opsional). */
+  kecamatanId: number | null;
+  kelurahanId: number | null;
+  /** Cari NamaTPK / label wilayah (opsional). */
   q: string | null;
   page: number;
   pageSize: number;
@@ -220,6 +269,8 @@ export type TpkListPayload = {
   filters: {
     provinsiId: number | null;
     kabupatenId: number | null;
+    kecamatanId: number | null;
+    kelurahanId: number | null;
     q: string | null;
   };
   meta: RingkasanMeta;
