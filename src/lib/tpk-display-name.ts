@@ -6,10 +6,10 @@ type TpkNameFields = Pick<
 >;
 
 /**
- * Nama tampilan daftar: `TPK (Nama Desa/Kelurahan)`.
+ * Nama dasar tanpa register: `TPK (Nama Desa/Kelurahan)`.
  * Hindari nama palsu dari NamaTPK simulasi bila nama kelurahan sudah ada.
  */
-export function formatTpkDisplayName(item: TpkNameFields): string {
+export function formatTpkDesaTitle(item: TpkNameFields): string {
   const desa = item.namaKelurahan?.trim();
   if (desa) return `TPK (${desa})`;
 
@@ -24,6 +24,21 @@ export function formatTpkDisplayName(item: TpkNameFields): string {
   return `TPK (${item.tpkId})`;
 }
 
+/**
+ * Nama tampilan daftar: `TPK (Nama Desa) - {NomorRegister}`.
+ * Separator exact ` - ` (spasi-dash-spasi) sesuai permintaan produk.
+ * Tanpa NomorRegister: jatuh ke judul desa saja (lalu · #n bila bentrok).
+ */
+export function formatTpkDisplayName(item: TpkNameFields): string {
+  const desaTitle = formatTpkDesaTitle(item);
+  // Jangan dobel-append bila fallback sudah memakai "reg …".
+  if (/^TPK \(reg /i.test(desaTitle)) return desaTitle;
+
+  const reg = item.nomorRegister?.trim();
+  if (reg) return `${desaTitle} - ${reg}`;
+  return desaTitle;
+}
+
 /** Cuplikan TPKID untuk subline — bedakan tim se-desa tanpa mengotori judul. */
 export function tpkIdSnippet(tpkId: string): string {
   const trimmed = tpkId.trim();
@@ -33,15 +48,15 @@ export function tpkIdSnippet(tpkId: string): string {
 }
 
 export type TpkRowLabel = {
-  /** `TPK (Desa)` atau `TPK (Desa) · #n` bila ada duplikat label di halaman. */
+  /** `TPK (Desa) - Register` atau `TPK (Desa) · #n` bila bentrok tanpa register unik. */
   displayName: string;
-  /** True bila label dasar (desa) muncul >1× di halaman — tampilkan ID di subline. */
+  /** True bila label dasar muncul >1× di halaman — tampilkan ID di subline. */
   showTpkIdInSubline: boolean;
 };
 
 /**
- * Satu label per baris halaman. Tim se-desa tetap satu baris masing-masing (beda TPKID),
- * tapi judul dibedakan dengan `· #n` (urut TPKID) dan flag subline ID.
+ * Satu label per baris halaman. Tim se-desa tetap satu baris masing-masing (beda TPKID).
+ * NomorRegister di judul biasanya sudah membedakan; `· #n` hanya bila label penuh masih bentrok.
  */
 export function resolveTpkRowLabels(
   items: readonly TpkNameFields[],
