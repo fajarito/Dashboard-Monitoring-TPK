@@ -102,9 +102,13 @@ export type PeringkatKabupatenItem = {
   pkb: number;
   desa: number;
   krs: number;
+  /** SUM(jumlah_keluarga_sasaran) grain RT per id_kabupaten. */
+  keluargaSasaran: number;
   rasio: number;
   rasioPkbDesa: number;
   warningBeban: boolean;
+  /** Indikator DWH per kab — RTLH null/0 (kolom tidak ada). */
+  indikator: IndikatorRingkasan;
 };
 
 export type PeringkatKabupatenPayload = {

@@ -1,5 +1,6 @@
 import { BriefcaseBusiness, Users, UsersRound } from "lucide-react";
 
+import type { DataSource } from "@/lib/data/types";
 import { formatNumber } from "@/lib/map-data";
 
 export function TpkScopeSummaryCards({
@@ -7,12 +8,21 @@ export function TpkScopeSummaryCards({
   anggota,
   pkb,
   scopeLabel,
+  dataSource = "mock",
 }: {
   tim: number;
   anggota: number;
   pkb: number;
   scopeLabel: string;
+  dataSource?: DataSource | null;
 }) {
+  const pkbHint =
+    dataSource === "postgres"
+      ? "PKB/PLKB unik (live)"
+      : dataSource === "mock"
+        ? "PKB/PLKB unik (simulasi)"
+        : "PKB/PLKB unik";
+
   const cards = [
     {
       id: "tim",
@@ -37,7 +47,7 @@ export function TpkScopeSummaryCards({
       label: "Jumlah PKB",
       value: pkb,
       unit: "petugas",
-      hint: "PKB/PLKB unik (simulasi)",
+      hint: pkbHint,
       icon: BriefcaseBusiness,
       color: "bg-violet-50 text-violet-700",
     },

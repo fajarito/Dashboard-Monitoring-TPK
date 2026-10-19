@@ -63,6 +63,20 @@ function normalizeNama(value: string): string {
     .trim();
 }
 
+const SLUG_BY_KABUPATEN_ID: Record<number, string> = Object.fromEntries(
+  Object.entries(KABUPATEN_ID_BY_SLUG).map(([slug, id]) => [id, slug]),
+) as Record<number, string>;
+
+/** Slug UI dari id_kabupaten (untuk deep-link hierarki mock). */
+export function getKabupatenSlugByApiId(apiId: string | number): string | null {
+  const n =
+    typeof apiId === "number"
+      ? apiId
+      : Number.parseInt(String(apiId).trim(), 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return SLUG_BY_KABUPATEN_ID[n] ?? null;
+}
+
 /** ID numerik untuk `GET /api/ringkasan?tingkat=kabupaten&id=…`. */
 export function getKabupatenApiId(slugOrId: string): string | null {
   const trimmed = slugOrId.trim();
