@@ -59,9 +59,18 @@ export function getPeringkatKabupatenMock(
         pkb,
         desa,
         krs: kab.krs,
+        keluargaSasaran: kab.keluargaSasaran,
         rasio: getKrsPerTpkRatio(kab.tpkCount, kab.krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        indikator: {
+          bumil: kab.sasaran.ibuHamil,
+          baduta: kab.sasaran.baduta,
+          balita: kab.sasaran.balita,
+          jambanTL: kab.sasaran.jambanTidakLayak,
+          airTL: kab.sasaran.sumberAirTidakLayak,
+          rtlh: kab.sasaran.rtlh,
+        },
       };
     });
 

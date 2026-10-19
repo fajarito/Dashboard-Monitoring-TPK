@@ -17,7 +17,8 @@ export const revalidate = 0;
 /**
  * GET /api/peringkat/kabupaten?provinsiId=
  * Ranking kab/kota dalam satu provinsi — max ~80 baris, cache 60s.
- * Field: id (id_kabupaten), nama, tpk, pkb, desa, krs, rasio, rasioPkbDesa, warningBeban.
+ * Field: id (id_kabupaten), nama, tpk, pkb, desa, krs, keluargaSasaran,
+ * indikator (bumil/baduta/balita/jambanTL/airTL/rtlh), rasio, rasioPkbDesa, warningBeban.
  */
 export async function GET(request: NextRequest) {
   try {

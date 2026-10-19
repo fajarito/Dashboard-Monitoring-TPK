@@ -28,6 +28,12 @@ type SigaKabRow = {
 type DwhKabRow = {
   id_kabupaten: number;
   krs: string | number;
+  keluarga_sasaran: string | number;
+  bumil: string | number;
+  baduta: string | number;
+  balita: string | number;
+  jamban_tl: string | number;
+  air_tl: string | number;
 };
 
 type WilayahKabRow = {
@@ -120,7 +126,13 @@ LEFT JOIN desa d ON d.id_kabupaten = i.id_kabupaten
 export const SQL_DWH_PERINGKAT_KAB = `
 SELECT
   r."id_kabupaten" AS id_kabupaten,
-  COALESCE(SUM(r."total_prioritas"), 0) AS krs
+  COALESCE(SUM(r."total_prioritas"), 0) AS krs,
+  COALESCE(SUM(r."jumlah_keluarga_sasaran"), 0) AS keluarga_sasaran,
+  COALESCE(SUM(r."pus_hamil"), 0) AS bumil,
+  COALESCE(SUM(r."baduta"), 0) AS baduta,
+  COALESCE(SUM(r."balita"), 0) AS balita,
+  COALESCE(SUM(r."jamban_layak_tidak"), 0) AS jamban_tl,
+  COALESCE(SUM(r."sumber_air_layak_tidak"), 0) AS air_tl
 FROM "dwh_pk2025"."fs_stunting_by_rekap_rdk_pk25_semester1" r
 WHERE r."periode" = $2
   AND r."id_provinsi" = $1
@@ -162,13 +174,32 @@ export async function getPeringkatKabupatenPostgres(
     });
   }
 
-  const krsById = new Map<number, number>();
+  const dwhById = new Map<
+    number,
+    {
+      krs: number;
+      keluargaSasaran: number;
+      bumil: number;
+      baduta: number;
+      balita: number;
+      jambanTL: number;
+      airTL: number;
+    }
+  >();
   for (const row of dwh.rows) {
-    krsById.set(toInt(row.id_kabupaten), toInt(row.krs));
+    dwhById.set(toInt(row.id_kabupaten), {
+      krs: toInt(row.krs),
+      keluargaSasaran: toInt(row.keluarga_sasaran),
+      bumil: toInt(row.bumil),
+      baduta: toInt(row.baduta),
+      balita: toInt(row.balita),
+      jambanTL: toInt(row.jamban_tl),
+      airTL: toInt(row.air_tl),
+    });
   }
 
   const ids = Array.from(
-    new Set([...sigaById.keys(), ...krsById.keys()]),
+    new Set([...sigaById.keys(), ...dwhById.keys()]),
   ).filter((id) => id > 0);
 
   const namaById = new Map<number, string>();
@@ -189,10 +220,11 @@ export async function getPeringkatKabupatenPostgres(
   const items: PeringkatKabupatenItem[] = ids
     .map((id) => {
       const sigaRow = sigaById.get(id);
+      const dwhRow = dwhById.get(id);
       const tpk = sigaRow?.tpk ?? 0;
       const pkb = sigaRow?.pkb ?? 0;
       const desa = sigaRow?.desa ?? 0;
-      const krs = krsById.get(id) ?? 0;
+      const krs = dwhRow?.krs ?? 0;
       const rasioPkbDesa = getDesaPerPkbRatio(pkb, desa);
       return {
         id: String(id),
@@ -201,9 +233,18 @@ export async function getPeringkatKabupatenPostgres(
         pkb,
         desa,
         krs,
+        keluargaSasaran: dwhRow?.keluargaSasaran ?? 0,
         rasio: getKrsPerTpkRatio(tpk, krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        indikator: {
+          bumil: dwhRow?.bumil ?? 0,
+          baduta: dwhRow?.baduta ?? 0,
+          balita: dwhRow?.balita ?? 0,
+          jambanTL: dwhRow?.jambanTL ?? 0,
+          airTL: dwhRow?.airTL ?? 0,
+          rtlh: null,
+        },
       };
     })
     .sort(

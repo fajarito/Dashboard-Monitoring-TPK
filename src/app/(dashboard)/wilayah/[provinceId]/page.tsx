@@ -3,17 +3,10 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { DrilldownBreadcrumb } from "@/components/dashboard/drilldown-breadcrumb";
-import { LiveTpkListPanel } from "@/components/dashboard/live-tpk-list-panel";
-import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
-import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
-import { WilayahIdentityCards } from "@/components/dashboard/wilayah-meta-cards";
+import { LiveProvinceWilayahPanel } from "@/components/dashboard/live-province-wilayah-panel";
 import { Button } from "@/components/ui/button";
 import { getProvinsiApiId } from "@/lib/province-api-id";
 import { getProvinceOrNull } from "@/lib/tpk-drilldown-data";
-import {
-  getKabupatenByProvince,
-  summarizeChildRows,
-} from "@/lib/wilayah-hierarchy-data";
 
 type PageProps = {
   params: Promise<{ provinceId: string }>;
@@ -32,9 +25,9 @@ export default async function ProvinceKabupatenPage({ params }: PageProps) {
   const province = getProvinceOrNull(provinceId);
   if (!province) notFound();
 
-  const kabList = getKabupatenByProvince(provinceId);
-  const kabSummary = summarizeChildRows(kabList);
   const provinsiApiId = getProvinsiApiId(province);
+  if (!provinsiApiId) notFound();
+
   const mapHref = `/?wilayah=prov-${provinceId}`;
 
   return (
@@ -49,13 +42,10 @@ export default async function ProvinceKabupatenPage({ params }: PageProps) {
           />
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <h1 className="page-title !mt-0">{province.name}</h1>
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-extrabold tracking-wider text-amber-700 uppercase">
-              Data simulasi
-            </span>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Provinsi aktif: daftar kabupaten/kota dan daftar TPK di wilayah ini.
-            Gunakan filter & paging pada setiap tabel.
+            Provinsi aktif: ringkasan, daftar kabupaten/kota, dan daftar TPK di
+            wilayah ini. Angka mengikuti API ringkasan &amp; peringkat.
           </p>
         </div>
         <Button
@@ -70,40 +60,11 @@ export default async function ProvinceKabupatenPage({ params }: PageProps) {
         </Button>
       </div>
 
-      <WilayahIdentityCards
-        levelLabel="Provinsi"
-        wilayahName={province.name}
-        wilayahHint="Wilayah yang sedang dipilih"
-        childCountLabel="Kabupaten/Kota"
-        childCount={kabList.length}
-        childCountHint="Ditampilkan di tabel wilayah anak"
-        krs={kabSummary.krs}
+      <LiveProvinceWilayahPanel
+        provinceSlug={provinceId}
+        provinsiApiId={provinsiApiId}
+        provinceName={province.name}
       />
-
-      <SasaranIndikatorPanel
-        scopeLabel={province.name}
-        counts={kabSummary.sasaran}
-        keluargaSasaran={kabSummary.keluargaSasaran}
-        krs={kabSummary.krs}
-      />
-
-      <WilayahChildTable
-        rows={kabList.map((row) => ({
-          ...row,
-          href: `/wilayah/${provinceId}/kab/${row.id}`,
-        }))}
-        scopeLabel={province.name}
-        childLabel="Kabupaten/Kota"
-        actionLabel="Kecamatan"
-      />
-
-      {provinsiApiId ? (
-        <LiveTpkListPanel
-          provinceSlug={provinceId}
-          provinsiApiId={provinsiApiId}
-          provinceName={province.name}
-        />
-      ) : null}
     </section>
   );
 }

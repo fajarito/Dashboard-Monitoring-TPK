@@ -1,3 +1,4 @@
+import type { DataSource } from "@/lib/data/types";
 import { formatNumber } from "@/lib/map-data";
 
 /** Kartu identitas wilayah — label jenjang + nama terpilih (bukan "Wilayah aktif"). */
@@ -9,6 +10,7 @@ export function WilayahIdentityCards({
   childCount,
   childCountHint,
   krs,
+  dataSource = "mock",
 }: {
   levelLabel: string;
   wilayahName: string;
@@ -17,7 +19,16 @@ export function WilayahIdentityCards({
   childCount: number;
   childCountHint: string;
   krs: number;
+  /** meta.source API — teks hint KRS ikut live/simulasi. */
+  dataSource?: DataSource | null;
 }) {
+  const krsHint =
+    dataSource === "postgres"
+      ? "Agregat live (ringkasan)"
+      : dataSource === "mock"
+        ? "Agregat sampel (simulasi)"
+        : "Agregat wilayah";
+
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       <MetaCard
@@ -34,7 +45,7 @@ export function WilayahIdentityCards({
       <MetaCard
         label="KRS di wilayah ini"
         value={formatNumber(krs)}
-        hint="Agregat sampel (simulasi)"
+        hint={krsHint}
       />
     </div>
   );

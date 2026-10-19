@@ -85,9 +85,32 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
   if (!Array.isArray(json.items) || json.items.length === 0) {
     throw new Error(`${path} empty items`);
   }
+  const sample = json.items[0];
+  for (const key of [
+    "id",
+    "nama",
+    "tpk",
+    "pkb",
+    "desa",
+    "krs",
+    "keluargaSasaran",
+    "rasio",
+    "rasioPkbDesa",
+    "warningBeban",
+    "indikator",
+  ]) {
+    if (sample == null || sample[key] === undefined) {
+      throw new Error(`${path} items[0] missing ${key}`);
+    }
+  }
+  for (const key of ["bumil", "baduta", "balita", "jambanTL", "airTL", "rtlh"]) {
+    if (sample.indikator?.[key] === undefined) {
+      throw new Error(`${path} items[0].indikator missing ${key}`);
+    }
+  }
   const depok = json.items.find((i) => i.id === "166" || /depok/i.test(i.nama));
   console.log(
-    `OK ${path} n=${json.items.length} depok=${depok ? `${depok.id}/${depok.tpk}` : "n/a"}`,
+    `OK ${path} n=${json.items.length} depok=${depok ? `${depok.id}/${depok.tpk}/sasaran=${depok.keluargaSasaran}` : "n/a"}`,
   );
 }
 

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowRight, MapPinned, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { DataSource } from "@/lib/data/types";
+import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { formatNumber } from "@/lib/map-data";
 import {
   sasaranKeys,
@@ -22,13 +24,18 @@ export function WilayahChildTable({
   scopeLabel,
   childLabel,
   actionLabel = "Buka",
+  dataSource = "mock",
 }: {
   rows: WilayahChildRowWithHref[];
   scopeLabel: string;
   /** Mis. "Kabupaten/Kota" atau "Kecamatan". */
   childLabel: string;
   actionLabel?: string;
+  /** meta.source API — sembunyikan label simulasi saat postgres. */
+  dataSource?: DataSource | null;
 }) {
+  const sourceBadge = resolveSourceBadge(dataSource);
+  const showSimulasiLabel = dataSource !== "postgres";
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
@@ -59,11 +66,23 @@ export function WilayahChildTable({
             klik baris untuk turun ke level berikutnya
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-primary">
-          <MapPinned className="size-3.5" aria-hidden />
-          {formatNumber(filtered.length)} / {formatNumber(rows.length)}{" "}
-          {childLabel.toLowerCase()}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {sourceBadge ? (
+            <span
+              className={cn(
+                "rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wider uppercase",
+                sourceBadge.className,
+              )}
+            >
+              {sourceBadge.label}
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-primary">
+            <MapPinned className="size-3.5" aria-hidden />
+            {formatNumber(filtered.length)} / {formatNumber(rows.length)}{" "}
+            {childLabel.toLowerCase()}
+          </span>
+        </div>
       </div>
 
       <div className="border-b border-line px-6 py-4">
@@ -147,7 +166,7 @@ export function WilayahChildTable({
                           </span>
                           <span className="mt-0.5 block text-[11px] text-muted-foreground">
                             {row.kindLabel} · {formatNumber(row.tpkCount)} TPK
-                            (simulasi)
+                            {showSimulasiLabel ? " (simulasi)" : ""}
                           </span>
                         </span>
                       </Link>
