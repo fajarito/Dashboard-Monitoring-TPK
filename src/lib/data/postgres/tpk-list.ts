@@ -19,6 +19,7 @@ import type {
   TpkListQuery,
   TpkListSort,
 } from "@/lib/data/types";
+import { dedupeByTpkId } from "@/lib/tpk-display-name";
 
 type CountRow = { total: string | number };
 
@@ -90,8 +91,13 @@ export function isSigaConfigured(): boolean {
   return getPoolConfigs().siga.ready;
 }
 
+/**
+ * Total = DISTINCT TPKID (Status=1, scoped).
+ * Constraint upsert hanya UNIQUE(TPKID, KodeTPK, NomorRegister) — TPKID bisa
+ * muncul lebih dari sekali; COUNT(*) akan menggelembungkan counter.
+ */
 export const SQL_TPK_COUNT = `
-SELECT COUNT(*)::int AS total
+SELECT COUNT(DISTINCT t."TPKID")::int AS total
 FROM "sigabaru"."dat_TPK" t
 WHERE t."Status" = 1
   AND ($1::int IS NULL OR t."ProvinsiID" = $1)
@@ -103,43 +109,54 @@ WHERE t."Status" = 1
 `;
 
 /**
- * Halaman TPK aktif + count anggota hanya untuk baris halaman
- * (hindari GROUP BY seluruh tabel). Urutan nama A–Z.
+ * Halaman TPK aktif — tepat satu baris per TPKID.
+ * PKB / rekap DWH tidak di-JOIN di sini (hindari fan-out); di-attach lewat map
+ * setelah fetch. Urutan nama A–Z di outer query.
  */
 export const SQL_TPK_PAGE = `
-SELECT
-  t."TPKID" AS tpkid,
-  t."NamaTPK" AS namatpk,
-  t."NomorRegister" AS nomorregister,
-  t."KodeTPK" AS kodetpk,
-  t."Alamat" AS alamat,
-  t."ProvinsiID" AS provinsiid,
-  t."KabupatenID" AS kabupatenid,
-  t."KecamatanID" AS kecamatanid,
-  t."KelurahanID" AS kelurahanid,
-  t."Status" AS status,
-  (
-    SELECT COUNT(*)::int
-    FROM "sigabaru"."dat_AnggotaTPK" a
-    WHERE a."TPKID" = t."TPKID"
-  ) AS jumlah_anggota
-FROM "sigabaru"."dat_TPK" t
-WHERE t."Status" = 1
-  AND ($1::int IS NULL OR t."ProvinsiID" = $1)
-  AND ($2::int IS NULL OR t."KabupatenID" = $2)
-  AND (
-    $3::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $3 || '%'
-  )
+SELECT *
+FROM (
+  SELECT DISTINCT ON (t."TPKID")
+    t."TPKID" AS tpkid,
+    t."NamaTPK" AS namatpk,
+    t."NomorRegister" AS nomorregister,
+    t."KodeTPK" AS kodetpk,
+    t."Alamat" AS alamat,
+    t."ProvinsiID" AS provinsiid,
+    t."KabupatenID" AS kabupatenid,
+    t."KecamatanID" AS kecamatanid,
+    t."KelurahanID" AS kelurahanid,
+    t."Status" AS status,
+    (
+      SELECT COUNT(*)::int
+      FROM "sigabaru"."dat_AnggotaTPK" a
+      WHERE a."TPKID" = t."TPKID"
+    ) AS jumlah_anggota
+  FROM "sigabaru"."dat_TPK" t
+  WHERE t."Status" = 1
+    AND ($1::int IS NULL OR t."ProvinsiID" = $1)
+    AND ($2::int IS NULL OR t."KabupatenID" = $2)
+    AND (
+      $3::text IS NULL
+      OR t."NamaTPK" ILIKE '%' || $3 || '%'
+    )
+  ORDER BY
+    t."TPKID",
+    t."LastModified" DESC NULLS LAST,
+    t."NomorRegister" ASC NULLS LAST
+) u
 ORDER BY
-  t."NamaTPK" ASC NULLS LAST,
-  t."TPKID" ASC
+  u.namatpk ASC NULLS LAST,
+  u.tpkid ASC
 LIMIT $4 OFFSET $5
 `;
 
-/** Light ID list untuk sort metrik di app (bukan scan by_name). */
+/**
+ * Light ID list untuk sort metrik di app (bukan scan by_name).
+ * DISTINCT ON TPKID — jangan pernah JOIN PKB/rekap di sini.
+ */
 export const SQL_TPK_IDS = `
-SELECT
+SELECT DISTINCT ON (t."TPKID")
   t."TPKID" AS tpkid,
   t."KelurahanID" AS kelurahanid,
   t."NamaTPK" AS namatpk
@@ -151,10 +168,14 @@ WHERE t."Status" = 1
     $3::text IS NULL
     OR t."NamaTPK" ILIKE '%' || $3 || '%'
   )
+ORDER BY
+  t."TPKID",
+  t."LastModified" DESC NULLS LAST,
+  t."NomorRegister" ASC NULLS LAST
 `;
 
 export const SQL_TPK_BY_IDS = `
-SELECT
+SELECT DISTINCT ON (t."TPKID")
   t."TPKID" AS tpkid,
   t."NamaTPK" AS namatpk,
   t."NomorRegister" AS nomorregister,
@@ -172,6 +193,10 @@ SELECT
   ) AS jumlah_anggota
 FROM "sigabaru"."dat_TPK" t
 WHERE t."TPKID" = ANY($1::text[])
+ORDER BY
+  t."TPKID",
+  t."LastModified" DESC NULLS LAST,
+  t."NomorRegister" ASC NULLS LAST
 `;
 
 /**
@@ -523,6 +548,18 @@ async function enrichPageRows(
   return rows.map((row) => buildItem(row, names, rekapMap, pkbMap));
 }
 
+function dedupeSigaRows<T extends { tpkid: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const id = row.tpkid?.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(row);
+  }
+  return out;
+}
+
 async function fetchPageByNama(
   query: TpkListQuery,
   q: string | null,
@@ -535,7 +572,7 @@ async function fetchPageByNama(
     query.pageSize,
     offset,
   ]);
-  return pageRes.rows;
+  return dedupeSigaRows(pageRes.rows);
 }
 
 /**
@@ -556,7 +593,10 @@ async function fetchPageByMetricSort(
   ]);
 
   const asc = query.sort === "krs-asc";
-  const ranked = idsRes.rows.slice().sort((a, b) => {
+  // Safety net: DISTINCT ON di SQL + dedupe di app (TPKID bukan PK formal).
+  const uniqueIds = dedupeSigaRows(idsRes.rows);
+
+  const ranked = uniqueIds.slice().sort((a, b) => {
     const kelA = a.kelurahanid != null ? toInt(a.kelurahanid) : null;
     const kelB = b.kelurahanid != null ? toInt(b.kelurahanid) : null;
     const va = sortMetric(
@@ -582,7 +622,7 @@ async function fetchPageByMetricSort(
   const pageRes = await queryPool<SigaTpkRow>("siga", SQL_TPK_BY_IDS, [
     pageIds,
   ]);
-  const byId = new Map(pageRes.rows.map((r) => [r.tpkid, r]));
+  const byId = new Map(dedupeSigaRows(pageRes.rows).map((r) => [r.tpkid, r]));
   return pageIds
     .map((id) => byId.get(id))
     .filter((r): r is SigaTpkRow => r != null);
@@ -640,6 +680,7 @@ export async function getTpkListPostgres(
       return { ...base, ...blankIndikatorFields() };
     });
   }
+  items = dedupeByTpkId(items);
 
   return {
     items,
