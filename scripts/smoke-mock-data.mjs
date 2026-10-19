@@ -130,10 +130,17 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
     "pkb",
     "anggota",
     "tpkSeDesa",
+    "nomorRegister",
   ]) {
     if (sample[key] === undefined) {
       throw new Error(`${path} items[0] missing ${key}`);
     }
+  }
+  if (
+    sample.nomorRegister != null &&
+    String(sample.nomorRegister).trim() === ""
+  ) {
+    throw new Error(`${path} nomorRegister empty string`);
   }
   if (!Array.isArray(sample.anggota)) {
     throw new Error(`${path} anggota must be string[]`);

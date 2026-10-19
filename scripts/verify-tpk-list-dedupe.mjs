@@ -1,9 +1,9 @@
 /**
- * Unit ringan (tanpa Next) untuk dedupe + label se-desa.
+ * Unit ringan (tanpa Next) untuk dedupe + label se-desa + NomorRegister.
  * Jalankan: node scripts/verify-tpk-list-dedupe.mjs
  */
 
-function formatTpkDisplayName(item) {
+function formatTpkDesaTitle(item) {
   const desa = item.namaKelurahan?.trim();
   if (desa) return `TPK (${desa})`;
   const raw = item.nama?.trim();
@@ -11,6 +11,14 @@ function formatTpkDisplayName(item) {
   const reg = item.nomorRegister?.trim();
   if (reg) return `TPK (reg ${reg})`;
   return `TPK (${item.tpkId})`;
+}
+
+function formatTpkDisplayName(item) {
+  const desaTitle = formatTpkDesaTitle(item);
+  if (/^TPK \(reg /i.test(desaTitle)) return desaTitle;
+  const reg = item.nomorRegister?.trim();
+  if (reg) return `${desaTitle} - ${reg}`;
+  return desaTitle;
 }
 
 function resolveTpkRowLabels(items) {
@@ -60,10 +68,10 @@ function dedupeByTpkId(rows) {
 
 // --- assertions ---
 const dupRows = [
-  { tpkId: "A", namaKelurahan: "RAGAJAYA" },
-  { tpkId: "A", namaKelurahan: "RAGAJAYA" }, // fan-out bug
-  { tpkId: "B", namaKelurahan: "RAGAJAYA" },
-  { tpkId: "C", namaKelurahan: "BOJONG" },
+  { tpkId: "A", namaKelurahan: "RAGAJAYA", nomorRegister: "101" },
+  { tpkId: "A", namaKelurahan: "RAGAJAYA", nomorRegister: "101" }, // fan-out bug
+  { tpkId: "B", namaKelurahan: "RAGAJAYA", nomorRegister: "102" },
+  { tpkId: "C", namaKelurahan: "BOJONG", nomorRegister: "200" },
 ];
 const deduped = dedupeByTpkId(dupRows);
 if (deduped.length !== 3) {
@@ -74,18 +82,30 @@ const labels = resolveTpkRowLabels(deduped);
 const a = labels.get("A");
 const b = labels.get("B");
 const c = labels.get("C");
-if (a.displayName !== "TPK (RAGAJAYA) · #1") {
+if (a.displayName !== "TPK (RAGAJAYA) - 101") {
   throw new Error(`A label=${a.displayName}`);
 }
-if (b.displayName !== "TPK (RAGAJAYA) · #2") {
+if (b.displayName !== "TPK (RAGAJAYA) - 102") {
   throw new Error(`B label=${b.displayName}`);
 }
-if (!a.showTpkIdInSubline || !b.showTpkIdInSubline) {
-  throw new Error("RAGAJAYA rows should show TPKID in subline");
+if (a.showTpkIdInSubline || b.showTpkIdInSubline) {
+  throw new Error("distinct NomorRegister should not need TPKID subline");
 }
-if (c.displayName !== "TPK (BOJONG)" || c.showTpkIdInSubline) {
-  throw new Error(`C should stay plain: ${JSON.stringify(c)}`);
+if (c.displayName !== "TPK (BOJONG) - 200" || c.showTpkIdInSubline) {
+  throw new Error(`C should stay plain+register: ${JSON.stringify(c)}`);
 }
 
-console.log("OK dedupeByTpkId + resolveTpkRowLabels (RAGAJAYA · #n)");
+// Bentrok tanpa register unik → · #n
+const clash = resolveTpkRowLabels([
+  { tpkId: "X1", namaKelurahan: "RAGAJAYA" },
+  { tpkId: "X2", namaKelurahan: "RAGAJAYA" },
+]);
+if (clash.get("X1").displayName !== "TPK (RAGAJAYA) · #1") {
+  throw new Error(`clash X1=${clash.get("X1").displayName}`);
+}
+if (clash.get("X2").displayName !== "TPK (RAGAJAYA) · #2") {
+  throw new Error(`clash X2=${clash.get("X2").displayName}`);
+}
+
+console.log("OK dedupeByTpkId + resolveTpkRowLabels (TPK (Desa) - Register)");
 console.log("verify-tpk-list-dedupe OK");

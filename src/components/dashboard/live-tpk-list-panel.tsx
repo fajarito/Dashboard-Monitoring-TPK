@@ -10,6 +10,7 @@ import {
 } from "@/components/dashboard/data-state";
 import { GlossaryTerm } from "@/components/dashboard/glossary-term";
 import { TpkContactAction } from "@/components/dashboard/tpk-contact-action";
+import { TpkIndikatorHover } from "@/components/dashboard/tpk-indikator-hover";
 import { TpkScopeSummaryCards } from "@/components/dashboard/tpk-scope-summary-cards";
 import { Button } from "@/components/ui/button";
 import type {
@@ -23,11 +24,6 @@ import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { useTpkList } from "@/lib/hooks/use-tpk-list";
 import { formatNumber } from "@/lib/map-data";
 import {
-  sasaranKeys,
-  sasaranShortLabels,
-  type SasaranKey,
-} from "@/lib/sasaran-indikator";
-import {
   formatAgregatDesaCaption,
   formatAnggotaSubline,
   resolveTpkRowLabels,
@@ -40,18 +36,6 @@ const PAGE_SIZE = 25;
 type KabOption = { id: string; label: string };
 
 type SortKey = TpkListSort | "prioritas-tinggi";
-
-const SASARAN_API_KEY: Record<
-  Exclude<SasaranKey, never>,
-  "bumil" | "baduta" | "balita" | "jambanTL" | "airTL" | "rtlh"
-> = {
-  ibuHamil: "bumil",
-  baduta: "baduta",
-  balita: "balita",
-  jambanTidakLayak: "jambanTL",
-  sumberAirTidakLayak: "airTL",
-  rtlh: "rtlh",
-};
 
 const selectClass =
   "h-9 w-full rounded-xl border border-line bg-white px-3 text-[12px] font-semibold text-navy outline-none ring-primary/30 focus:ring-2";
@@ -297,7 +281,8 @@ export function LiveTpkListPanel({
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
               Tim di{" "}
               <span className="font-semibold text-navy">{scopeLabel}</span> —
-              filter wilayah, urutkan indikator, lalu buka Detail
+              filter wilayah, urutkan, hover Kel. Sasaran/KRS untuk 6 indikator,
+              lalu buka Detail
               {badge ? (
                 <span
                   className={cn(
@@ -427,7 +412,7 @@ export function LiveTpkListPanel({
         {list.status === "ready" && list.payload ? (
           <>
             <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-              <table className="w-full min-w-[1180px] text-left">
+              <table className="w-full min-w-[720px] text-left">
                 <thead>
                   <tr className="border-b border-line bg-slate-50/90 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase">
                     <th className="sticky left-0 z-10 bg-slate-50/95 px-6 py-3.5 font-extrabold backdrop-blur-sm">
@@ -457,54 +442,13 @@ export function LiveTpkListPanel({
                         KRS
                       </GlossaryTerm>
                     </th>
-                    {sasaranKeys.map((key) => {
-                      const activeSort =
-                        (sortKey === "ibuHamil-desc" && key === "ibuHamil") ||
-                        (sortKey === "baduta-desc" && key === "baduta") ||
-                        (sortKey === "balita-desc" && key === "balita") ||
-                        (sortKey === "rtlh-desc" && key === "rtlh");
-                      return (
-                        <th
-                          key={key}
-                          className={cn(
-                            "px-2.5 py-3 text-center font-extrabold",
-                            activeSort
-                              ? "bg-blue-50/80 text-primary"
-                              : "text-slate-400",
-                          )}
-                        >
-                          <GlossaryTerm
-                            termId={
-                              key === "ibuHamil"
-                                ? "ibu-hamil"
-                                : key === "jambanTidakLayak"
-                                  ? "jamban-tl"
-                                  : key === "sumberAirTidakLayak"
-                                    ? "air-tl"
-                                    : key === "rtlh"
-                                      ? "rtlh"
-                                      : key
-                            }
-                            className={cn(
-                              "font-extrabold",
-                              activeSort ? "text-primary" : "text-slate-400",
-                            )}
-                          >
-                            {sasaranShortLabels[key]}
-                          </GlossaryTerm>
-                        </th>
-                      );
-                    })}
                     <th className="px-4 py-3 text-right font-extrabold">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {onlyPrioritasTinggi || pageItems.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={5 + sasaranKeys.length}
-                        className="p-0"
-                      >
+                      <td colSpan={5} className="p-0">
                         <EmptyState
                           title={
                             onlyPrioritasTinggi
@@ -620,91 +564,69 @@ export function LiveTpkListPanel({
                             <PkbCell pkb={item.pkb} />
                           </td>
                           <td className="px-3 py-3.5 text-center">
-                            {sasaranText != null ? (
-                              <span
-                                className="inline-flex min-w-[2.75rem] flex-col items-center rounded-lg bg-blue-50/90 px-2 py-1"
-                                title={
-                                  agregatCaption
-                                    ? `${agregatCaption} — nilai kelurahan, bukan milikan eksklusif TPK ini`
-                                    : undefined
-                                }
-                              >
-                                <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
-                                  {sasaranText}
-                                </span>
-                                {agregatCaption ? (
-                                  <span className="mt-0.5 max-w-[5.5rem] text-center text-[8px] font-semibold leading-tight tracking-wide text-slate-400 normal-case">
-                                    {agregatCaption}
+                            <TpkIndikatorHover
+                              indikator={item.indikator}
+                              label={`Indikator desa untuk ${displayName}`}
+                            >
+                              {sasaranText != null ? (
+                                <span
+                                  className="inline-flex min-w-[2.75rem] flex-col items-center rounded-lg bg-blue-50/90 px-2 py-1 ring-1 ring-transparent transition-[box-shadow,ring-color] group-hover:ring-blue-100"
+                                  title={
+                                    agregatCaption
+                                      ? `${agregatCaption} — hover untuk 6 indikator`
+                                      : "Hover / ketuk untuk 6 indikator desa"
+                                  }
+                                >
+                                  <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
+                                    {sasaranText}
                                   </span>
-                                ) : null}
-                              </span>
-                            ) : (
-                              <DashCell label="Kel. sasaran tidak tersedia untuk kelurahan ini" />
-                            )}
+                                  {agregatCaption ? (
+                                    <span className="mt-0.5 max-w-[5.5rem] text-center text-[8px] font-semibold leading-tight tracking-wide text-slate-400 normal-case">
+                                      {agregatCaption}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <DashCell label="Kel. sasaran tidak tersedia — hover tetap menampilkan indikator bila ada" />
+                              )}
+                            </TpkIndikatorHover>
                           </td>
                           <td className="px-3 py-3.5 text-center">
-                            {krsText != null ? (
-                              <span
-                                className={cn(
-                                  "inline-flex min-w-[2.75rem] flex-col items-center rounded-lg px-2 py-1",
-                                  highlightKrs
-                                    ? "bg-amber-100 ring-1 ring-amber-200"
-                                    : "bg-amber-50/90",
-                                )}
-                                title={
-                                  agregatCaption
-                                    ? `${agregatCaption} — nilai kelurahan, bukan milikan eksklusif TPK ini`
-                                    : undefined
-                                }
-                              >
-                                <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
-                                  {krsText}
-                                </span>
-                                <span className="text-[8px] font-bold tracking-wider text-amber-700/80 uppercase">
-                                  {highlightKrs ? "Tertinggi" : "Berisiko"}
-                                </span>
-                                {agregatCaption ? (
-                                  <span className="mt-0.5 max-w-[5.5rem] text-center text-[8px] font-semibold leading-tight tracking-wide text-slate-400 normal-case">
-                                    {agregatCaption}
+                            <TpkIndikatorHover
+                              indikator={item.indikator}
+                              label={`Indikator desa untuk ${displayName}`}
+                            >
+                              {krsText != null ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex min-w-[2.75rem] flex-col items-center rounded-lg px-2 py-1 ring-1 ring-transparent transition-[box-shadow,ring-color]",
+                                    highlightKrs
+                                      ? "bg-amber-100 ring-amber-200"
+                                      : "bg-amber-50/90 group-hover:ring-amber-100",
+                                  )}
+                                  title={
+                                    agregatCaption
+                                      ? `${agregatCaption} — hover untuk 6 indikator`
+                                      : "Hover / ketuk untuk 6 indikator desa"
+                                  }
+                                >
+                                  <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
+                                    {krsText}
                                   </span>
-                                ) : null}
-                              </span>
-                            ) : (
-                              <DashCell label="KRS kelurahan tidak tersedia" />
-                            )}
+                                  <span className="text-[8px] font-bold tracking-wider text-amber-700/80 uppercase">
+                                    {highlightKrs ? "Tertinggi" : "Berisiko"}
+                                  </span>
+                                  {agregatCaption ? (
+                                    <span className="mt-0.5 max-w-[5.5rem] text-center text-[8px] font-semibold leading-tight tracking-wide text-slate-400 normal-case">
+                                      {agregatCaption}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <DashCell label="KRS kelurahan tidak tersedia — hover tetap menampilkan indikator bila ada" />
+                              )}
+                            </TpkIndikatorHover>
                           </td>
-                          {sasaranKeys.map((key) => {
-                            const apiKey = SASARAN_API_KEY[key];
-                            const raw = item.indikator?.[apiKey];
-                            const text = formatNullableCount(
-                              raw === undefined ? null : raw,
-                            );
-                            const activeSort =
-                              (sortKey === "ibuHamil-desc" &&
-                                key === "ibuHamil") ||
-                              (sortKey === "baduta-desc" && key === "baduta") ||
-                              (sortKey === "balita-desc" && key === "balita") ||
-                              (sortKey === "rtlh-desc" && key === "rtlh");
-                            return (
-                              <td
-                                key={key}
-                                className={cn(
-                                  "px-2.5 py-3.5 text-center text-sm font-extrabold tabular-nums text-navy",
-                                  activeSort && "bg-blue-50/50",
-                                )}
-                              >
-                                {text ?? (
-                                  <DashCell
-                                    label={
-                                      key === "rtlh"
-                                        ? "RTLH belum ada di DWH"
-                                        : undefined
-                                    }
-                                  />
-                                )}
-                              </td>
-                            );
-                          })}
                           <td className="px-4 py-3.5 text-right">
                             <Link
                               href={href}
