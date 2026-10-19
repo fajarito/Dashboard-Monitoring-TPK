@@ -194,11 +194,14 @@ export async function getTpkListPostgres(
     const kabId = row.kabupatenid != null ? toInt(row.kabupatenid) : null;
     const kecId = row.kecamatanid != null ? toInt(row.kecamatanid) : null;
     const kelId = row.kelurahanid != null ? toInt(row.kelurahanid) : null;
-    const nama =
-      row.namatpk?.trim() ||
-      (row.nomorregister?.trim()
-        ? `TPK ${row.nomorregister.trim()}`
-        : null);
+    const namaKelurahan =
+      kelId != null ? namaKel.get(kelId)?.trim() || null : null;
+    // Preferensi tampilan: TPK (nama desa/kelurahan) dari v_kelurahan.
+    const nama = namaKelurahan
+      ? `TPK (${namaKelurahan})`
+      : row.nomorregister?.trim()
+        ? `TPK (reg ${row.nomorregister.trim()})`
+        : row.namatpk?.trim() || null;
     return {
       tpkId: row.tpkid,
       nama,
@@ -211,7 +214,7 @@ export async function getTpkListPostgres(
       kelurahanId: kelId,
       namaKabupaten: kabId != null ? namaKab.get(kabId) || null : null,
       namaKecamatan: kecId != null ? namaKec.get(kecId) || null : null,
-      namaKelurahan: kelId != null ? namaKel.get(kelId) || null : null,
+      namaKelurahan,
       jumlahAnggota: toInt(row.jumlah_anggota),
       status: row.status != null ? toInt(row.status) : null,
     };

@@ -1,17 +1,23 @@
 import { BriefcaseBusiness, Users, UsersRound } from "lucide-react";
 
 import { formatNumber } from "@/lib/map-data";
+import { cn } from "@/lib/utils";
 
 export function TpkScopeSummaryCards({
   tim,
   anggota,
   pkb,
   scopeLabel,
+  loading = false,
+  pkbHint,
 }: {
-  tim: number;
-  anggota: number;
-  pkb: number;
+  tim: number | null;
+  anggota: number | null;
+  pkb: number | null;
   scopeLabel: string;
+  loading?: boolean;
+  /** Override hint kartu PKB (mis. live vs simulasi). */
+  pkbHint?: string;
 }) {
   const cards = [
     {
@@ -28,7 +34,7 @@ export function TpkScopeSummaryCards({
       label: "Jumlah Anggota TPK",
       value: anggota,
       unit: "orang",
-      hint: "Total personel di daftar",
+      hint: "Total personel di wilayah",
       icon: Users,
       color: "bg-cyan-50 text-cyan-700",
     },
@@ -37,7 +43,7 @@ export function TpkScopeSummaryCards({
       label: "Jumlah PKB",
       value: pkb,
       unit: "petugas",
-      hint: "PKB/PLKB unik (simulasi)",
+      hint: pkbHint ?? "PKB/PLKB unik di wilayah",
       icon: BriefcaseBusiness,
       color: "bg-violet-50 text-violet-700",
     },
@@ -47,9 +53,11 @@ export function TpkScopeSummaryCards({
     <div
       className="grid gap-3 sm:grid-cols-3"
       aria-label={`Ringkasan TPK ${scopeLabel}`}
+      aria-busy={loading || undefined}
     >
       {cards.map((card) => {
         const Icon = card.icon;
+        const showDash = loading || card.value == null;
         return (
           <article
             key={card.id}
@@ -66,12 +74,19 @@ export function TpkScopeSummaryCards({
               </span>
             </div>
             <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5">
-              <span className="text-2xl font-extrabold tracking-tight text-navy tabular-nums">
-                {formatNumber(card.value)}
+              <span
+                className={cn(
+                  "text-2xl font-extrabold tracking-tight text-navy tabular-nums",
+                  loading && "animate-pulse text-slate-300",
+                )}
+              >
+                {showDash ? "—" : formatNumber(card.value)}
               </span>
-              <span className="text-[11px] font-medium text-slate-400">
-                {card.unit}
-              </span>
+              {!showDash ? (
+                <span className="text-[11px] font-medium text-slate-400">
+                  {card.unit}
+                </span>
+              ) : null}
             </div>
             <div className="mt-1.5 text-[11px] text-slate-400">{card.hint}</div>
           </article>
