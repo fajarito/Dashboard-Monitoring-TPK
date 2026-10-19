@@ -28,6 +28,8 @@ import {
   type SasaranKey,
 } from "@/lib/sasaran-indikator";
 import {
+  formatAgregatDesaCaption,
+  formatAnggotaSubline,
   resolveTpkRowLabels,
   tpkIdSnippet,
 } from "@/lib/tpk-display-name";
@@ -539,13 +541,21 @@ export function LiveTpkListPanel({
                       const displayName =
                         label?.displayName ?? `TPK (${item.tpkId})`;
                       const status = statusLabel(item.status);
+                      const anggotaLine = formatAnggotaSubline(
+                        item.anggota ?? [],
+                      );
                       const subline = wilayahSubline(item, {
-                        showTpkId: label?.showTpkIdInSubline,
+                        // ID hanya bila se-desa & belum ada nama anggota pembeda.
+                        showTpkId:
+                          Boolean(label?.showTpkIdInSubline) && !anggotaLine,
                       });
                       const sasaranText = formatNullableCount(
                         item.keluargaSasaran,
                       );
                       const krsText = formatNullableCount(item.krs);
+                      const agregatCaption = formatAgregatDesaCaption(
+                        item.tpkSeDesa ?? 1,
+                      );
                       const highlightKrs =
                         sortKey === "krs-desc" &&
                         hasAnyKrs &&
@@ -592,6 +602,14 @@ export function LiveTpkListPanel({
                                     </span>
                                   ) : null}
                                 </span>
+                                {anggotaLine ? (
+                                  <span
+                                    className="mt-0.5 block text-[10px] font-medium leading-snug text-slate-400"
+                                    title="Anggota TPK (Bidan · PKK · Kader KB)"
+                                  >
+                                    {anggotaLine}
+                                  </span>
+                                ) : null}
                                 <span className="mt-0.5 block text-[11px] text-muted-foreground">
                                   {subline || "Wilayah belum terpetakan"}
                                 </span>
@@ -603,10 +621,22 @@ export function LiveTpkListPanel({
                           </td>
                           <td className="px-3 py-3.5 text-center">
                             {sasaranText != null ? (
-                              <span className="inline-flex min-w-[2.75rem] flex-col items-center rounded-lg bg-blue-50/90 px-2 py-1">
+                              <span
+                                className="inline-flex min-w-[2.75rem] flex-col items-center rounded-lg bg-blue-50/90 px-2 py-1"
+                                title={
+                                  agregatCaption
+                                    ? `${agregatCaption} — nilai kelurahan, bukan milikan eksklusif TPK ini`
+                                    : undefined
+                                }
+                              >
                                 <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
                                   {sasaranText}
                                 </span>
+                                {agregatCaption ? (
+                                  <span className="mt-0.5 max-w-[5.5rem] text-center text-[8px] font-semibold leading-tight tracking-wide text-slate-400 normal-case">
+                                    {agregatCaption}
+                                  </span>
+                                ) : null}
                               </span>
                             ) : (
                               <DashCell label="Kel. sasaran tidak tersedia untuk kelurahan ini" />
@@ -621,6 +651,11 @@ export function LiveTpkListPanel({
                                     ? "bg-amber-100 ring-1 ring-amber-200"
                                     : "bg-amber-50/90",
                                 )}
+                                title={
+                                  agregatCaption
+                                    ? `${agregatCaption} — nilai kelurahan, bukan milikan eksklusif TPK ini`
+                                    : undefined
+                                }
                               >
                                 <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
                                   {krsText}
@@ -628,6 +663,11 @@ export function LiveTpkListPanel({
                                 <span className="text-[8px] font-bold tracking-wider text-amber-700/80 uppercase">
                                   {highlightKrs ? "Tertinggi" : "Berisiko"}
                                 </span>
+                                {agregatCaption ? (
+                                  <span className="mt-0.5 max-w-[5.5rem] text-center text-[8px] font-semibold leading-tight tracking-wide text-slate-400 normal-case">
+                                    {agregatCaption}
+                                  </span>
+                                ) : null}
                               </span>
                             ) : (
                               <DashCell label="KRS kelurahan tidak tersedia" />

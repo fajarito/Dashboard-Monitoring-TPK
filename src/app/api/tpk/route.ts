@@ -20,6 +20,8 @@ export const revalidate = 0;
  * pageSize default 25 (10–50). Filter wilayah wajib.
  * sort: krs-desc (default) | krs-asc | ibuHamil-desc | baduta-desc | balita-desc | rtlh-desc | nama
  * Item memuat indikator kelurahan (by_rekap) + PKB desa binaan; null → UI "—".
+ * Juga `anggota: string[]` (maks 3, StatusTPK 1/2/3 prefer) dan `tpkSeDesa`
+ * (COUNT DISTINCT TPK se-kelurahan dalam filter) untuk caption agregat desa.
  */
 export async function GET(request: NextRequest) {
   try {

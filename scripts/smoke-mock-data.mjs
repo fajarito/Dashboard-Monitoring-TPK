@@ -128,10 +128,18 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
     "krs",
     "indikator",
     "pkb",
+    "anggota",
+    "tpkSeDesa",
   ]) {
     if (sample[key] === undefined) {
       throw new Error(`${path} items[0] missing ${key}`);
     }
+  }
+  if (!Array.isArray(sample.anggota)) {
+    throw new Error(`${path} anggota must be string[]`);
+  }
+  if (typeof sample.tpkSeDesa !== "number" || sample.tpkSeDesa < 1) {
+    throw new Error(`${path} tpkSeDesa must be >= 1`);
   }
   for (const key of ["bumil", "baduta", "balita", "jambanTL", "airTL", "rtlh"]) {
     if (sample.indikator?.[key] === undefined) {
@@ -186,8 +194,15 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
     desaCounts.set(desa, (desaCounts.get(desa) || 0) + 1);
   }
   const multiDesa = [...desaCounts.entries()].filter(([, n]) => n > 1);
+  const withAnggota = json.items.filter(
+    (i) => Array.isArray(i.anggota) && i.anggota.length > 0,
+  );
+  const multiSeDesa = json.items.filter((i) => (i.tpkSeDesa ?? 0) > 1);
+  if (withAnggota.length === 0) {
+    throw new Error(`${path} expected some items with anggota[]`);
+  }
   console.log(
-    `OK ${path} uniqueIds=${ids.length} multiDesaOnPage=${multiDesa.length} (label UI pakai · #n + ID subline)`,
+    `OK ${path} uniqueIds=${ids.length} multiDesaOnPage=${multiDesa.length} withAnggota=${withAnggota.length} tpkSeDesa>1=${multiSeDesa.length}`,
   );
 }
 

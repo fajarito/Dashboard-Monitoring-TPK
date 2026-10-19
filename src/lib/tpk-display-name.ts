@@ -93,3 +93,21 @@ export function dedupeByTpkId<T extends { tpkId: string }>(rows: readonly T[]): 
   }
   return out;
 }
+
+/** Subline anggota: `A · B · C` (maks 3). */
+export function formatAnggotaSubline(names: readonly string[]): string {
+  return names
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" · ");
+}
+
+/**
+ * Caption jujur untuk metrik grain kelurahan yang diulang di tiap baris TPK.
+ * null bila hanya 1 TPK di desa (scope) — tidak perlu penjelasan.
+ */
+export function formatAgregatDesaCaption(tpkSeDesa: number): string | null {
+  if (!Number.isFinite(tpkSeDesa) || tpkSeDesa < 2) return null;
+  return `Agregat desa · ${tpkSeDesa} TPK`;
+}

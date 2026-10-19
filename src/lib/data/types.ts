@@ -187,6 +187,17 @@ export type TpkListItem = {
   namaKecamatan: string | null;
   namaKelurahan: string | null;
   jumlahAnggota: number;
+  /**
+   * Sampai 3 nama anggota (StatusTPK 1→2→3 prefer) untuk membedakan
+   * beberapa TPK di desa yang sama. Kosong bila tidak ada baris.
+   */
+  anggota: string[];
+  /**
+   * Jumlah TPK (DISTINCT TPKID) se-kelurahan dalam filter scope saat ini.
+   * Dipakai caption `Agregat desa · N TPK` bila N > 1 — metrik KRS/sasaran
+   * adalah rollup kelurahan, bukan milikan eksklusif satu baris.
+   */
+  tpkSeDesa: number;
   status: number | null;
   /** SUM(jumlah_keluarga_sasaran) di kelurahan TPK. */
   keluargaSasaran: number | null;

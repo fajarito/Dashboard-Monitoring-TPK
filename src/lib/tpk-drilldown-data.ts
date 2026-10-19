@@ -489,13 +489,23 @@ export function getTpkByProvince(provinceId: string): TpkUnit[] {
     for (const kec of kab.kecamatan) {
       // Depok lebih padat agar paging di level kab & kec terasa (≥2 halaman).
       const perKec = kab.id === "kota-depok" ? 10 : 2;
+      // Satu desa multi-TPK (simulasi RAGAJAYA): grain metrik desa sama, anggota beda.
+      const multiTpkDesa =
+        kab.id === "kota-depok" && kec.id === kab.kecamatan[0]?.id;
+      const sharedDesaStart = list.length;
       for (let n = 0; n < perKec; n += 1) {
         const localRand = mulberry32(hashSeed(`${kab.id}-${kec.id}-tpk-${n}`));
         const rich = index === 0;
         const desaBase = pick(localRand, desaNames);
         list.push(
           makeTpk(province, index, {
-            desa: rich ? "Sukamaju" : n === 0 ? desaBase : `${desaBase} ${n + 1}`,
+            desa: rich
+              ? "Sukamaju"
+              : multiTpkDesa
+                ? "RAGAJAYA"
+                : n === 0
+                  ? desaBase
+                  : `${desaBase} ${n + 1}`,
             kecamatan: rich ? "Coblong" : kec.name,
             kecamatanId: rich ? "kec-coblong-bdg" : kec.id,
             kabupaten: rich ? "Kota Bandung" : kab.name,
@@ -504,6 +514,19 @@ export function getTpkByProvince(provinceId: string): TpkUnit[] {
           }),
         );
         index += 1;
+      }
+      if (multiTpkDesa && list.length > sharedDesaStart) {
+        const siblings = list
+          .slice(sharedDesaStart)
+          .filter((row) => row.desa === "RAGAJAYA");
+        const anchor = siblings[0];
+        if (anchor) {
+          for (const row of siblings.slice(1)) {
+            row.keluargaSasaran = anchor.keluargaSasaran;
+            row.krs = anchor.krs;
+            row.sasaran = { ...anchor.sasaran };
+          }
+        }
       }
     }
   }
