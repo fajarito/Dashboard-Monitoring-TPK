@@ -155,8 +155,39 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
       throw new Error(`${path} sort=krs-desc violated: ${a} < ${b}`);
     }
   }
+  const ids = json.items.map((i) => i.tpkId);
+  const uniqueIds = new Set(ids);
+  if (uniqueIds.size !== ids.length) {
+    throw new Error(
+      `${path} duplicate tpkId on page: ${ids.length} rows, ${uniqueIds.size} distinct`,
+    );
+  }
+  if (typeof json.total !== "number" || json.total < ids.length) {
+    throw new Error(`${path} total=${json.total} inconsistent with page`);
+  }
   console.log(
-    `OK ${path} total=${json.total} pageItems=${json.items.length} sample krs=${sample.krs} pkb=${sample.pkb.nama}`,
+    `OK ${path} total=${json.total} pageItems=${json.items.length} uniqueTpkId=${uniqueIds.size} sample krs=${sample.krs} pkb=${sample.pkb.nama}`,
+  );
+}
+
+{
+  // Halaman penuh: pastikan tidak ada TPKID berulang (dedupe adapter).
+  const path = "/api/tpk?provinsiId=12&page=1&pageSize=50&sort=nama";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  const ids = json.items.map((i) => i.tpkId);
+  if (new Set(ids).size !== ids.length) {
+    throw new Error(`${path} duplicate tpkId after dedupe`);
+  }
+  const desaCounts = new Map();
+  for (const item of json.items) {
+    const desa = item.namaKelurahan || item.nama || "(?)";
+    desaCounts.set(desa, (desaCounts.get(desa) || 0) + 1);
+  }
+  const multiDesa = [...desaCounts.entries()].filter(([, n]) => n > 1);
+  console.log(
+    `OK ${path} uniqueIds=${ids.length} multiDesaOnPage=${multiDesa.length} (label UI pakai · #n + ID subline)`,
   );
 }
 

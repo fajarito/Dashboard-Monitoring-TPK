@@ -15,6 +15,7 @@ import {
   PROVINSI_ID_BY_SLUG,
   resolveProvinceFromRingkasanId,
 } from "@/lib/province-api-id";
+import { dedupeByTpkId } from "@/lib/tpk-display-name";
 import { getTpkForScope, type TpkUnit } from "@/lib/tpk-drilldown-data";
 
 function slugForProvinsiId(provinsiId: number | null): string | null {
@@ -158,7 +159,9 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
     });
   }
 
-  const mapped = list.map((tpk) => toItem(tpk, provinceApiId ?? null));
+  const mapped = dedupeByTpkId(
+    list.map((tpk) => toItem(tpk, provinceApiId ?? null)),
+  );
   const sorted = sortItems(mapped, query.sort);
 
   const total = sorted.length;

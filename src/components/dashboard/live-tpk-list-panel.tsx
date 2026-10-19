@@ -27,7 +27,10 @@ import {
   sasaranShortLabels,
   type SasaranKey,
 } from "@/lib/sasaran-indikator";
-import { formatTpkDisplayName } from "@/lib/tpk-display-name";
+import {
+  resolveTpkRowLabels,
+  tpkIdSnippet,
+} from "@/lib/tpk-display-name";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
@@ -68,14 +71,21 @@ function statusLabel(status: number | null): {
   return null;
 }
 
-function wilayahSubline(item: TpkListItem): string {
-  return [
+function wilayahSubline(
+  item: TpkListItem,
+  opts?: { showTpkId?: boolean },
+): string {
+  const base = [
     item.namaKelurahan,
     item.namaKecamatan ? `Kec. ${item.namaKecamatan}` : null,
     item.namaKabupaten,
   ]
     .filter(Boolean)
     .join(" - ");
+  if (!opts?.showTpkId) return base;
+  const snip = tpkIdSnippet(item.tpkId);
+  if (!snip) return base;
+  return base ? `${base} · ID ${snip}` : `ID ${snip}`;
 }
 
 /** Em dash jujur bila join miss / data belum ada. */
@@ -225,6 +235,10 @@ export function LiveTpkListPanel({
     : total;
 
   const pageItems = list.payload?.items ?? [];
+  const rowLabels = useMemo(
+    () => resolveTpkRowLabels(pageItems),
+    [pageItems],
+  );
 
   const maxKrsOnPage =
     pageItems.length > 0
@@ -521,9 +535,13 @@ export function LiveTpkListPanel({
                   ) : (
                     pageItems.map((item) => {
                       const href = `/wilayah/${provinceSlug}/tpk/${encodeURIComponent(item.tpkId)}`;
-                      const displayName = formatTpkDisplayName(item);
+                      const label = rowLabels.get(item.tpkId);
+                      const displayName =
+                        label?.displayName ?? `TPK (${item.tpkId})`;
                       const status = statusLabel(item.status);
-                      const subline = wilayahSubline(item);
+                      const subline = wilayahSubline(item, {
+                        showTpkId: label?.showTpkIdInSubline,
+                      });
                       const sasaranText = formatNullableCount(
                         item.keluargaSasaran,
                       );
