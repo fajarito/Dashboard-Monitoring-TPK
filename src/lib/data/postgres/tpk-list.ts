@@ -79,6 +79,18 @@ type PkbJoinRow = {
   jabatan_plkb: string | null;
 };
 
+type AnggotaRow = {
+  tpkid: string;
+  nama: string | null;
+  status_tpk: number | null;
+  nomor_urut: number | null;
+};
+
+type TpkSeDesaRow = {
+  kelurahanid: number;
+  n: string | number;
+};
+
 function toInt(value: string | number | null | undefined): number {
   if (value == null) return 0;
   const n =
@@ -244,6 +256,49 @@ WHERE b."Status" = 1
 ORDER BY b."KelurahanID", TRIM(BOTH FROM p."PKBID") ASC
 `;
 
+/**
+ * Anggota per TPK — prefer StatusTPK 1/2/3 (Bidan / PKK / Kader KB).
+ * Fetch terpisah (bukan JOIN di page) agar tidak fan-out baris TPK.
+ */
+export const SQL_ANGGOTA_BY_TPK = `
+SELECT
+  a."TPKID" AS tpkid,
+  NULLIF(TRIM(BOTH FROM a."Nama"), '') AS nama,
+  a."StatusTPK" AS status_tpk,
+  a."NomorUrut" AS nomor_urut
+FROM "sigabaru"."dat_AnggotaTPK" a
+WHERE a."TPKID" = ANY($1::text[])
+ORDER BY
+  a."TPKID",
+  CASE
+    WHEN a."StatusTPK" = 1 THEN 1
+    WHEN a."StatusTPK" = 2 THEN 2
+    WHEN a."StatusTPK" = 3 THEN 3
+    ELSE 9
+  END,
+  a."NomorUrut" ASC NULLS LAST
+`;
+
+/**
+ * COUNT DISTINCT TPK se-kelurahan dalam filter scope (bukan full nasional).
+ * Dipakai caption agregat desa — grain metrik = kelurahan.
+ */
+export const SQL_TPK_COUNT_BY_KELURAHAN = `
+SELECT
+  t."KelurahanID" AS kelurahanid,
+  COUNT(DISTINCT t."TPKID")::int AS n
+FROM "sigabaru"."dat_TPK" t
+WHERE t."Status" = 1
+  AND ($1::int IS NULL OR t."ProvinsiID" = $1)
+  AND ($2::int IS NULL OR t."KabupatenID" = $2)
+  AND (
+    $3::text IS NULL
+    OR t."NamaTPK" ILIKE '%' || $3 || '%'
+  )
+  AND t."KelurahanID" = ANY($4::int[])
+GROUP BY t."KelurahanID"
+`;
+
 function emptyIndikator(): TpkListIndikator {
   return {
     bumil: null,
@@ -402,6 +457,70 @@ async function fetchPkbByKelurahan(
   return map;
 }
 
+/** Maks 3 nama per TPK; urutan StatusTPK 1→2→3 lalu NomorUrut. */
+export function pickAnggotaNames(rows: readonly AnggotaRow[]): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const nama = row.nama?.trim();
+    if (!nama) continue;
+    const key = nama.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(nama);
+    if (names.length >= 3) break;
+  }
+  return names;
+}
+
+async function fetchAnggotaByTpkIds(
+  tpkIds: string[],
+): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (tpkIds.length === 0 || !getPoolConfigs().siga.ready) return map;
+  try {
+    const res = await queryPool<AnggotaRow>("siga", SQL_ANGGOTA_BY_TPK, [
+      tpkIds,
+    ]);
+    const byTpk = new Map<string, AnggotaRow[]>();
+    for (const row of res.rows) {
+      const id = row.tpkid?.trim();
+      if (!id) continue;
+      const list = byTpk.get(id) ?? [];
+      list.push(row);
+      byTpk.set(id, list);
+    }
+    for (const [id, rows] of byTpk) {
+      map.set(id, pickAnggotaNames(rows));
+    }
+  } catch (err) {
+    console.warn("[tpk-list] anggota fetch gagal, anggota = []", err);
+  }
+  return map;
+}
+
+async function fetchTpkCountByKelurahan(
+  query: TpkListQuery,
+  q: string | null,
+  kelIds: number[],
+): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  if (kelIds.length === 0 || !getPoolConfigs().siga.ready) return map;
+  try {
+    const res = await queryPool<TpkSeDesaRow>(
+      "siga",
+      SQL_TPK_COUNT_BY_KELURAHAN,
+      [query.provinsiId, query.kabupatenId, q, kelIds],
+    );
+    for (const row of res.rows) {
+      map.set(toInt(row.kelurahanid), toInt(row.n));
+    }
+  } catch (err) {
+    console.warn("[tpk-list] tpkSeDesa count gagal, default 1", err);
+  }
+  return map;
+}
+
 async function lookupWilayahNames(rows: SigaTpkRow[]): Promise<{
   namaKab: Map<number, string>;
   namaKec: Map<number, string>;
@@ -489,6 +608,8 @@ function buildItem(
   },
   rekapMap: Map<number, KelurahanRekap>,
   pkbMap: Map<number, TpkListPkb>,
+  anggotaMap: Map<string, string[]>,
+  tpkSeDesaMap: Map<number, number>,
 ): TpkListItem {
   const kabId = row.kabupatenid != null ? toInt(row.kabupatenid) : null;
   const kecId = row.kecamatanid != null ? toInt(row.kecamatanid) : null;
@@ -504,6 +625,9 @@ function buildItem(
   const rekap = kelId != null ? rekapMap.get(kelId) : undefined;
   const metrics = indikatorFromRekap(rekap);
   const pkb = kelId != null ? pkbMap.get(kelId) ?? null : null;
+  const anggota = anggotaMap.get(row.tpkid) ?? [];
+  const tpkSeDesa =
+    kelId != null ? (tpkSeDesaMap.get(kelId) ?? 1) : 1;
 
   return {
     tpkId: row.tpkid,
@@ -519,6 +643,8 @@ function buildItem(
     namaKecamatan: kecId != null ? names.namaKec.get(kecId) || null : null,
     namaKelurahan,
     jumlahAnggota: toInt(row.jumlah_anggota),
+    anggota,
+    tpkSeDesa,
     status: row.status != null ? toInt(row.status) : null,
     ...metrics,
     pkb,
@@ -538,14 +664,21 @@ async function enrichPageRows(
         .filter((id): id is number => id != null && id > 0),
     ),
   );
+  const tpkIds = rows.map((r) => r.tpkid);
+  const q = query.q?.trim() ? query.q.trim() : null;
 
-  const [names, rekapMap, pkbMap] = await Promise.all([
-    lookupWilayahNames(rows),
-    getKelurahanRekapMap(query.provinsiId, query.kabupatenId),
-    fetchPkbByKelurahan(kelIds),
-  ]);
+  const [names, rekapMap, pkbMap, anggotaMap, tpkSeDesaMap] =
+    await Promise.all([
+      lookupWilayahNames(rows),
+      getKelurahanRekapMap(query.provinsiId, query.kabupatenId),
+      fetchPkbByKelurahan(kelIds),
+      fetchAnggotaByTpkIds(tpkIds),
+      fetchTpkCountByKelurahan(query, q, kelIds),
+    ]);
 
-  return rows.map((row) => buildItem(row, names, rekapMap, pkbMap));
+  return rows.map((row) =>
+    buildItem(row, names, rekapMap, pkbMap, anggotaMap, tpkSeDesaMap),
+  );
 }
 
 function dedupeSigaRows<T extends { tpkid: string }>(rows: readonly T[]): T[] {
@@ -674,6 +807,8 @@ export async function getTpkListPostgres(
           namaKec: new Map(),
           namaKel: new Map(),
         },
+        new Map(),
+        new Map(),
         new Map(),
         new Map(),
       );

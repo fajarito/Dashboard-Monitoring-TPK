@@ -56,11 +56,19 @@ function toPkb(tpk: TpkUnit): TpkListPkb {
   };
 }
 
-function toItem(tpk: TpkUnit, provinceApiId: number | null): TpkListItem {
+function toItem(
+  tpk: TpkUnit,
+  provinceApiId: number | null,
+  tpkSeDesa: number,
+): TpkListItem {
   const kabApi = tpk.kabupatenId
     ? Number.parseInt(getKabupatenApiId(tpk.kabupatenId) ?? "", 10)
     : null;
   const desa = tpk.desa?.trim() || null;
+  const anggota = tpk.members
+    .map((m) => m.name.trim())
+    .filter(Boolean)
+    .slice(0, 3);
   return {
     tpkId: tpk.id,
     // Tampilkan TPK (desa/kelurahan), bukan nama palsu "TPK Sukamaju".
@@ -76,6 +84,8 @@ function toItem(tpk: TpkUnit, provinceApiId: number | null): TpkListItem {
     namaKecamatan: tpk.kecamatan,
     namaKelurahan: desa,
     jumlahAnggota: tpk.members.length,
+    anggota,
+    tpkSeDesa,
     status: tpk.status === "Aktif" ? 1 : 0,
     keluargaSasaran: tpk.keluargaSasaran,
     krs: tpk.krs,
@@ -159,8 +169,17 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
     });
   }
 
+  const seDesaCount = new Map<string, number>();
+  for (const tpk of list) {
+    const key = (tpk.desa?.trim() || tpk.id).toLowerCase();
+    seDesaCount.set(key, (seDesaCount.get(key) ?? 0) + 1);
+  }
+
   const mapped = dedupeByTpkId(
-    list.map((tpk) => toItem(tpk, provinceApiId ?? null)),
+    list.map((tpk) => {
+      const key = (tpk.desa?.trim() || tpk.id).toLowerCase();
+      return toItem(tpk, provinceApiId ?? null, seDesaCount.get(key) ?? 1);
+    }),
   );
   const sorted = sortItems(mapped, query.sort);
 
