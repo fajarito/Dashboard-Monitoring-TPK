@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { TpkListPayload } from "@/lib/data/types";
+import type { TpkListPayload, TpkListSort } from "@/lib/data/types";
 
 export type TpkListFilters = {
   provinsiId: string | null;
@@ -10,6 +10,7 @@ export type TpkListFilters = {
   q: string;
   page: number;
   pageSize?: number;
+  sort?: TpkListSort;
 };
 
 export type TpkListState = {
@@ -40,6 +41,7 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
   const q = filters.q;
   const page = filters.page;
   const pageSize = filters.pageSize ?? 25;
+  const sort = filters.sort ?? "krs-desc";
 
   useEffect(() => {
     if (!provinsiId && !kabupatenId) {
@@ -56,6 +58,7 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
     if (q.trim()) params.set("q", q.trim());
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
+    params.set("sort", sort);
 
     void fetch(`/api/tpk?${params.toString()}`, {
       method: "GET",
@@ -91,7 +94,7 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
       });
 
     return () => controller.abort();
-  }, [provinsiId, kabupatenId, q, page, pageSize, tick]);
+  }, [provinsiId, kabupatenId, q, page, pageSize, sort, tick]);
 
   return { ...state, refetch };
 }

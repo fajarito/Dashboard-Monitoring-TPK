@@ -9,9 +9,15 @@ import {
   ErrorState,
 } from "@/components/dashboard/data-state";
 import { GlossaryTerm } from "@/components/dashboard/glossary-term";
+import { TpkContactAction } from "@/components/dashboard/tpk-contact-action";
 import { TpkScopeSummaryCards } from "@/components/dashboard/tpk-scope-summary-cards";
 import { Button } from "@/components/ui/button";
-import type { PeringkatKabupatenItem, TpkListItem } from "@/lib/data/types";
+import type {
+  PeringkatKabupatenItem,
+  TpkListItem,
+  TpkListPkb,
+  TpkListSort,
+} from "@/lib/data/types";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { useTpkList } from "@/lib/hooks/use-tpk-list";
@@ -19,6 +25,7 @@ import { formatNumber } from "@/lib/map-data";
 import {
   sasaranKeys,
   sasaranShortLabels,
+  type SasaranKey,
 } from "@/lib/sasaran-indikator";
 import { formatTpkDisplayName } from "@/lib/tpk-display-name";
 import { cn } from "@/lib/utils";
@@ -27,15 +34,19 @@ const PAGE_SIZE = 25;
 
 type KabOption = { id: string; label: string };
 
-type SortKey =
-  | "krs-desc"
-  | "krs-asc"
-  | "nama"
-  | "prioritas-tinggi"
-  | "ibuHamil-desc"
-  | "baduta-desc"
-  | "balita-desc"
-  | "rtlh-desc";
+type SortKey = TpkListSort | "prioritas-tinggi";
+
+const SASARAN_API_KEY: Record<
+  Exclude<SasaranKey, never>,
+  "bumil" | "baduta" | "balita" | "jambanTL" | "airTL" | "rtlh"
+> = {
+  ibuHamil: "bumil",
+  baduta: "baduta",
+  balita: "balita",
+  jambanTidakLayak: "jambanTL",
+  sumberAirTidakLayak: "airTL",
+  rtlh: "rtlh",
+};
 
 const selectClass =
   "h-9 w-full rounded-xl border border-line bg-white px-3 text-[12px] font-semibold text-navy outline-none ring-primary/30 focus:ring-2";
@@ -67,16 +78,49 @@ function wilayahSubline(item: TpkListItem): string {
     .join(" - ");
 }
 
-/** Em dash jujur bila indikator kelurahan belum terhubung. */
+/** Em dash jujur bila join miss / data belum ada. */
 function DashCell({ label }: { label?: string }) {
   return (
     <span
       className="text-sm font-semibold text-slate-300 tabular-nums"
-      title={label ?? "Belum tersedia dari agregat live"}
+      title={label ?? "Data tidak tersedia"}
     >
       —
     </span>
   );
+}
+
+function formatNullableCount(value: number | null | undefined): string | null {
+  if (value == null) return null;
+  return formatNumber(value);
+}
+
+function toApiSort(sortKey: SortKey): TpkListSort {
+  if (sortKey === "prioritas-tinggi") return "krs-desc";
+  return sortKey;
+}
+
+function sortFootnote(sortKey: SortKey): string | null {
+  switch (sortKey) {
+    case "krs-desc":
+      return "diurutkan KRS tertinggi";
+    case "krs-asc":
+      return "diurutkan KRS terendah";
+    case "ibuHamil-desc":
+      return "diurutkan Ibu Hamil tertinggi";
+    case "baduta-desc":
+      return "diurutkan Baduta tertinggi";
+    case "balita-desc":
+      return "diurutkan Balita tertinggi";
+    case "rtlh-desc":
+      return "RTLH belum tersedia di DWH";
+    case "nama":
+      return "diurutkan Nama A–Z";
+    case "prioritas-tinggi":
+      return "filter prioritas keluarga belum live";
+    default:
+      return null;
+  }
 }
 
 export function LiveTpkListPanel({
@@ -150,6 +194,7 @@ export function LiveTpkListPanel({
     q: debouncedQ,
     page,
     pageSize: PAGE_SIZE,
+    sort: toApiSort(sortKey),
   });
 
   const source =
@@ -179,18 +224,12 @@ export function LiveTpkListPanel({
     ? Math.max(ringkasan?.jumlahTPK ?? total, total)
     : total;
 
-  const pageItems = useMemo(() => {
-    const items = list.payload?.items ?? [];
-    if (sortKey === "nama") {
-      return items
-        .slice()
-        .sort((a, b) =>
-          formatTpkDisplayName(a).localeCompare(formatTpkDisplayName(b), "id"),
-        );
-    }
-    // Indikator/prioritas belum live — urutan server (biasanya register) dipertahankan.
-    return items;
-  }, [list.payload?.items, sortKey]);
+  const pageItems = list.payload?.items ?? [];
+
+  const maxKrsOnPage =
+    pageItems.length > 0
+      ? Math.max(...pageItems.map((t) => t.krs ?? -1))
+      : -1;
 
   const start =
     list.payload && list.payload.items.length > 0
@@ -201,7 +240,8 @@ export function LiveTpkListPanel({
       ? start + list.payload.items.length - 1
       : 0;
 
-  const indicatorsLive = false;
+  const footnote = sortFootnote(sortKey);
+  const hasAnyKrs = pageItems.some((item) => item.krs != null);
 
   return (
     <div className="space-y-4">
@@ -339,15 +379,10 @@ export function LiveTpkListPanel({
             </div>
           </div>
 
-          {!indicatorsLive ? (
+          {sortKey === "rtlh-desc" ? (
             <p className="text-[11px] leading-snug text-slate-500">
-              Indikator KRS &amp; sasaran per TPK belum dihubungkan ke rollup
-              kelurahan — kolom menampilkan{" "}
-              <span className="font-semibold text-navy">—</span> (bukan angka
-              simulasi). Urut indikator &amp; Prioritas 1–2 aktif setelah rollup
-              tersedia; sementara hanya{" "}
-              <span className="font-semibold text-navy">Nama A–Z</span> yang
-              mengurutkan halaman ini.
+              Kolom RTLH belum ada di DWH — semua baris menampilkan{" "}
+              <span className="font-semibold text-navy">—</span>.
             </p>
           ) : null}
         </div>
@@ -406,29 +441,44 @@ export function LiveTpkListPanel({
                         KRS
                       </GlossaryTerm>
                     </th>
-                    {sasaranKeys.map((key) => (
-                      <th
-                        key={key}
-                        className="px-2.5 py-3 text-center font-extrabold text-slate-400"
-                      >
-                        <GlossaryTerm
-                          termId={
-                            key === "ibuHamil"
-                              ? "ibu-hamil"
-                              : key === "jambanTidakLayak"
-                                ? "jamban-tl"
-                                : key === "sumberAirTidakLayak"
-                                  ? "air-tl"
-                                  : key === "rtlh"
-                                    ? "rtlh"
-                                    : key
-                          }
-                          className="font-extrabold text-slate-400"
+                    {sasaranKeys.map((key) => {
+                      const activeSort =
+                        (sortKey === "ibuHamil-desc" && key === "ibuHamil") ||
+                        (sortKey === "baduta-desc" && key === "baduta") ||
+                        (sortKey === "balita-desc" && key === "balita") ||
+                        (sortKey === "rtlh-desc" && key === "rtlh");
+                      return (
+                        <th
+                          key={key}
+                          className={cn(
+                            "px-2.5 py-3 text-center font-extrabold",
+                            activeSort
+                              ? "bg-blue-50/80 text-primary"
+                              : "text-slate-400",
+                          )}
                         >
-                          {sasaranShortLabels[key]}
-                        </GlossaryTerm>
-                      </th>
-                    ))}
+                          <GlossaryTerm
+                            termId={
+                              key === "ibuHamil"
+                                ? "ibu-hamil"
+                                : key === "jambanTidakLayak"
+                                  ? "jamban-tl"
+                                  : key === "sumberAirTidakLayak"
+                                    ? "air-tl"
+                                    : key === "rtlh"
+                                      ? "rtlh"
+                                      : key
+                            }
+                            className={cn(
+                              "font-extrabold",
+                              activeSort ? "text-primary" : "text-slate-400",
+                            )}
+                          >
+                            {sasaranShortLabels[key]}
+                          </GlossaryTerm>
+                        </th>
+                      );
+                    })}
                     <th className="px-4 py-3 text-right font-extrabold">Aksi</th>
                   </tr>
                 </thead>
@@ -474,13 +524,31 @@ export function LiveTpkListPanel({
                       const displayName = formatTpkDisplayName(item);
                       const status = statusLabel(item.status);
                       const subline = wilayahSubline(item);
+                      const sasaranText = formatNullableCount(
+                        item.keluargaSasaran,
+                      );
+                      const krsText = formatNullableCount(item.krs);
+                      const highlightKrs =
+                        sortKey === "krs-desc" &&
+                        hasAnyKrs &&
+                        item.krs != null &&
+                        item.krs === maxKrsOnPage &&
+                        maxKrsOnPage > 0;
 
                       return (
                         <tr
                           key={item.tpkId}
-                          className="group border-b border-line last:border-b-0 transition-colors hover:bg-blue-50/55"
+                          className={cn(
+                            "group border-b border-line last:border-b-0 transition-colors hover:bg-blue-50/55",
+                            highlightKrs && "bg-amber-50/40",
+                          )}
                         >
-                          <td className="sticky left-0 z-10 bg-white px-6 py-4 group-hover:bg-blue-50/55">
+                          <td
+                            className={cn(
+                              "sticky left-0 z-10 px-6 py-4 group-hover:bg-blue-50/55",
+                              highlightKrs ? "bg-amber-50/40" : "bg-white",
+                            )}
+                          >
                             <Link
                               href={href}
                               className="flex items-start gap-3"
@@ -513,27 +581,72 @@ export function LiveTpkListPanel({
                             </Link>
                           </td>
                           <td className="px-3 py-3.5 align-top">
-                            <div className="min-w-[160px] text-[12px] text-slate-400">
-                              <span className="font-semibold">—</span>
-                              <span className="mt-0.5 block text-[10px]">
-                                PKB per TPK belum live
+                            <PkbCell pkb={item.pkb} />
+                          </td>
+                          <td className="px-3 py-3.5 text-center">
+                            {sasaranText != null ? (
+                              <span className="inline-flex min-w-[2.75rem] flex-col items-center rounded-lg bg-blue-50/90 px-2 py-1">
+                                <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
+                                  {sasaranText}
+                                </span>
                               </span>
-                            </div>
+                            ) : (
+                              <DashCell label="Kel. sasaran tidak tersedia untuk kelurahan ini" />
+                            )}
                           </td>
                           <td className="px-3 py-3.5 text-center">
-                            <DashCell label="Kel. sasaran belum live" />
+                            {krsText != null ? (
+                              <span
+                                className={cn(
+                                  "inline-flex min-w-[2.75rem] flex-col items-center rounded-lg px-2 py-1",
+                                  highlightKrs
+                                    ? "bg-amber-100 ring-1 ring-amber-200"
+                                    : "bg-amber-50/90",
+                                )}
+                              >
+                                <span className="text-[15px] font-extrabold tabular-nums tracking-tight text-navy">
+                                  {krsText}
+                                </span>
+                                <span className="text-[8px] font-bold tracking-wider text-amber-700/80 uppercase">
+                                  {highlightKrs ? "Tertinggi" : "Berisiko"}
+                                </span>
+                              </span>
+                            ) : (
+                              <DashCell label="KRS kelurahan tidak tersedia" />
+                            )}
                           </td>
-                          <td className="px-3 py-3.5 text-center">
-                            <DashCell label="KRS kelurahan belum live" />
-                          </td>
-                          {sasaranKeys.map((key) => (
-                            <td
-                              key={key}
-                              className="px-2.5 py-3.5 text-center"
-                            >
-                              <DashCell />
-                            </td>
-                          ))}
+                          {sasaranKeys.map((key) => {
+                            const apiKey = SASARAN_API_KEY[key];
+                            const raw = item.indikator?.[apiKey];
+                            const text = formatNullableCount(
+                              raw === undefined ? null : raw,
+                            );
+                            const activeSort =
+                              (sortKey === "ibuHamil-desc" &&
+                                key === "ibuHamil") ||
+                              (sortKey === "baduta-desc" && key === "baduta") ||
+                              (sortKey === "balita-desc" && key === "balita") ||
+                              (sortKey === "rtlh-desc" && key === "rtlh");
+                            return (
+                              <td
+                                key={key}
+                                className={cn(
+                                  "px-2.5 py-3.5 text-center text-sm font-extrabold tabular-nums text-navy",
+                                  activeSort && "bg-blue-50/50",
+                                )}
+                              >
+                                {text ?? (
+                                  <DashCell
+                                    label={
+                                      key === "rtlh"
+                                        ? "RTLH belum ada di DWH"
+                                        : undefined
+                                    }
+                                  />
+                                )}
+                              </td>
+                            );
+                          })}
                           <td className="px-4 py-3.5 text-right">
                             <Link
                               href={href}
@@ -568,7 +681,7 @@ export function LiveTpkListPanel({
                 {isFiltered ? " (terfilter)" : null}
                 {" · "}
                 paging server
-                {sortKey === "nama" ? " · diurutkan Nama A–Z" : null}
+                {footnote ? ` · ${footnote}` : null}
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -603,6 +716,46 @@ export function LiveTpkListPanel({
           </>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+function PkbCell({ pkb }: { pkb: TpkListPkb | null }) {
+  if (!pkb || !pkb.nama) {
+    return (
+      <div className="min-w-[160px] text-[12px] text-slate-400">
+        <span className="font-semibold">—</span>
+        <span className="mt-0.5 block text-[10px]">
+          PKB desa binaan tidak ditemukan
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-[200px] max-w-[260px]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[13px] font-extrabold text-navy">{pkb.nama}</span>
+        {pkb.jabatan ? (
+          <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider text-primary uppercase">
+            {pkb.jabatan}
+          </span>
+        ) : null}
+        {pkb.jabatanDetail ? (
+          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+            {pkb.jabatanDetail}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <div className="min-w-0 font-mono text-[11px] font-semibold tracking-wide text-slate-400 tabular-nums">
+          {pkb.nik ? `NIK ${pkb.nik}` : "NIK —"}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <TpkContactAction phone={pkb.noHp} kind="call" size="sm" />
+          <TpkContactAction phone={pkb.noHp} kind="whatsapp" size="sm" />
+        </div>
+      </div>
     </div>
   );
 }

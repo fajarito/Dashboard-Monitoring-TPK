@@ -115,13 +115,49 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
 }
 
 {
-  const path = "/api/tpk?provinsiId=12&page=1&pageSize=25";
+  const path = "/api/tpk?provinsiId=12&page=1&pageSize=25&sort=krs-desc";
   const res = await fetch(`${base}${path}`);
   const json = await res.json();
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json)}`);
   if (!Array.isArray(json.items)) throw new Error(`${path} items missing`);
   if (json.pageSize > 50) throw new Error(`${path} pageSize too large`);
-  console.log(`OK ${path} total=${json.total} pageItems=${json.items.length}`);
+  const sample = json.items[0];
+  if (!sample) throw new Error(`${path} empty page`);
+  for (const key of [
+    "keluargaSasaran",
+    "krs",
+    "indikator",
+    "pkb",
+  ]) {
+    if (sample[key] === undefined) {
+      throw new Error(`${path} items[0] missing ${key}`);
+    }
+  }
+  for (const key of ["bumil", "baduta", "balita", "jambanTL", "airTL", "rtlh"]) {
+    if (sample.indikator?.[key] === undefined) {
+      throw new Error(`${path} items[0].indikator missing ${key}`);
+    }
+  }
+  if (sample.indikator.rtlh !== null) {
+    throw new Error(`${path} indikator.rtlh must be null`);
+  }
+  if (!sample.pkb || !sample.pkb.nama) {
+    throw new Error(`${path} mock pkb.nama expected`);
+  }
+  if (typeof sample.krs !== "number" || sample.krs < 0) {
+    throw new Error(`${path} mock krs should be number`);
+  }
+  // KRS desc: first >= second when both present
+  if (json.items.length >= 2) {
+    const a = json.items[0].krs;
+    const b = json.items[1].krs;
+    if (typeof a === "number" && typeof b === "number" && a < b) {
+      throw new Error(`${path} sort=krs-desc violated: ${a} < ${b}`);
+    }
+  }
+  console.log(
+    `OK ${path} total=${json.total} pageItems=${json.items.length} sample krs=${sample.krs} pkb=${sample.pkb.nama}`,
+  );
 }
 
 {
