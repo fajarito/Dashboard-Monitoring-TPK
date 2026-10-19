@@ -30,9 +30,11 @@ function toItem(tpk: TpkUnit, provinceApiId: number | null): TpkListItem {
   const kabApi = tpk.kabupatenId
     ? Number.parseInt(getKabupatenApiId(tpk.kabupatenId) ?? "", 10)
     : null;
+  const desa = tpk.desa?.trim() || null;
   return {
     tpkId: tpk.id,
-    nama: tpk.name,
+    // Tampilkan TPK (desa/kelurahan), bukan nama palsu "TPK Sukamaju".
+    nama: desa ? `TPK (${desa})` : null,
     nomorRegister: tpk.code?.slice(-3) ?? null,
     kodeTpk: null,
     alamat: null,
@@ -42,7 +44,7 @@ function toItem(tpk: TpkUnit, provinceApiId: number | null): TpkListItem {
     kelurahanId: null,
     namaKabupaten: tpk.kabupaten,
     namaKecamatan: tpk.kecamatan,
-    namaKelurahan: tpk.desa,
+    namaKelurahan: desa,
     jumlahAnggota: tpk.members.length,
     status: tpk.status === "Aktif" ? 1 : 0,
   };

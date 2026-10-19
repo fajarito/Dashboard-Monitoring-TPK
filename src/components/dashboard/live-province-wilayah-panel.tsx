@@ -289,6 +289,7 @@ export function LiveProvinceWilayahPanel({
         provinceSlug={provinceSlug}
         provinsiApiId={provinsiApiId}
         provinceName={provinceName}
+        showSummaryCards={false}
       />
     </div>
   );
