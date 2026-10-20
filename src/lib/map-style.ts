@@ -6,6 +6,10 @@ import { mapNoDataColor, mapPalette } from "@/lib/navigation";
 
 export function getMapFillExpression(metric: MetricKey) {
   const breaks = getMapBreaks(metric);
+  // 4 kelas → 3 batas
+  const b0 = breaks[0] ?? 0;
+  const b1 = breaks[1] ?? b0;
+  const b2 = breaks[2] ?? b1;
   return [
     "case",
     ["has", metric],
@@ -13,14 +17,12 @@ export function getMapFillExpression(metric: MetricKey) {
       "step",
       ["to-number", ["get", metric]],
       mapPalette[0],
-      breaks[0],
+      b0,
       mapPalette[1],
-      breaks[1],
+      b1,
       mapPalette[2],
-      breaks[2],
+      b2,
       mapPalette[3],
-      breaks[3],
-      mapPalette[4],
     ],
     mapNoDataColor,
   ] as const;

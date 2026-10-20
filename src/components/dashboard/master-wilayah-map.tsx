@@ -6,11 +6,14 @@ import {
   buildBasePathStyle,
   buildHoverPathStyle,
   buildSelectedPathStyle,
+  choroplethFormulaLabel,
   colorForValue,
   forEachPolygonLayer,
+  formatChoroplethValue,
   hexStepsForMetric,
   indexThematicLookups,
   lookupThematicValue,
+  metricUnitLabel,
   normalizeWilayahNama,
   sdkPaletteForMetric,
   type ChoroplethPathStyle,
@@ -486,6 +489,65 @@ export function MasterWilayahMap({
   const thematicDataRef = useRef(thematicData);
   thematicDataRef.current = thematicData;
 
+  const buildChoroplethTooltipHtml = useCallback(
+    (props: MasterWilayahFeatureProps, pointerNone: boolean) => {
+      const name = escapeHtml(props.name || "-");
+      const rawCode = String(props.code || props.kode || "")
+        .replace(/\./g, "")
+        .trim();
+      const codeEsc = escapeHtml(rawCode);
+      const stats = getWilayahStats(
+        rawCode,
+        props.name || "",
+        kabupatenListRef.current,
+        kecamatanListRef.current,
+        kelurahanListRef.current,
+      );
+      const metric = metricRef.current;
+      const lookups = indexThematicLookups(thematicDataRef.current);
+      const choroVal = lookupThematicValue(
+        lookups,
+        rawCode,
+        props.name || "",
+      );
+      const formula = choroplethFormulaLabel(metric);
+      const unit = metricUnitLabel(metric);
+      const choroDisplay =
+        choroVal != null && Number.isFinite(choroVal)
+          ? `${formatChoroplethValue(choroVal, metric)}${unit ? ` ${unit}` : ""}`
+          : "—";
+
+      return `
+            <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;${pointerNone ? " pointer-events: none;" : ""}">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
+                <span style="font-size: 12.5px; font-weight: 800; color: #0a2540; line-height: 1.2;">${name}</span>
+                <span style="background: #eff6ff; color: #2563eb; font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap;">
+                  KODE ${codeEsc}
+                </span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">${escapeHtml(formula)}</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #2563eb;">${escapeHtml(choroDisplay)}</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.tpk)}</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.krs)}</span>
+                </div>
+              </div>
+              <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
+                Klik untuk membuka ringkasan
+              </div>
+            </div>
+          `;
+    },
+    [],
+  );
+
   /**
    * Warnai ulang poligon yang sudah ada — tanpa destroy/remount SDK
    * (remount kedua sering meninggalkan pane kosong).
@@ -669,76 +731,10 @@ export function MasterWilayahMap({
         zoomControl: true,
         showLabels: false,
         loadingText: "Memuat Peta Wilayah...",
-        tooltipFormatter: (props: MasterWilayahFeatureProps) => {
-          const name = escapeHtml(props.name || "-");
-          const rawCode = escapeHtml(String(props.code || props.kode || "").replace(/\./g, "").trim());
-          const stats = getWilayahStats(
-            rawCode,
-            props.name || "",
-            kabupatenListRef.current,
-            kecamatanListRef.current,
-            kelurahanListRef.current,
-          );
-
-          return `
-            <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; pointer-events: none;">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
-                <span style="font-size: 12.5px; font-weight: 800; color: #0a2540; line-height: 1.2;">${name}</span>
-                <span style="background: #eff6ff; color: #2563eb; font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap;">
-                  KODE ${rawCode}
-                </span>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.tpk)}</span>
-                </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.krs)}</span>
-                </div>
-              </div>
-              <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
-                Klik untuk membuka ringkasan
-              </div>
-            </div>
-          `;
-        },
-        popupFormatter: (props: MasterWilayahFeatureProps) => {
-          const name = escapeHtml(props.name || "-");
-          const rawCode = escapeHtml(String(props.code || props.kode || "").replace(/\./g, "").trim());
-          const stats = getWilayahStats(
-            rawCode,
-            props.name || "",
-            kabupatenListRef.current,
-            kecamatanListRef.current,
-            kelurahanListRef.current,
-          );
-
-          return `
-            <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
-                <span style="font-size: 12.5px; font-weight: 800; color: #0a2540; line-height: 1.2;">${name}</span>
-                <span style="background: #eff6ff; color: #2563eb; font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap;">
-                  KODE ${rawCode}
-                </span>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.tpk)}</span>
-                </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.krs)}</span>
-                </div>
-              </div>
-              <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
-                Klik untuk membuka ringkasan
-              </div>
-            </div>
-          `;
-        },
+        tooltipFormatter: (props: MasterWilayahFeatureProps) =>
+          buildChoroplethTooltipHtml(props, true),
+        popupFormatter: (props: MasterWilayahFeatureProps) =>
+          buildChoroplethTooltipHtml(props, false),
         onFeatureClick: (props: MasterWilayahFeatureProps) => {
           const code = String(props.code || props.kode || "").replace(/\./g, "").trim();
           const name = String(props.name || "").trim();
@@ -863,6 +859,7 @@ export function MasterWilayahMap({
     villageCode,
     villageName,
     applyClientChoropleth,
+    buildChoroplethTooltipHtml,
     // metric + thematicData TIDAK di sini — recolor via effect terpisah
     // agar ganti KPI tidak merusak remount SDK (pane kosong).
   ]);

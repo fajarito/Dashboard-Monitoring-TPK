@@ -157,7 +157,7 @@ export async function getPeringkatKecamatanPostgres(
   kabupatenIdRaw: string,
 ): Promise<PeringkatKecamatanPayload> {
   if (!arePostgresPoolsConfigured()) {
-    return getPeringkatKecamatanMock(kabupatenIdRaw);
+    return await getPeringkatKecamatanMock(kabupatenIdRaw);
   }
 
   const kabupatenId = parseKabupatenIdParam(kabupatenIdRaw);

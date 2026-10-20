@@ -7,7 +7,7 @@
  * - Jumlah PKB      → rasioPkbDesa (desa ÷ PKB)
  * - Jumlah KRS      → % KRS terhadap keluarga sasaran
  *
- * Palette: sequential blues (icy → navy), 5 kelas.
+ * Palette: tepat 4 kelas — merah → orange → biru muda → biru (tanpa navy pekat).
  */
 
 import type { MetricKey } from "@/lib/map-data";
@@ -15,26 +15,21 @@ import { formatNumber, formatRatioValue } from "@/lib/map-data";
 import type { MasterWilayahThematicDataItem } from "@/types/master-wilayah";
 
 /**
- * Default Jumlah TPK — 5 kelas sequential biru:
- * pale icy cyan → light blue → medium royal → deep blue → navy.
- * Stop 1 sengaja cukup cyan (bukan hampir-putih) agar tidak terbaca
- * sebagai nodata abu di basemap Terang.
+ * 4 kelas choropleth (elegant, readable di basemap Terang):
+ * merah lembut → orange → sky → biru royal. Tanpa navy `#0c2340`.
  */
 export const CHOROPLETH_TPK = [
-  "#b9e6fe",
-  "#7dd3fc",
-  "#3b82f6",
-  "#1d4ed8",
-  "#0c2340",
+  "#f43f5e",
+  "#fb923c",
+  "#38bdf8",
+  "#2563eb",
 ] as const;
 
-/** @deprecated Amber palette — semua mode peta memakai blues. */
+/** Alias historis — semua mode memakai palette 4 kelas yang sama. */
 export const CHOROPLETH_KRS = CHOROPLETH_TPK;
-
-/** @deprecated Rasio palette — semua mode peta memakai blues. */
 export const CHOROPLETH_RASIO = CHOROPLETH_TPK;
 
-/** Netral (tanpa cast biru) — hanya untuk wilayah benar-benar tanpa metrik. */
+/** Netral — hanya untuk wilayah benar-benar tanpa metrik. */
 export const CHOROPLETH_NO_DATA = "#e8edf2";
 
 /** Nama palette bawaan SDK Master Wilayah (mendekati arah warna kita). */
@@ -50,8 +45,8 @@ export type SdkPaletteName =
 export type ChoroplethMetric = MetricKey | "rasio";
 
 export function sdkPaletteForMetric(_metric: ChoroplethMetric): SdkPaletteName {
-  // Semua mode switcher mewarnai dengan sequential blues.
-  return "blues";
+  // SDK fallback; warna sebenarnya dari hexStepsForMetric (client recolor).
+  return "oranges";
 }
 
 /**

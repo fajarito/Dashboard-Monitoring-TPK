@@ -232,7 +232,7 @@ export async function fetchPeringkatKecamatan(
   if (source === "postgres") {
     payload = await getPeringkatKecamatanPostgres(kabupatenId);
   } else {
-    payload = getPeringkatKecamatanMock(kabupatenId);
+    payload = await getPeringkatKecamatanMock(kabupatenId);
   }
 
   if (payload.items.length > 120) {
@@ -254,7 +254,7 @@ export async function fetchPeringkatKelurahan(
   if (source === "postgres") {
     payload = await getPeringkatKelurahanPostgres(kecamatanId);
   } else {
-    payload = getPeringkatKelurahanMock(kecamatanId);
+    payload = await getPeringkatKelurahanMock(kecamatanId);
   }
 
   if (payload.items.length > 200) {

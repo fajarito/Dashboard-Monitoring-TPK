@@ -16,7 +16,7 @@ import type { DataSource, PeringkatKabupatenPayload } from "@/lib/data/types";
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
 
 const SOURCE: DataSource = "mock";
-const MAX_ROWS = 80;
+const MAX_ROWS = 100;
 
 /** Ranking kab/kota dalam satu provinsi (mock hierarki). */
 export function getPeringkatKabupatenMock(
