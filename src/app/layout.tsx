@@ -28,8 +28,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="id"
       className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-background font-sans text-ink">
+      <body
+        className="min-h-full bg-background font-sans text-ink"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>
