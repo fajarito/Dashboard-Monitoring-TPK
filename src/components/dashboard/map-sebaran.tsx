@@ -33,6 +33,8 @@ import { Button } from "@/components/ui/button";
 import type { PeringkatKabupatenItem } from "@/lib/data/types";
 import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
+import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
+import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
 import {
@@ -58,10 +60,12 @@ import {
   type WilayahSearchItem,
 } from "@/lib/wilayah-search-data";
 
-const IndonesiaMap = dynamic(
+import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map";
+
+const MasterWilayahMap = dynamic(
   () =>
-    import("@/components/dashboard/indonesia-map").then(
-      (module) => module.IndonesiaMap,
+    import("@/components/dashboard/master-wilayah-map").then(
+      (module) => module.MasterWilayahMap,
     ),
   {
     ssr: false,
@@ -169,11 +173,48 @@ export function MapSebaran() {
     id: string;
     nama: string;
   } | null>(null);
+  const [selectedKec, setSelectedKec] = useState<{
+    id: string;
+    nama: string;
+  } | null>(null);
+  const [selectedDesa, setSelectedDesa] = useState<{
+    id: string;
+    nama: string;
+  } | null>(null);
   const [focusedWilayah, setFocusedWilayah] = useState<WilayahSearchItem | null>(
     null,
   );
   const homeAgregat = useHomeAgregat();
   const legend = useMemo(() => getLegendRanges(metric), [metric]);
+
+  /** Tingkat hirarki aktif untuk peta dan ringkasan. */
+  const currentLevel: WilayahLevelKey = useMemo(() => {
+    if (selectedDesa) return "desa";
+    if (selectedKec) return "kecamatan";
+    if (selectedKab) return "kabupaten";
+    if (selected) return "provinsi";
+    return "nasional";
+  }, [selected, selectedKab, selectedKec, selectedDesa]);
+
+  const provinceCode = useMemo(() => {
+    if (!selected) return null;
+    return String(selected.adminCode).padStart(2, "0");
+  }, [selected]);
+
+  const regencyCode = useMemo(() => {
+    if (!selectedKab) return null;
+    return selectedKab.id;
+  }, [selectedKab]);
+
+  const districtCode = useMemo(() => {
+    if (!selectedKec) return null;
+    return selectedKec.id;
+  }, [selectedKec]);
+
+  const villageCode = useMemo(() => {
+    if (!selectedDesa) return null;
+    return selectedDesa.id;
+  }, [selectedDesa]);
 
   /** id_provinsi untuk API — bukan slug UI / adminCode BPS. */
   const selectedProvinsiApiId = useMemo(
@@ -182,6 +223,12 @@ export function MapSebaran() {
   );
 
   const scopeInput = useMemo(() => {
+    if (selectedDesa) {
+      return { tingkat: "kelurahan" as const, id: selectedDesa.id };
+    }
+    if (selectedKec) {
+      return { tingkat: "kecamatan" as const, id: selectedKec.id };
+    }
     if (selectedKab) {
       return { tingkat: "kabupaten" as const, id: selectedKab.id };
     }
@@ -189,17 +236,19 @@ export function MapSebaran() {
       return { tingkat: "provinsi" as const, id: selectedProvinsiApiId };
     }
     return { tingkat: null, id: null };
-  }, [selectedKab, selectedProvinsiApiId]);
+  }, [selectedDesa, selectedKec, selectedKab, selectedProvinsiApiId]);
 
   const scopedRingkasan = useRingkasanScope(scopeInput);
   const peringkatKab = usePeringkatKabupaten(selectedProvinsiApiId);
+  const peringkatKec = usePeringkatKecamatan(selectedKab?.id ?? null);
+  const peringkatKel = usePeringkatKelurahan(selectedKec?.id ?? null);
 
   /**
    * Ringkasan aktif untuk KPI/komposisi/rasio/indikator:
-   * kab → provinsi → nasional (useHomeAgregat).
+   * desa → kec → kab → provinsi → nasional (useHomeAgregat).
    */
   const activeRingkasan =
-    selected || selectedKab
+    selected || selectedKab || selectedKec || selectedDesa
       ? scopedRingkasan.ringkasan
       : homeAgregat.ringkasan;
 
@@ -219,7 +268,88 @@ export function MapSebaran() {
     homeAgregat.peringkat?.meta.source ??
     null;
 
-  const scopeLabel = selectedKab?.nama ?? selected?.name ?? "Nasional";
+  const scopeLabel =
+    selectedDesa?.nama ??
+    selectedKec?.nama ??
+    selectedKab?.nama ??
+    selected?.name ??
+    "Nasional";
+
+  const thematicData = useMemo(() => {
+    const unit = kpiCards.find((c) => c.key === metric)?.unit ?? "";
+
+    if (!selected) {
+      // Tingkat Nasional: mapping seluruh provinsi dari dataset mock
+      return provinces.map((p) => {
+        const code = String(p.adminCode).padStart(2, "0");
+        const val = p[metric] ?? 0;
+        return {
+          code,
+          value: val,
+          label: `${formatNumber(val)} ${unit}`.trim(),
+        };
+      });
+    }
+
+    if (selected && !selectedKab && peringkatKab.payload?.items) {
+      // Tingkat Provinsi: mapping kab/kota dari dataset mock
+      return peringkatKab.payload.items.map((item) => {
+        const val =
+          metric === "tpk"
+            ? item.tpk
+            : metric === "pkb"
+              ? item.pkb
+              : metric === "krs"
+                ? item.krs
+                : item.tpk * 3;
+        return {
+          code: item.id,
+          value: val,
+          label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
+        };
+      });
+    }
+
+    if (selectedKab && !selectedKec && peringkatKec.payload?.items) {
+      // Tingkat Kabupaten: mapping kecamatan dari dataset mock
+      return peringkatKec.payload.items.map((item) => {
+        const val =
+          metric === "tpk"
+            ? item.tpk
+            : metric === "pkb"
+              ? item.pkb
+              : metric === "krs"
+                ? item.krs
+                : item.tpk * 3;
+        return {
+          code: item.id,
+          value: val,
+          label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
+        };
+      });
+    }
+
+    if (selectedKec && peringkatKel.payload?.items) {
+      // Tingkat Kecamatan: mapping desa/kelurahan dari dataset mock
+      return peringkatKel.payload.items.map((item) => {
+        const val =
+          metric === "tpk"
+            ? item.tpk
+            : metric === "pkb"
+              ? item.pkb
+              : metric === "krs"
+                ? item.krs
+                : item.tpk * 3;
+        return {
+          code: item.id,
+          value: val,
+          label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
+        };
+      });
+    }
+
+    return [];
+  }, [selected, selectedKab, selectedKec, metric, peringkatKab.payload, peringkatKec.payload, peringkatKel.payload]);
 
   const sasaranScope = useMemo(() => {
     if (!activeRingkasan) {
@@ -361,6 +491,8 @@ export function MapSebaran() {
     setFocusedWilayah(null);
     setSelected(null);
     setSelectedKab(null);
+    setSelectedKec(null);
+    setSelectedDesa(null);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
     }
@@ -368,6 +500,8 @@ export function MapSebaran() {
 
   const clearKabupaten = () => {
     setSelectedKab(null);
+    setSelectedKec(null);
+    setSelectedDesa(null);
     setFocusedWilayah(null);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
@@ -377,6 +511,8 @@ export function MapSebaran() {
   const selectProvince = (province: Province) => {
     setFocusedWilayah(null);
     setSelectedKab(null);
+    setSelectedKec(null);
+    setSelectedDesa(null);
     setSelected(province);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
@@ -385,7 +521,72 @@ export function MapSebaran() {
 
   const selectKabupaten = (item: PeringkatKabupatenItem) => {
     setSelectedKab({ id: item.id, nama: item.nama });
+    setSelectedKec(null);
+    setSelectedDesa(null);
     setFocusedWilayah(null);
+  };
+
+  const handleDrillDown = (
+    level: WilayahLevelKey,
+    code: string,
+    name: string,
+  ) => {
+    if (level === "provinsi") {
+      const prov =
+        provinces.find(
+          (p) =>
+            String(p.adminCode).padStart(2, "0") === code ||
+            p.adminCode === Number(code),
+        ) ||
+        provinces.find(
+          (p) =>
+            p.name.toLowerCase() === name.toLowerCase() ||
+            name.toLowerCase().includes(p.name.toLowerCase()),
+        );
+      if (prov) {
+        selectProvince(prov);
+      } else {
+        const newProv: Province = {
+          id: `prov-${code}`,
+          adminCode: Number(code) || 0,
+          name,
+          capital: name,
+          tpk: 0,
+          anggota: 0,
+          pkb: 0,
+          krs: 0,
+          baduta: 0,
+          balita: 0,
+          pus: 0,
+          ibuHamil: 0,
+        };
+        selectProvince(newProv);
+      }
+    } else if (level === "kabupaten") {
+      setSelectedKab({ id: code, nama: name });
+      setSelectedKec(null);
+      setSelectedDesa(null);
+    } else if (level === "kecamatan") {
+      setSelectedKec({ id: code, nama: name });
+      setSelectedDesa(null);
+    } else if (level === "desa") {
+      setSelectedDesa({ id: code, nama: name });
+    }
+  };
+
+  const handleNavigateToLevel = (level: WilayahLevelKey) => {
+    if (level === "nasional") {
+      clearFocus();
+    } else if (level === "provinsi") {
+      setSelectedKab(null);
+      setSelectedKec(null);
+      setSelectedDesa(null);
+    } else if (level === "kabupaten") {
+      setSelectedKec(null);
+      setSelectedDesa(null);
+    } else if (level === "kecamatan") {
+      setSelectedDesa(null);
+    }
   };
 
   const ringkasanErrorMessage = selectedKab
@@ -541,7 +742,10 @@ export function MapSebaran() {
                       aria-hidden
                     />
                   ) : (
-                    <span className="text-[2rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[2.25rem]">
+                    <span
+                      suppressHydrationWarning
+                      className="text-[2rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[2.25rem]"
+                    >
                       {formatNumber(kpiTotals[card.key])}
                     </span>
                   )}
@@ -617,16 +821,27 @@ export function MapSebaran() {
         </div>
 
         <div className="relative mt-2">
-          {/* Peta pakai GeoJSON lokal; jangan blokir first paint menunggu API. */}
           {mapDemoState === "loading" ? (
             <MapSkeleton />
           ) : (
-            <IndonesiaMap
+            <MasterWilayahMap
               metric={metric}
-              selected={selected}
-              onSelect={selectProvince}
-              forceError={mapDemoState === "error"}
-              onRetryError={retryAgregat}
+              currentLevel={currentLevel}
+              provinceCode={provinceCode}
+              provinceName={selected?.name}
+              regencyCode={regencyCode}
+              regencyName={selectedKab?.nama}
+              districtCode={districtCode}
+              districtName={selectedKec?.nama}
+              villageCode={villageCode}
+              villageName={selectedDesa?.nama}
+              thematicData={thematicData}
+              kabupatenList={peringkatKab.payload?.items}
+              kecamatanList={peringkatKec.payload?.items}
+              kelurahanList={peringkatKel.payload?.items}
+              onDrillDown={handleDrillDown}
+              onNavigateToLevel={handleNavigateToLevel}
+              onReset={clearFocus}
             />
           )}
         </div>
@@ -656,8 +871,7 @@ export function MapSebaran() {
             </span>
           </div>
           <div className="text-[9px] text-slate-400">
-            {metricLabels[metric]} • batas BAKOSURTANAL / Dukcapil 2019 • peta
-            lokal
+            {metricLabels[metric]} • Master Wilayah API BKKBN • Drilldown sampai tingkat Desa/Kelurahan
             {dataSource === "postgres"
               ? " · KPI live"
               : dataSource === "mock"
