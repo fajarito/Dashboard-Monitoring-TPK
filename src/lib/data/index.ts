@@ -137,9 +137,11 @@ export function parseTpkListQuery(searchParams: URLSearchParams): TpkListQuery {
   let pageSize = pageSizeRaw ? Number.parseInt(pageSizeRaw, 10) : 25;
   if (!Number.isFinite(page) || page < 1) page = 1;
   if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 25;
-  pageSize = Math.min(50, Math.max(10, pageSize));
+  // Typeahead memakai 8–10; list default 25 (maks 50).
+  pageSize = Math.min(50, Math.max(8, pageSize));
 
-  const q = searchParams.get("q")?.trim() || null;
+  const qRaw = searchParams.get("q")?.trim() || null;
+  const q = qRaw && qRaw.length >= 2 ? qRaw : null;
 
   return {
     provinsiId: parseOptionalInt("provinsiId"),

@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Search, UsersRound } from "lucide-react";
 
 import {
@@ -36,8 +43,16 @@ import {
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
+const SUGGEST_LIMIT = 10;
+const SEARCH_MIN_CHARS = 2;
 
 type WilayahOption = { id: string; label: string };
+
+type TpkSuggestion = {
+  tpkId: string;
+  displayName: string;
+  subline: string;
+};
 
 /** Level halaman → opsi filter anak + typeahead cari wilayah. */
 export type TpkFilterLevel = "kabupaten" | "kecamatan" | "kelurahan" | "none";
@@ -151,6 +166,8 @@ export function LiveTpkListPanel({
   showSummaryCards?: boolean;
   filterLevel?: TpkFilterLevel;
 }) {
+  const router = useRouter();
+  const listboxId = useId();
   const [kabupatenId, setKabupatenId] = useState(initialKabupatenId ?? "");
   const [kecamatanId, setKecamatanId] = useState(initialKecamatanId ?? "");
   const [kelurahanId, setKelurahanId] = useState(initialKelurahanId ?? "");
@@ -160,6 +177,7 @@ export function LiveTpkListPanel({
   const [sortKey, setSortKey] = useState<SortKey>("krs-desc");
   const [onlyPrioritasTinggi, setOnlyPrioritasTinggi] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeSuggest, setActiveSuggest] = useState(0);
 
   useEffect(() => {
     setKabupatenId(initialKabupatenId ?? "");
@@ -168,8 +186,12 @@ export function LiveTpkListPanel({
     setPage(1);
   }, [initialKabupatenId, initialKecamatanId, initialKelurahanId]);
 
+  // Debounce ~300ms; min 2 karakter untuk filter server + typeahead.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQ(query), 300);
+    const t = setTimeout(() => {
+      const trimmed = query.trim();
+      setDebouncedQ(trimmed.length >= SEARCH_MIN_CHARS ? trimmed : "");
+    }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -280,10 +302,10 @@ export function LiveTpkListPanel({
     }
   }
 
-  /** Typeahead wilayah: hanya opsi dalam scope halaman (bukan nasional). */
+  /** Typeahead wilayah anak: hanya opsi dalam scope halaman (bukan nasional). */
   const wilayahSuggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (q.length < 2) return [];
+    if (q.length < SEARCH_MIN_CHARS) return [];
     return childOptions
       .filter((opt) => opt.label.toLowerCase().includes(q))
       .slice(0, 8);
@@ -357,6 +379,115 @@ export function LiveTpkListPanel({
     () => resolveTpkRowLabels(pageItems),
     [pageItems],
   );
+
+  /** Typeahead TPK (8–10): dari hasil list terfilter + ranking relevansi server. */
+  const tpkSuggestions: TpkSuggestion[] = useMemo(() => {
+    if (debouncedQ.length < SEARCH_MIN_CHARS) return [];
+    // Jangan tampilkan saran stale saat debounce belum nyusul.
+    if (query.trim() !== debouncedQ) return [];
+    if (list.status !== "ready" || !list.payload) return [];
+    const labels = resolveTpkRowLabels(list.payload.items);
+    return list.payload.items.slice(0, SUGGEST_LIMIT).map((item) => {
+      const displayName =
+        labels.get(item.tpkId)?.displayName ??
+        (item.namaKelurahan
+          ? `TPK (${item.namaKelurahan})`
+          : `TPK (${item.tpkId})`);
+      const anggotaLine = formatAnggotaSubline(item.anggota ?? []);
+      const wilayah = [
+        item.namaKelurahan,
+        item.namaKecamatan ? `Kec. ${item.namaKecamatan}` : null,
+        item.pkb?.nama ? `PKB ${item.pkb.nama}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return {
+        tpkId: item.tpkId,
+        displayName,
+        subline: anggotaLine || wilayah || "TPK dalam lingkup halaman",
+      };
+    });
+  }, [debouncedQ, query, list.status, list.payload]);
+
+  const suggestQueryReady = query.trim().length >= SEARCH_MIN_CHARS;
+  const searchPending =
+    suggestQueryReady && query.trim() !== debouncedQ;
+  const showSuggestPanel =
+    suggestOpen &&
+    suggestQueryReady &&
+    (wilayahSuggestions.length > 0 ||
+      tpkSuggestions.length > 0 ||
+      searchPending ||
+      (Boolean(debouncedQ) &&
+        (list.status === "loading" || list.status === "idle")) ||
+      (list.status === "ready" &&
+        Boolean(debouncedQ) &&
+        tpkSuggestions.length === 0 &&
+        wilayahSuggestions.length === 0));
+
+  useEffect(() => {
+    setActiveSuggest(0);
+  }, [debouncedQ, wilayahSuggestions.length, tpkSuggestions.length]);
+
+  function openTpkDetail(tpkId: string) {
+    setSuggestOpen(false);
+    router.push(
+      `/wilayah/${provinceSlug}/tpk/${encodeURIComponent(tpkId)}`,
+    );
+  }
+
+  function applyListFilterNow() {
+    const trimmed = query.trim();
+    setDebouncedQ(trimmed.length >= SEARCH_MIN_CHARS ? trimmed : "");
+    setSuggestOpen(false);
+    setPage(1);
+  }
+
+  function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSuggestOpen(false);
+      return;
+    }
+
+    const flatCount = wilayahSuggestions.length + tpkSuggestions.length;
+    if (event.key === "ArrowDown" && suggestQueryReady) {
+      event.preventDefault();
+      setSuggestOpen(true);
+      if (flatCount > 0) {
+        setActiveSuggest((i) => (i + 1) % flatCount);
+      }
+      return;
+    }
+    if (event.key === "ArrowUp" && flatCount > 0) {
+      event.preventDefault();
+      setActiveSuggest((i) => (i - 1 + flatCount) % flatCount);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (suggestOpen && flatCount > 0) {
+        if (activeSuggest < wilayahSuggestions.length) {
+          const opt = wilayahSuggestions[activeSuggest];
+          if (opt) {
+            setSelectedChildId(opt.id);
+            setQuery("");
+            setDebouncedQ("");
+            setSuggestOpen(false);
+          }
+          return;
+        }
+        const tpk =
+          tpkSuggestions[activeSuggest - wilayahSuggestions.length];
+        if (tpk) {
+          openTpkDetail(tpk.tpkId);
+          return;
+        }
+      }
+      // Enter tanpa pilihan → terapkan filter daftar.
+      applyListFilterNow();
+    }
+  }
 
   const maxKrsOnPage =
     pageItems.length > 0
@@ -447,59 +578,135 @@ export function LiveTpkListPanel({
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);
-                  setSuggestOpen(true);
+                  if (e.target.value.trim().length >= SEARCH_MIN_CHARS) {
+                    setSuggestOpen(true);
+                  }
                 }}
-                onFocus={() => setSuggestOpen(true)}
+                onFocus={() => {
+                  if (query.trim().length >= SEARCH_MIN_CHARS) {
+                    setSuggestOpen(true);
+                  }
+                }}
                 onBlur={() => {
                   // Delay agar klik suggestion sempat terproses.
                   window.setTimeout(() => setSuggestOpen(false), 150);
                 }}
-                placeholder={
-                  filterLabel
-                    ? `Cari nama / wilayah di ${provinceName}…`
-                    : "Cari nama TPK…"
-                }
+                onKeyDown={onSearchKeyDown}
+                placeholder={`Cari desa, register, anggota, atau PKB di ${provinceName}…`}
                 className="h-9 w-full rounded-xl border border-line bg-white pr-3 pl-9 text-[12px] text-navy outline-none ring-primary/30 placeholder:text-slate-400 focus:ring-2"
-                aria-label="Cari nama atau wilayah dalam lingkup halaman"
+                aria-label="Cari TPK dalam lingkup halaman (desa, nomor register, anggota, PKB)"
                 aria-autocomplete="list"
-                aria-expanded={suggestOpen && wilayahSuggestions.length > 0}
+                aria-controls={listboxId}
+                aria-expanded={showSuggestPanel}
+                role="combobox"
+                autoComplete="off"
               />
             </label>
-            {suggestOpen && wilayahSuggestions.length > 0 ? (
-              <ul
-                className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-line bg-white py-1 shadow-[var(--shadow-soft)]"
+            {showSuggestPanel ? (
+              <div
+                id={listboxId}
+                className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-line bg-white py-1 shadow-[var(--shadow-soft)]"
                 role="listbox"
-                aria-label={`Wilayah dalam ${provinceName}`}
+                aria-label={`Saran TPK di ${provinceName}`}
               >
-                {wilayahSuggestions.map((opt) => (
-                  <li key={opt.id} role="option">
+                {wilayahSuggestions.length > 0 ? (
+                  <div className="px-3 pt-2 pb-1 text-[9px] font-extrabold tracking-[0.14em] text-slate-400 uppercase">
+                    {filterLabel ?? "Wilayah"}
+                  </div>
+                ) : null}
+                {wilayahSuggestions.map((opt, index) => (
+                  <button
+                    key={`wilayah-${opt.id}`}
+                    type="button"
+                    role="option"
+                    aria-selected={activeSuggest === index}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px]",
+                      activeSuggest === index
+                        ? "bg-blue-50"
+                        : "hover:bg-blue-50",
+                    )}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setActiveSuggest(index)}
+                    onClick={() => {
+                      setSelectedChildId(opt.id);
+                      setQuery("");
+                      setDebouncedQ("");
+                      setSuggestOpen(false);
+                    }}
+                  >
+                    <span className="font-semibold text-navy">{opt.label}</span>
+                    <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                      Filter
+                    </span>
+                  </button>
+                ))}
+
+                {tpkSuggestions.length > 0 ? (
+                  <div className="px-3 pt-2 pb-1 text-[9px] font-extrabold tracking-[0.14em] text-slate-400 uppercase">
+                    TPK
+                  </div>
+                ) : null}
+                {tpkSuggestions.map((opt, index) => {
+                  const flatIndex = wilayahSuggestions.length + index;
+                  return (
                     <button
+                      key={`tpk-${opt.tpkId}`}
                       type="button"
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px] hover:bg-blue-50"
+                      role="option"
+                      aria-selected={activeSuggest === flatIndex}
+                      className={cn(
+                        "flex w-full flex-col gap-0.5 px-3 py-2 text-left",
+                        activeSuggest === flatIndex
+                          ? "bg-blue-50"
+                          : "hover:bg-blue-50",
+                      )}
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setSelectedChildId(opt.id);
-                        setQuery("");
-                        setSuggestOpen(false);
-                      }}
+                      onMouseEnter={() => setActiveSuggest(flatIndex)}
+                      onClick={() => openTpkDetail(opt.tpkId)}
                     >
-                      <span className="font-semibold text-navy">{opt.label}</span>
-                      <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                        {filterLabel}
+                      <span className="text-[12px] font-semibold text-navy">
+                        {opt.displayName}
+                      </span>
+                      <span className="truncate text-[10px] text-slate-400">
+                        {opt.subline}
                       </span>
                     </button>
-                  </li>
-                ))}
-              </ul>
+                  );
+                })}
+
+                {searchPending ||
+                (Boolean(debouncedQ) &&
+                  (list.status === "loading" || list.status === "idle")) ? (
+                  <p className="px-3 py-2 text-[11px] text-slate-400">
+                    Mencari TPK…
+                  </p>
+                ) : null}
+
+                {list.status === "ready" &&
+                debouncedQ &&
+                tpkSuggestions.length === 0 &&
+                wilayahSuggestions.length === 0 ? (
+                  <p className="px-3 py-2 text-[11px] text-slate-500">
+                    Tidak ada TPK yang cocok dengan &ldquo;{debouncedQ}&rdquo;
+                    di lingkup{" "}
+                    <span className="font-semibold text-navy">{scopeLabel}</span>
+                    . Coba desa, nomor register, nama anggota, atau PKB.
+                  </p>
+                ) : null}
+
+                {suggestQueryReady ? (
+                  <p className="border-t border-line px-3 py-1.5 text-[10px] text-slate-400">
+                    Enter = filter daftar · pilih saran = buka Detail
+                  </p>
+                ) : null}
+              </div>
             ) : null}
             {suggestOpen &&
-            query.trim().length >= 2 &&
-            wilayahSuggestions.length === 0 &&
-            filterLabel ? (
+            query.trim().length > 0 &&
+            query.trim().length < SEARCH_MIN_CHARS ? (
               <p className="mt-1 text-[11px] text-slate-400">
-                Tidak ada {filterLabel.toLowerCase()} cocok di lingkup{" "}
-                <span className="font-semibold text-navy">{provinceName}</span>
-                . Ketik lanjut untuk cari nama TPK.
+                Ketik minimal {SEARCH_MIN_CHARS} karakter untuk mencari.
               </p>
             ) : null}
           </div>
@@ -647,12 +854,16 @@ export function LiveTpkListPanel({
                           title={
                             onlyPrioritasTinggi
                               ? "Filter Prioritas 1–2 belum tersedia"
-                              : "Tidak ada TPK yang cocok"
+                              : debouncedQ
+                                ? "Tidak ada TPK yang cocok"
+                                : "Tidak ada TPK yang cocok"
                           }
                           description={
                             onlyPrioritasTinggi
                               ? "Data keluarga prioritas per TPK belum live. Matikan filter untuk melihat daftar dari API."
-                              : "Ubah kata kunci atau filter wilayah — atau hapus filter untuk melihat seluruh daftar."
+                              : debouncedQ
+                                ? `Tidak ditemukan hasil untuk “${debouncedQ}” di ${scopeLabel}. Coba desa, nomor register, nama anggota, atau PKB — atau hapus filter.`
+                                : "Ubah kata kunci atau filter wilayah — atau hapus filter untuk melihat seluruh daftar."
                           }
                           action={
                             onlyPrioritasTinggi || isFiltered ? (

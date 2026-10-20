@@ -190,11 +190,14 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
     });
   }
 
-  const q = query.q?.trim().toLowerCase();
+  const qRaw = query.q?.trim() || "";
+  const q = qRaw.toLowerCase();
   if (q) {
     list = list.filter((tpk) => {
+      const reg = (tpk.code?.slice(-3) ?? "").toLowerCase();
+      const anggota = tpk.members.map((m) => m.name).join(" ").toLowerCase();
       const hay =
-        `${tpk.name} ${tpk.desa} ${tpk.kecamatan} ${tpk.kabupaten} ${tpk.pkb.name}`.toLowerCase();
+        `${tpk.name} ${tpk.desa} ${tpk.kecamatan} ${tpk.kabupaten} ${tpk.pkb.name} ${reg} ${anggota} ${tpk.code}`.toLowerCase();
       return hay.includes(q);
     });
   }
@@ -211,7 +214,30 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
       return toItem(tpk, provinceApiId ?? null, seDesaCount.get(key) ?? 1);
     }),
   );
-  const sorted = sortItems(mapped, query.sort);
+
+  function relevanceRank(item: TpkListItem): number {
+    if (!q) return 2;
+    const reg = item.nomorRegister?.trim().toLowerCase() ?? "";
+    if (reg && reg === q) return 0;
+    const desa = item.namaKelurahan?.trim().toLowerCase() ?? "";
+    if (desa.startsWith(q)) return 1;
+    return 2;
+  }
+
+  const sorted = q
+    ? mapped.slice().sort((a, b) => {
+        const ra = relevanceRank(a);
+        const rb = relevanceRank(b);
+        if (ra !== rb) return ra - rb;
+        if (query.sort === "nama") {
+          return (a.nama ?? a.tpkId).localeCompare(b.nama ?? b.tpkId, "id");
+        }
+        const asc = query.sort === "krs-asc";
+        const diff = metricValue(a, query.sort) - metricValue(b, query.sort);
+        if (diff !== 0) return asc ? diff : -diff;
+        return (a.nama ?? a.tpkId).localeCompare(b.nama ?? b.tpkId, "id");
+      })
+    : sortItems(mapped, query.sort);
 
   const total = sorted.length;
   const totalPages = total > 0 ? Math.ceil(total / query.pageSize) : 0;

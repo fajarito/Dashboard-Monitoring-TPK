@@ -18,10 +18,13 @@ export const revalidate = 0;
  * GET /api/tpk?provinsiId=&kabupatenId=&kecamatanId=&kelurahanId=&q=&page=&pageSize=&sort=
  * Daftar TPK aktif (Status=1) dengan paging — tanpa by_name DWH, tanpa full dump.
  * pageSize default 25 (10–50). Filter wilayah wajib.
+ * q (opsional): ILIKE NomorRegister / nama desa (scoped) / anggota / PKB / NamaTPK.
+ * Saat q aktif, urutan: exact NomorRegister → prefix desa → partial (+ sort sekunder).
  * sort: krs-desc (default) | krs-asc | ibuHamil-desc | baduta-desc | balita-desc | rtlh-desc | nama
  * Item memuat indikator kelurahan (by_rekap) + PKB desa binaan; null → UI "—".
  * Juga `anggota: string[]` (maks 3, StatusTPK 1/2/3 prefer) dan `tpkSeDesa`
  * (COUNT DISTINCT TPK se-kelurahan dalam filter) untuk caption agregat desa.
+ * Typeahead: pageSize=10 + q ≥2 karakter dalam scope halaman.
  */
 export async function GET(request: NextRequest) {
   try {

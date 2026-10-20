@@ -41,6 +41,20 @@ type SigaIdRow = {
   tpkid: string;
   kelurahanid: number | null;
   namatpk: string | null;
+  nomorregister: string | null;
+};
+
+type KelurahanNamaRow = {
+  id_kelurahan: number;
+  nama_kelurahan: string;
+};
+
+/** Hasil resolve nama desa di host wilayah (scoped). */
+export type KelurahanSearchMatch = {
+  /** Semua id yang nama desanya partial-match q. */
+  allIds: number[];
+  /** Subset yang nama desanya prefix-match q (relevansi lebih tinggi). */
+  prefixIds: Set<number>;
 };
 
 type NamaKabRow = { id_kabupaten: number; nama_kabupaten: string };
@@ -104,6 +118,41 @@ export function isSigaConfigured(): boolean {
 }
 
 /**
+ * Predikat cari `q` dalam scope wilayah ($1–$4).
+ * $5 = teks q (NULL = tanpa filter cari).
+ * $6 = id_kelurahan yang nama desanya cocok (dari host wilayah; boleh kosong).
+ * Match: NomorRegister, NamaTPK, desa (via $6), nama anggota, nama PKB binaan.
+ * Tidak scan by_name DWH.
+ */
+export const SQL_TPK_SEARCH_PREDICATE = `
+  (
+    $5::text IS NULL
+    OR t."NomorRegister" ILIKE '%' || $5 || '%'
+    OR t."NamaTPK" ILIKE '%' || $5 || '%'
+    OR (
+      cardinality(COALESCE($6::int[], ARRAY[]::int[])) > 0
+      AND t."KelurahanID" = ANY(COALESCE($6::int[], ARRAY[]::int[]))
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM "sigabaru"."dat_AnggotaTPK" a
+      WHERE a."TPKID" = t."TPKID"
+        AND a."Nama" ILIKE '%' || $5 || '%'
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM "sigabaru"."dat_KelurahanDesaBinaan" b
+      INNER JOIN "sigabaru"."dat_PKB" p
+        ON TRIM(BOTH FROM p."PKBID") = TRIM(BOTH FROM b."PKBID")
+      WHERE b."KelurahanID" = t."KelurahanID"
+        AND b."Status" = 1
+        AND p."Status" = 1
+        AND p."NamaPetugas" ILIKE '%' || $5 || '%'
+    )
+  )
+`;
+
+/**
  * Total = DISTINCT TPKID (Status=1, scoped).
  * Constraint upsert hanya UNIQUE(TPKID, KodeTPK, NomorRegister) — TPKID bisa
  * muncul lebih dari sekali; COUNT(*) akan menggelembungkan counter.
@@ -116,10 +165,7 @@ WHERE t."Status" = 1
   AND ($2::int IS NULL OR t."KabupatenID" = $2)
   AND ($3::int IS NULL OR t."KecamatanID" = $3)
   AND ($4::int IS NULL OR t."KelurahanID" = $4)
-  AND (
-    $5::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $5 || '%'
-  )
+  AND ${SQL_TPK_SEARCH_PREDICATE}
 `;
 
 /**
@@ -152,10 +198,7 @@ FROM (
     AND ($2::int IS NULL OR t."KabupatenID" = $2)
     AND ($3::int IS NULL OR t."KecamatanID" = $3)
     AND ($4::int IS NULL OR t."KelurahanID" = $4)
-    AND (
-      $5::text IS NULL
-      OR t."NamaTPK" ILIKE '%' || $5 || '%'
-    )
+    AND ${SQL_TPK_SEARCH_PREDICATE}
   ORDER BY
     t."TPKID",
     t."LastModified" DESC NULLS LAST,
@@ -164,32 +207,44 @@ FROM (
 ORDER BY
   u.namatpk ASC NULLS LAST,
   u.tpkid ASC
-LIMIT $6 OFFSET $7
+LIMIT $7 OFFSET $8
 `;
 
 /**
- * Light ID list untuk sort metrik di app (bukan scan by_name).
+ * Light ID list untuk sort metrik / relevansi di app (bukan scan by_name).
  * DISTINCT ON TPKID — jangan pernah JOIN PKB/rekap di sini.
  */
 export const SQL_TPK_IDS = `
 SELECT DISTINCT ON (t."TPKID")
   t."TPKID" AS tpkid,
   t."KelurahanID" AS kelurahanid,
-  t."NamaTPK" AS namatpk
+  t."NamaTPK" AS namatpk,
+  t."NomorRegister" AS nomorregister
 FROM "sigabaru"."dat_TPK" t
 WHERE t."Status" = 1
   AND ($1::int IS NULL OR t."ProvinsiID" = $1)
   AND ($2::int IS NULL OR t."KabupatenID" = $2)
   AND ($3::int IS NULL OR t."KecamatanID" = $3)
   AND ($4::int IS NULL OR t."KelurahanID" = $4)
-  AND (
-    $5::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $5 || '%'
-  )
+  AND ${SQL_TPK_SEARCH_PREDICATE}
 ORDER BY
   t."TPKID",
   t."LastModified" DESC NULLS LAST,
   t."NomorRegister" ASC NULLS LAST
+`;
+
+/** Cari id_kelurahan by nama dalam scope halaman (host wilayah). */
+export const SQL_KELURAHAN_BY_NAMA = `
+SELECT
+  k."id_kelurahan" AS id_kelurahan,
+  k."nama_kelurahan" AS nama_kelurahan
+FROM "pk2025"."v_kelurahan" k
+WHERE ($1::int IS NULL OR k."id_provinsi" = $1)
+  AND ($2::int IS NULL OR k."id_kabupaten" = $2)
+  AND ($3::int IS NULL OR k."id_kecamatan" = $3)
+  AND ($4::int IS NULL OR k."id_kelurahan" = $4)
+  AND k."nama_kelurahan" ILIKE '%' || $5 || '%'
+LIMIT 1000
 `;
 
 export const SQL_TPK_BY_IDS = `
@@ -290,6 +345,7 @@ ORDER BY
 /**
  * COUNT DISTINCT TPK se-kelurahan dalam filter scope (bukan full nasional).
  * Dipakai caption agregat desa — grain metrik = kelurahan.
+ * $7 = id_kelurahan pada halaman saat ini (bukan hasil cari nama).
  */
 export const SQL_TPK_COUNT_BY_KELURAHAN = `
 SELECT
@@ -301,11 +357,8 @@ WHERE t."Status" = 1
   AND ($2::int IS NULL OR t."KabupatenID" = $2)
   AND ($3::int IS NULL OR t."KecamatanID" = $3)
   AND ($4::int IS NULL OR t."KelurahanID" = $4)
-  AND (
-    $5::text IS NULL
-    OR t."NamaTPK" ILIKE '%' || $5 || '%'
-  )
-  AND t."KelurahanID" = ANY($6::int[])
+  AND ${SQL_TPK_SEARCH_PREDICATE}
+  AND t."KelurahanID" = ANY($7::int[])
 GROUP BY t."KelurahanID"
 `;
 
@@ -378,6 +431,79 @@ function mapPkbRow(row: PkbJoinRow): TpkListPkb {
 
 function needsMetricSort(sort: TpkListSort): boolean {
   return sort !== "nama";
+}
+
+/**
+ * Resolve id_kelurahan yang nama desanya cocok dengan q, tetap dalam scope halaman.
+ * Host terpisah (wilayah) — tidak join lintas-pool ke SIGA.
+ */
+export async function resolveKelurahanIdsForSearch(
+  q: string,
+  scope: Pick<
+    TpkListQuery,
+    "provinsiId" | "kabupatenId" | "kecamatanId" | "kelurahanId"
+  >,
+): Promise<KelurahanSearchMatch> {
+  const empty: KelurahanSearchMatch = { allIds: [], prefixIds: new Set() };
+  const needle = q.trim();
+  if (!needle || !getPoolConfigs().wilayah.ready) return empty;
+
+  try {
+    const res = await queryPool<KelurahanNamaRow>(
+      "wilayah",
+      SQL_KELURAHAN_BY_NAMA,
+      [
+        scope.provinsiId,
+        scope.kabupatenId,
+        scope.kecamatanId,
+        scope.kelurahanId,
+        needle,
+      ],
+    );
+    const allIds: number[] = [];
+    const prefixIds = new Set<number>();
+    const needleLower = needle.toLowerCase();
+    for (const row of res.rows) {
+      const id = toInt(row.id_kelurahan);
+      if (id <= 0) continue;
+      allIds.push(id);
+      const nama = row.nama_kelurahan?.trim().toLowerCase() ?? "";
+      if (nama.startsWith(needleLower)) prefixIds.add(id);
+    }
+    return { allIds, prefixIds };
+  } catch (err) {
+    console.warn("[tpk-list] resolve kelurahan by nama gagal", err);
+    return empty;
+  }
+}
+
+/**
+ * Relevansi cari: 0 exact NomorRegister → 1 prefix desa → 2 partial.
+ * Dipakai saat `q` aktif (typeahead + list filter).
+ */
+export function tpkSearchRelevanceRank(
+  row: {
+    nomorregister?: string | null;
+    kelurahanid?: number | null;
+    namatpk?: string | null;
+    namaKelurahan?: string | null;
+  },
+  q: string,
+  prefixKelIds: Set<number>,
+): number {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return 2;
+  const reg = row.nomorregister?.trim().toLowerCase() ?? "";
+  if (reg && reg === needle) return 0;
+  const kelId = row.kelurahanid != null ? toInt(row.kelurahanid) : null;
+  if (kelId != null && prefixKelIds.has(kelId)) return 1;
+  const desa = row.namaKelurahan?.trim().toLowerCase() ?? "";
+  if (desa.startsWith(needle)) return 1;
+  const namaTpk = row.namatpk?.trim().toLowerCase() ?? "";
+  if (namaTpk.startsWith(needle) || namaTpk.startsWith(`tpk (${needle}`)) {
+    return 1;
+  }
+  return 2;
 }
 
 function sortMetric(
@@ -525,6 +651,7 @@ async function fetchAnggotaByTpkIds(
 async function fetchTpkCountByKelurahan(
   query: TpkListQuery,
   q: string | null,
+  kelSearchIds: number[],
   kelIds: number[],
 ): Promise<Map<number, number>> {
   const map = new Map<number, number>();
@@ -539,6 +666,7 @@ async function fetchTpkCountByKelurahan(
         query.kecamatanId,
         query.kelurahanId,
         q,
+        kelSearchIds,
         kelIds,
       ],
     );
@@ -684,6 +812,7 @@ function buildItem(
 async function enrichPageRows(
   rows: SigaTpkRow[],
   query: TpkListQuery,
+  kelSearchIds: number[] = [],
 ): Promise<TpkListItem[]> {
   if (rows.length === 0) return [];
 
@@ -708,7 +837,7 @@ async function enrichPageRows(
       ),
       fetchPkbByKelurahan(kelIds),
       fetchAnggotaByTpkIds(tpkIds),
-      fetchTpkCountByKelurahan(query, q, kelIds),
+      fetchTpkCountByKelurahan(query, q, kelSearchIds, kelIds),
     ]);
 
   return rows.map((row) =>
@@ -731,6 +860,7 @@ function dedupeSigaRows<T extends { tpkid: string }>(rows: readonly T[]): T[] {
 async function fetchPageByNama(
   query: TpkListQuery,
   q: string | null,
+  kelSearchIds: number[],
   offset: number,
 ): Promise<SigaTpkRow[]> {
   const pageRes = await queryPool<SigaTpkRow>("siga", SQL_TPK_PAGE, [
@@ -739,6 +869,7 @@ async function fetchPageByNama(
     query.kecamatanId,
     query.kelurahanId,
     q,
+    kelSearchIds,
     query.pageSize,
     offset,
   ]);
@@ -746,12 +877,13 @@ async function fetchPageByNama(
 }
 
 /**
- * Sort metrik: ambil ID ringan SIGA + rollup cache, urut di app, hydrate halaman.
+ * Sort metrik dan/atau relevansi cari: ID ringan SIGA + rollup cache, urut di app.
  * Hindari join lintas-host di SQL dan hindari by_name.
  */
-async function fetchPageByMetricSort(
+async function fetchPageByRankedIds(
   query: TpkListQuery,
   q: string | null,
+  kelSearch: KelurahanSearchMatch,
 ): Promise<SigaTpkRow[]> {
   const [idsRes, rekapMap] = await Promise.all([
     queryPool<SigaIdRow>("siga", SQL_TPK_IDS, [
@@ -760,6 +892,7 @@ async function fetchPageByMetricSort(
       query.kecamatanId,
       query.kelurahanId,
       q,
+      kelSearch.allIds,
     ]),
     getKelurahanRekapMap(
       query.provinsiId,
@@ -770,21 +903,30 @@ async function fetchPageByMetricSort(
   ]);
 
   const asc = query.sort === "krs-asc";
-  // Safety net: DISTINCT ON di SQL + dedupe di app (TPKID bukan PK formal).
   const uniqueIds: SigaIdRow[] = dedupeSigaRows(idsRes.rows);
+  const useRelevance = Boolean(q);
 
   const ranked = uniqueIds.slice().sort((a, b) => {
-    const kelA = a.kelurahanid != null ? toInt(a.kelurahanid) : null;
-    const kelB = b.kelurahanid != null ? toInt(b.kelurahanid) : null;
-    const va = sortMetric(
-      kelA != null ? rekapMap.get(kelA) : undefined,
-      query.sort,
-    );
-    const vb = sortMetric(
-      kelB != null ? rekapMap.get(kelB) : undefined,
-      query.sort,
-    );
-    if (va !== vb) return asc ? va - vb : vb - va;
+    if (useRelevance && q) {
+      const ra = tpkSearchRelevanceRank(a, q, kelSearch.prefixIds);
+      const rb = tpkSearchRelevanceRank(b, q, kelSearch.prefixIds);
+      if (ra !== rb) return ra - rb;
+    }
+
+    if (needsMetricSort(query.sort)) {
+      const kelA = a.kelurahanid != null ? toInt(a.kelurahanid) : null;
+      const kelB = b.kelurahanid != null ? toInt(b.kelurahanid) : null;
+      const va = sortMetric(
+        kelA != null ? rekapMap.get(kelA) : undefined,
+        query.sort,
+      );
+      const vb = sortMetric(
+        kelB != null ? rekapMap.get(kelB) : undefined,
+        query.sort,
+      );
+      if (va !== vb) return asc ? va - vb : vb - va;
+    }
+
     const nameCmp = (a.namatpk ?? "").localeCompare(b.namatpk ?? "", "id");
     if (nameCmp !== 0) return nameCmp;
     return a.tpkid.localeCompare(b.tpkid);
@@ -827,6 +969,9 @@ export async function getTpkListPostgres(
 
   const q = query.q?.trim() ? query.q.trim() : null;
   const offset = (query.page - 1) * query.pageSize;
+  const kelSearch = q
+    ? await resolveKelurahanIdsForSearch(q, query)
+    : { allIds: [] as number[], prefixIds: new Set<number>() };
 
   const countRes = await queryPool<CountRow>("siga", SQL_TPK_COUNT, [
     query.provinsiId,
@@ -834,20 +979,22 @@ export async function getTpkListPostgres(
     query.kecamatanId,
     query.kelurahanId,
     q,
+    kelSearch.allIds,
   ]);
   const total = toInt(countRes.rows[0]?.total);
   const totalPages = total > 0 ? Math.ceil(total / query.pageSize) : 0;
 
   let pageRows: SigaTpkRow[];
-  if (needsMetricSort(query.sort)) {
-    pageRows = await fetchPageByMetricSort(query, q);
+  // Dengan q: ranking relevansi (+ metrik sekunder). Tanpa q + sort nama: SQL page.
+  if (q || needsMetricSort(query.sort)) {
+    pageRows = await fetchPageByRankedIds(query, q, kelSearch);
   } else {
-    pageRows = await fetchPageByNama(query, q, offset);
+    pageRows = await fetchPageByNama(query, q, kelSearch.allIds, offset);
   }
 
   let items: TpkListItem[];
   try {
-    items = await enrichPageRows(pageRows, query);
+    items = await enrichPageRows(pageRows, query, kelSearch.allIds);
   } catch (err) {
     console.warn("[tpk-list] enrich gagal, kembalikan baris dasar", err);
     items = pageRows.map((row) => {

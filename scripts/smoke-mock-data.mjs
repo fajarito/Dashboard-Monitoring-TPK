@@ -322,4 +322,18 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
   console.log(`OK ${path} → 404`);
 }
 
+{
+  const path = "/api/tpk?provinsiId=12&pageSize=10&q=RAGAJAYA";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (!Array.isArray(json.items) || json.items.length < 1) {
+    throw new Error(`${path} expected search hits`);
+  }
+  if (json.items.some((it) => /sleman/i.test(it.namaKabupaten || ""))) {
+    throw new Error(`${path} leaked Sleman outside Jabar scope`);
+  }
+  console.log(`OK ${path} total=${json.total} pageItems=${json.items.length}`);
+}
+
 console.log("smoke mock OK");
