@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ClientOnly } from "@/components/dashboard/client-only";
 import {
   EmptyState,
   ErrorState,
@@ -442,53 +443,55 @@ export function WilayahScopeMap({
       </div>
 
       <div className="relative mt-2">
-        <MasterWilayahMap
-          metric={mapMetric === "pkb" ? "pkb" : mapMetric === "krs" ? "krs" : mapMetric === "anggota" ? "anggota" : "tpk"}
-          currentLevel={currentLevel}
-          provinceCode={provinceCode}
-          provinceName={provinceName}
-          regencyCode={regencyCode}
-          regencyName={kabName}
-          districtCode={districtCode}
-          districtName={kecName}
-          villageCode={villageCode}
-          villageName={desaName}
-          thematicData={thematicData}
-          kabupatenList={
-            currentLevel === "provinsi"
-              ? childRows.map((r) => ({
-                  id: r.id,
-                  nama: r.nama,
-                  tpk: r.tpk,
-                  krs: r.krs,
-                }))
-              : undefined
-          }
-          kecamatanList={
-            currentLevel === "kabupaten"
-              ? childRows.map((r) => ({
-                  id: r.id,
-                  nama: r.nama,
-                  tpk: r.tpk,
-                  krs: r.krs,
-                }))
-              : undefined
-          }
-          kelurahanList={
-            currentLevel === "kecamatan" || currentLevel === "desa"
-              ? childRows.map((r) => ({
-                  id: r.id,
-                  nama: r.nama,
-                  tpk: r.tpk,
-                  krs: r.krs,
-                }))
-              : undefined
-          }
-          onDrillDown={handleDrillDown}
-          onNavigateToLevel={handleNavigateToLevel}
-          onReset={handleReset}
-          embedded
-        />
+        <ClientOnly fallback={<MapSkeleton />}>
+          <MasterWilayahMap
+            metric={mapMetric === "pkb" ? "pkb" : mapMetric === "krs" ? "krs" : mapMetric === "anggota" ? "anggota" : "tpk"}
+            currentLevel={currentLevel}
+            provinceCode={provinceCode}
+            provinceName={provinceName}
+            regencyCode={regencyCode}
+            regencyName={kabName}
+            districtCode={districtCode}
+            districtName={kecName}
+            villageCode={villageCode}
+            villageName={desaName}
+            thematicData={thematicData}
+            kabupatenList={
+              currentLevel === "provinsi"
+                ? childRows.map((r) => ({
+                    id: r.id,
+                    nama: r.nama,
+                    tpk: r.tpk,
+                    krs: r.krs,
+                  }))
+                : undefined
+            }
+            kecamatanList={
+              currentLevel === "kabupaten"
+                ? childRows.map((r) => ({
+                    id: r.id,
+                    nama: r.nama,
+                    tpk: r.tpk,
+                    krs: r.krs,
+                  }))
+                : undefined
+            }
+            kelurahanList={
+              currentLevel === "kecamatan" || currentLevel === "desa"
+                ? childRows.map((r) => ({
+                    id: r.id,
+                    nama: r.nama,
+                    tpk: r.tpk,
+                    krs: r.krs,
+                  }))
+                : undefined
+            }
+            onDrillDown={handleDrillDown}
+            onNavigateToLevel={handleNavigateToLevel}
+            onReset={handleReset}
+            embedded
+          />
+        </ClientOnly>
       </div>
 
       <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">

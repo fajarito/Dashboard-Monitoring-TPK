@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { ClientOnly } from "@/components/dashboard/client-only";
 import {
   EmptyState,
   ErrorState,
@@ -850,25 +851,27 @@ export function MapSebaran() {
           {mapDemoState === "loading" ? (
             <MapSkeleton />
           ) : (
-            <MasterWilayahMap
-              metric={metric}
-              currentLevel={currentLevel}
-              provinceCode={provinceCode}
-              provinceName={selected?.name}
-              regencyCode={regencyCode}
-              regencyName={selectedKab?.nama}
-              districtCode={districtCode}
-              districtName={selectedKec?.nama}
-              villageCode={villageCode}
-              villageName={selectedDesa?.nama}
-              thematicData={thematicData}
-              kabupatenList={peringkatKab.payload?.items}
-              kecamatanList={peringkatKec.payload?.items}
-              kelurahanList={peringkatKel.payload?.items}
-              onDrillDown={handleDrillDown}
-              onNavigateToLevel={handleNavigateToLevel}
-              onReset={clearFocus}
-            />
+            <ClientOnly fallback={<MapSkeleton />}>
+              <MasterWilayahMap
+                metric={metric}
+                currentLevel={currentLevel}
+                provinceCode={provinceCode}
+                provinceName={selected?.name}
+                regencyCode={regencyCode}
+                regencyName={selectedKab?.nama}
+                districtCode={districtCode}
+                districtName={selectedKec?.nama}
+                villageCode={villageCode}
+                villageName={selectedDesa?.nama}
+                thematicData={thematicData}
+                kabupatenList={peringkatKab.payload?.items}
+                kecamatanList={peringkatKec.payload?.items}
+                kelurahanList={peringkatKel.payload?.items}
+                onDrillDown={handleDrillDown}
+                onNavigateToLevel={handleNavigateToLevel}
+                onReset={clearFocus}
+              />
+            </ClientOnly>
           )}
         </div>
 
