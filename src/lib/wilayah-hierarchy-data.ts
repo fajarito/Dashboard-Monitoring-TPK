@@ -298,11 +298,12 @@ export function getKabupatenById(provinceId: string, kabId: string) {
   }
 
   // Stub untuk id_kabupaten live tanpa hierarki mock (kecamatan tetap kosong).
+  // Nama asli di-resolve async via resolveKabupatenDisplayName (v_kabupaten / peringkat).
   const apiId = getKabupatenApiId(kabId);
   if (!apiId) return null;
   return {
     id: kabId,
-    name: `Kabupaten/Kota ${apiId}`,
+    name: `Kabupaten/Kota (ID ${apiId})`,
     kindLabel: "Kabupaten/Kota",
     provinceId,
     keluargaSasaran: 0,
@@ -338,11 +339,12 @@ export function getKecamatanById(
   }
 
   // Stub untuk id_kecamatan live tanpa hierarki mock.
+  // Nama asli di-resolve async via resolveKecamatanDisplayName (v_kecamatan / peringkat).
   const apiId = getKecamatanApiId(kecId);
   if (!apiId) return null;
   return {
     id: kecId,
-    name: `Kecamatan ${apiId}`,
+    name: `Kecamatan (ID ${apiId})`,
     kindLabel: "Kecamatan",
     keluargaSasaran: 0,
     krs: 0,

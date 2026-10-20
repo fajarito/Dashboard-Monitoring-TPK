@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { AlertTriangle, BriefcaseBusiness, Users, UsersRound } from "lucide-react";
 
 import {
@@ -12,11 +13,17 @@ import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-
 import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
 import type { DataSource, PeringkatKelurahanItem } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
+import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
+import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { formatNumber } from "@/lib/map-data";
 import type { SasaranCounts } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
+import {
+  isUnresolvedKabName,
+  isUnresolvedKecName,
+} from "@/lib/wilayah-name-labels";
 
 function indikatorToSasaran(item: PeringkatKelurahanItem): SasaranCounts {
   return {
@@ -153,6 +160,36 @@ export function LiveKecamatanWilayahPanel({
     id: kecamatanApiId,
   });
   const peringkat = usePeringkatKelurahan(kecamatanApiId);
+  const needKabName = isUnresolvedKabName(kabName, kabupatenApiId);
+  const needKecName = isUnresolvedKecName(kecName, kecamatanApiId);
+  const peringkatKab = usePeringkatKabupaten(
+    needKabName ? provinsiApiId : null,
+  );
+  const peringkatKec = usePeringkatKecamatan(
+    needKecName ? kabupatenApiId : null,
+  );
+  const displayKabName = useMemo(() => {
+    if (!needKabName) return kabName;
+    const hit = peringkatKab.payload?.items.find(
+      (item) =>
+        item.id === kabupatenApiId ||
+        item.id === String(Number(kabupatenApiId)),
+    );
+    const nama = hit?.nama?.trim();
+    if (nama && !isUnresolvedKabName(nama, kabupatenApiId)) return nama;
+    return kabName;
+  }, [needKabName, kabName, peringkatKab.payload, kabupatenApiId]);
+  const displayKecName = useMemo(() => {
+    if (!needKecName) return kecName;
+    const hit = peringkatKec.payload?.items.find(
+      (item) =>
+        item.id === kecamatanApiId ||
+        item.id === String(Number(kecamatanApiId)),
+    );
+    const nama = hit?.nama?.trim();
+    if (nama && !isUnresolvedKecName(nama, kecamatanApiId)) return nama;
+    return kecName;
+  }, [needKecName, kecName, peringkatKec.payload, kecamatanApiId]);
 
   const dataSource: DataSource | null =
     ringkasan.ringkasan?.meta.source ??
@@ -232,12 +269,12 @@ export function LiveKecamatanWilayahPanel({
             jumlahAnggota={ringkasan.ringkasan.jumlahAnggota}
             jumlahPKB={ringkasan.ringkasan.jumlahPKB}
             jumlahKRS={ringkasan.ringkasan.jumlahKRS}
-            scopeLabel={kecName}
+            scopeLabel={displayKecName}
             dataSource={ringkasan.ringkasan.meta.source}
           />
           {sasaranCounts ? (
             <SasaranIndikatorPanel
-              scopeLabel={kecName}
+              scopeLabel={displayKecName}
               counts={sasaranCounts}
               keluargaSasaran={ringkasan.ringkasan.jumlahSasaran}
               krs={ringkasan.ringkasan.jumlahKRS}
@@ -267,7 +304,7 @@ export function LiveKecamatanWilayahPanel({
         <div className="design-card p-5">
           <EmptyState
             title="Belum ada desa/kelurahan"
-            description={`Tidak ada data desa/kelurahan untuk ${kecName}.`}
+            description={`Tidak ada data desa/kelurahan untuk ${displayKecName}.`}
           />
         </div>
       ) : null}
@@ -275,7 +312,7 @@ export function LiveKecamatanWilayahPanel({
       {peringkat.status === "ready" && desaRows.length > 0 ? (
         <WilayahChildTable
           rows={desaRows}
-          scopeLabel={kecName}
+          scopeLabel={displayKecName}
           childLabel="Desa/Kelurahan"
           actionLabel="lihat detail"
           dataSource={peringkat.payload?.meta.source ?? dataSource}
@@ -287,7 +324,7 @@ export function LiveKecamatanWilayahPanel({
         provinsiApiId={provinsiApiId}
         initialKabupatenId={kabupatenApiId}
         initialKecamatanId={kecamatanApiId}
-        provinceName={`${kecName} · ${kabName} · ${provinceName}`}
+        provinceName={`${displayKecName} · ${displayKabName} · ${provinceName}`}
         showSummaryCards={false}
         filterLevel="kelurahan"
       />
