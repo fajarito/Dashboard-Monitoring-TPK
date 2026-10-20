@@ -6,7 +6,10 @@ import type { RingkasanPayload, RingkasanTingkat } from "@/lib/data/types";
 
 export type RingkasanScopeInput = {
   /** null = idle (pakai agregat nasional dari useHomeAgregat). */
-  tingkat: Extract<RingkasanTingkat, "provinsi" | "kabupaten"> | null;
+  tingkat: Extract<
+    RingkasanTingkat,
+    "provinsi" | "kabupaten" | "kecamatan" | "kelurahan"
+  > | null;
   id: string | null;
 };
 
@@ -50,6 +53,7 @@ async function fetchRingkasan(
  * - tingkat/id null → idle
  * - provinsi → GET /api/ringkasan?tingkat=provinsi&id=…
  * - kabupaten → GET /api/ringkasan?tingkat=kabupaten&id=…
+ * - kecamatan / kelurahan → tingkat yang sama
  *
  * Overload: `useRingkasanScope(provinsiId: string | null)` tetap didukung.
  */
@@ -124,9 +128,13 @@ export function useRingkasanScope(
           error:
             err instanceof Error
               ? err.message
-              : tingkat === "kabupaten"
-                ? "Gagal memuat ringkasan kabupaten/kota"
-                : "Gagal memuat ringkasan provinsi",
+              : tingkat === "kelurahan"
+                ? "Gagal memuat ringkasan desa/kelurahan"
+                : tingkat === "kecamatan"
+                  ? "Gagal memuat ringkasan kecamatan"
+                  : tingkat === "kabupaten"
+                    ? "Gagal memuat ringkasan kabupaten/kota"
+                    : "Gagal memuat ringkasan provinsi",
           tingkat,
           id,
           provinsiId: tingkat === "provinsi" ? id : null,

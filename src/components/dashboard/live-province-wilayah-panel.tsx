@@ -280,7 +280,7 @@ export function LiveProvinceWilayahPanel({
           rows={kabRows}
           scopeLabel={provinceName}
           childLabel="Kabupaten/Kota"
-          actionLabel="Kecamatan"
+          actionLabel="lihat detail"
           dataSource={peringkat.payload?.meta.source ?? dataSource}
         />
       ) : null}
@@ -290,6 +290,7 @@ export function LiveProvinceWilayahPanel({
         provinsiApiId={provinsiApiId}
         provinceName={provinceName}
         showSummaryCards={false}
+        filterLevel="kabupaten"
       />
     </div>
   );

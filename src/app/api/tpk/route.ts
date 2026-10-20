@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /**
- * GET /api/tpk?provinsiId=&kabupatenId=&q=&page=&pageSize=&sort=
+ * GET /api/tpk?provinsiId=&kabupatenId=&kecamatanId=&kelurahanId=&q=&page=&pageSize=&sort=
  * Daftar TPK aktif (Status=1) dengan paging — tanpa by_name DWH, tanpa full dump.
  * pageSize default 25 (10–50). Filter wilayah wajib.
  * sort: krs-desc (default) | krs-asc | ibuHamil-desc | baduta-desc | balita-desc | rtlh-desc | nama

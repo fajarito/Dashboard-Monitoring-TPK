@@ -43,6 +43,8 @@ type DwhRow = {
 export type WilayahFilter = {
   provinsiId: number | null;
   kabupatenId: number | null;
+  kecamatanId: number | null;
+  kelurahanId: number | null;
 };
 
 function toInt(value: string | number | null | undefined): number {
@@ -69,40 +71,79 @@ function parsePositiveInt(
 
 /**
  * Resolve filter wilayah untuk ringkasan.
- * - nasional → keduanya null
+ * - nasional → semua null
  * - provinsi → ProvinsiID / id_provinsi
  * - kabupaten → KabupatenID / id_kabupaten
+ * - kecamatan → KecamatanID / id_kecamatan
+ * - kelurahan → KelurahanID / id_kelurahan
  */
 export function resolveWilayahFilter(query: RingkasanQuery): WilayahFilter {
   if (query.tingkat === "nasional") {
-    return { provinsiId: null, kabupatenId: null };
+    return {
+      provinsiId: null,
+      kabupatenId: null,
+      kecamatanId: null,
+      kelurahanId: null,
+    };
   }
 
   const raw = query.id?.trim();
   if (!raw) {
     const field =
-      query.tingkat === "kabupaten"
-        ? "KabupatenID / id_kabupaten"
-        : "ProvinsiID / id_provinsi";
+      query.tingkat === "kelurahan"
+        ? "KelurahanID / id_kelurahan"
+        : query.tingkat === "kecamatan"
+          ? "KecamatanID / id_kecamatan"
+          : query.tingkat === "kabupaten"
+            ? "KabupatenID / id_kabupaten"
+            : "ProvinsiID / id_provinsi";
+    const code =
+      query.tingkat === "kelurahan"
+        ? "missing_kelurahan_id"
+        : query.tingkat === "kecamatan"
+          ? "missing_kecamatan_id"
+          : query.tingkat === "kabupaten"
+            ? "missing_kabupaten_id"
+            : "missing_provinsi_id";
     throw new PostgresDataError(
-      query.tingkat === "kabupaten"
-        ? "missing_kabupaten_id"
-        : "missing_provinsi_id",
+      code,
       `Parameter id wajib untuk tingkat=${query.tingkat} (${field}).`,
       { status: 400 },
     );
+  }
+
+  if (query.tingkat === "kelurahan") {
+    return {
+      provinsiId: null,
+      kabupatenId: null,
+      kecamatanId: null,
+      kelurahanId: parsePositiveInt(raw, "KelurahanID / id_kelurahan"),
+    };
+  }
+
+  if (query.tingkat === "kecamatan") {
+    return {
+      provinsiId: null,
+      kabupatenId: null,
+      kecamatanId: parsePositiveInt(raw, "KecamatanID / id_kecamatan"),
+      kelurahanId: null,
+    };
   }
 
   if (query.tingkat === "kabupaten") {
     return {
       provinsiId: null,
       kabupatenId: parsePositiveInt(raw, "KabupatenID / id_kabupaten"),
+      kecamatanId: null,
+      kelurahanId: null,
     };
   }
 
   return {
     provinsiId: parsePositiveInt(raw, "ProvinsiID / id_provinsi"),
     kabupatenId: null,
+    kecamatanId: null,
+    kelurahanId: null,
   };
 }
 
@@ -113,16 +154,18 @@ export function resolveProvinsiFilter(query: RingkasanQuery): number | null {
 
 /**
  * SIGA — agregat TPK / anggota / PKB / desa binaan + komposisi StatusTPK.
- * Filter: Status=1; TRIM PKBID; tanpa by_name.
- * $1 = ProvinsiID (nullable), $2 = KabupatenID (nullable).
+ * Filter: Status=1; DISTINCT TPKID; TRIM PKBID; tanpa by_name.
+ * $1 = ProvinsiID, $2 = KabupatenID, $3 = KecamatanID, $4 = KelurahanID (nullable).
  */
 export const SQL_SIGA_RINGKASAN = `
 WITH tpk_aktif AS (
-  SELECT t."TPKID"
+  SELECT DISTINCT t."TPKID"
   FROM "sigabaru"."dat_TPK" t
   WHERE t."Status" = 1
     AND ($1::int IS NULL OR t."ProvinsiID" = $1)
     AND ($2::int IS NULL OR t."KabupatenID" = $2)
+    AND ($3::int IS NULL OR t."KecamatanID" = $3)
+    AND ($4::int IS NULL OR t."KelurahanID" = $4)
 ),
 anggota AS (
   SELECT
@@ -137,17 +180,23 @@ anggota AS (
   INNER JOIN tpk_aktif t ON t."TPKID" = a."TPKID"
 ),
 pkb_aktif AS (
-  SELECT TRIM(BOTH FROM p."PKBID") AS pkb_id
+  SELECT DISTINCT TRIM(BOTH FROM p."PKBID") AS pkb_id
   FROM "sigabaru"."dat_PKB" p
   WHERE p."Status" = 1
     AND ($1::int IS NULL OR p."ProvinsiID" = $1)
     AND ($2::int IS NULL OR p."KabupatenID" = $2)
+    AND ($3::int IS NULL OR p."KecamatanID" = $3)
+    AND ($4::int IS NULL OR p."KelurahanID" = $4)
 ),
 binaan AS (
   SELECT COUNT(*)::int AS jumlah_desa
   FROM "sigabaru"."dat_KelurahanDesaBinaan" b
   INNER JOIN pkb_aktif p ON TRIM(BOTH FROM b."PKBID") = p.pkb_id
   WHERE b."Status" = 1
+    AND (
+      $4::int IS NULL
+      OR b."KelurahanID" = $4
+    )
 )
 SELECT
   (SELECT COUNT(*)::int FROM tpk_aktif) AS jumlah_tpk,
@@ -165,7 +214,7 @@ CROSS JOIN binaan b
 /**
  * DWH — SUM grain RT dari by_rekap (jangan SUM jml_klg_*_prov).
  * RTLH tidak ada di DWH → null di payload.
- * $1 = id_provinsi, $2 = id_kabupaten, $3 = periode.
+ * $1–$4 = id_provinsi/kabupaten/kecamatan/kelurahan, $5 = periode.
  */
 export const SQL_DWH_RINGKASAN = `
 SELECT
@@ -183,9 +232,11 @@ SELECT
   COALESCE(SUM(r."jamban_layak_tidak"), 0) AS jamban_tl,
   COALESCE(SUM(r."sumber_air_layak_tidak"), 0) AS air_tl
 FROM "dwh_pk2025"."fs_stunting_by_rekap_rdk_pk25_semester1" r
-WHERE r."periode" = $3
+WHERE r."periode" = $5
   AND ($1::int IS NULL OR r."id_provinsi" = $1)
   AND ($2::int IS NULL OR r."id_kabupaten" = $2)
+  AND ($3::int IS NULL OR r."id_kecamatan" = $3)
+  AND ($4::int IS NULL OR r."id_kelurahan" = $4)
 `;
 
 export async function getRingkasanPostgres(
@@ -203,10 +254,14 @@ export async function getRingkasanPostgres(
     queryPool<SigaRow>("siga", SQL_SIGA_RINGKASAN, [
       filter.provinsiId,
       filter.kabupatenId,
+      filter.kecamatanId,
+      filter.kelurahanId,
     ]),
     queryPool<DwhRow>("dwh", SQL_DWH_RINGKASAN, [
       filter.provinsiId,
       filter.kabupatenId,
+      filter.kecamatanId,
+      filter.kelurahanId,
       periode,
     ]),
   ]);
@@ -239,7 +294,13 @@ export async function getRingkasanPostgres(
 
   let tingkat: RingkasanPayload["tingkat"] = "nasional";
   let id: string | null = null;
-  if (query.tingkat === "kabupaten" && filter.kabupatenId != null) {
+  if (query.tingkat === "kelurahan" && filter.kelurahanId != null) {
+    tingkat = "kelurahan";
+    id = String(filter.kelurahanId);
+  } else if (query.tingkat === "kecamatan" && filter.kecamatanId != null) {
+    tingkat = "kecamatan";
+    id = String(filter.kecamatanId);
+  } else if (query.tingkat === "kabupaten" && filter.kabupatenId != null) {
     tingkat = "kabupaten";
     id = String(filter.kabupatenId);
   } else if (query.tingkat === "provinsi" && filter.provinsiId != null) {

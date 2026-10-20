@@ -222,4 +222,70 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
   console.log(`OK ${path} → 400 tanpa filter wilayah`);
 }
 
+{
+  const path = "/api/ringkasan?tingkat=kecamatan&id=16601";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (json.tingkat !== "kecamatan" || json.id !== "16601") {
+    throw new Error(`${path} unexpected tingkat/id: ${json.tingkat}/${json.id}`);
+  }
+  if (typeof json.jumlahTPK !== "number") {
+    throw new Error(`${path} missing jumlahTPK`);
+  }
+  console.log(`OK ${path} tpk=${json.jumlahTPK}`);
+}
+
+{
+  const path = "/api/peringkat/kecamatan?kabupatenId=166";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (!Array.isArray(json.items) || json.items.length === 0) {
+    throw new Error(`${path} empty items`);
+  }
+  const sample = json.items[0];
+  for (const key of [
+    "id",
+    "nama",
+    "tpk",
+    "pkb",
+    "desa",
+    "krs",
+    "keluargaSasaran",
+    "indikator",
+  ]) {
+    if (sample == null || sample[key] === undefined) {
+      throw new Error(`${path} items[0] missing ${key}`);
+    }
+  }
+  console.log(
+    `OK ${path} n=${json.items.length} sample=${sample.id}/${sample.nama}/tpk=${sample.tpk}`,
+  );
+}
+
+{
+  const kecId = (
+    await (await fetch(`${base}/api/peringkat/kecamatan?kabupatenId=166`)).json()
+  ).items[0]?.id;
+  if (!kecId) throw new Error("missing kecamatan sample for kelurahan smoke");
+  const path = `/api/peringkat/kelurahan?kecamatanId=${encodeURIComponent(kecId)}`;
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  if (!Array.isArray(json.items)) throw new Error(`${path} items missing`);
+  console.log(`OK ${path} n=${json.items.length}`);
+}
+
+{
+  const path = "/api/tpk?provinsiId=12&kabupatenId=166&kecamatanId=16601&page=1&pageSize=25";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json)}`);
+  if (json.filters?.kecamatanId !== 16601) {
+    throw new Error(`${path} filters.kecamatanId expected 16601`);
+  }
+  console.log(`OK ${path} total=${json.total} pageItems=${json.items.length}`);
+}
+
 console.log("smoke mock OK");

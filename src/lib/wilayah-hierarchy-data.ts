@@ -2,6 +2,10 @@ import {
   getKabupatenApiId,
   getKabupatenSlugByApiId,
 } from "@/lib/kabupaten-api-id";
+import {
+  getKecamatanApiId,
+  getKecamatanSlugByApiId,
+} from "@/lib/kecamatan-api-id";
 import { provinces, type Province } from "@/lib/map-data";
 import {
   getProvinceSasaran,
@@ -323,7 +327,35 @@ export function getKecamatanById(
 ) {
   const kab = getKabupatenById(provinceId, kabId);
   if (!kab) return null;
-  return kab.kecamatan.find((item) => item.id === kecId) ?? null;
+
+  const bySlug = kab.kecamatan.find((item) => item.id === kecId);
+  if (bySlug) return bySlug;
+
+  const mappedSlug = getKecamatanSlugByApiId(kecId);
+  if (mappedSlug) {
+    const byMapped = kab.kecamatan.find((item) => item.id === mappedSlug);
+    if (byMapped) return byMapped;
+  }
+
+  // Stub untuk id_kecamatan live tanpa hierarki mock.
+  const apiId = getKecamatanApiId(kecId);
+  if (!apiId) return null;
+  return {
+    id: kecId,
+    name: `Kecamatan ${apiId}`,
+    kindLabel: "Kecamatan",
+    keluargaSasaran: 0,
+    krs: 0,
+    sasaran: {
+      ibuHamil: 0,
+      baduta: 0,
+      balita: 0,
+      jambanTidakLayak: 0,
+      sumberAirTidakLayak: 0,
+      rtlh: 0,
+    },
+    tpkCount: 0,
+  };
 }
 
 export function summarizeChildRows(rows: WilayahChildRow[]) {

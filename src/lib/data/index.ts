@@ -5,10 +5,14 @@ import {
   setCached,
 } from "@/lib/data/cache";
 import { getPeringkatKabupatenMock } from "@/lib/data/mock/peringkat-kabupaten";
+import { getPeringkatKecamatanMock } from "@/lib/data/mock/peringkat-kecamatan";
+import { getPeringkatKelurahanMock } from "@/lib/data/mock/peringkat-kelurahan";
 import { getPeringkatProvinsiMock } from "@/lib/data/mock/peringkat";
 import { getRingkasanMock } from "@/lib/data/mock/ringkasan";
 import { getTpkListMock } from "@/lib/data/mock/tpk-list";
 import { getPeringkatKabupatenPostgres } from "@/lib/data/postgres/peringkat-kabupaten";
+import { getPeringkatKecamatanPostgres } from "@/lib/data/postgres/peringkat-kecamatan";
+import { getPeringkatKelurahanPostgres } from "@/lib/data/postgres/peringkat-kelurahan";
 import { getPeringkatProvinsiPostgres } from "@/lib/data/postgres/peringkat";
 import {
   arePostgresPoolsConfigured,
@@ -20,6 +24,8 @@ import { PostgresDataError } from "@/lib/data/postgres/errors";
 import type {
   DataSource,
   PeringkatKabupatenPayload,
+  PeringkatKecamatanPayload,
+  PeringkatKelurahanPayload,
   PeringkatProvinsiPayload,
   RingkasanPayload,
   RingkasanQuery,
@@ -36,6 +42,10 @@ export type {
   KomposisiTPK,
   PeringkatKabupatenItem,
   PeringkatKabupatenPayload,
+  PeringkatKecamatanItem,
+  PeringkatKecamatanPayload,
+  PeringkatKelurahanItem,
+  PeringkatKelurahanPayload,
   PeringkatProvinsiItem,
   PeringkatProvinsiPayload,
   RingkasanMeta,
@@ -66,6 +76,8 @@ function parseTingkat(value: string | null | undefined): RingkasanTingkat {
   const raw = value?.trim().toLowerCase();
   if (raw === "provinsi") return "provinsi";
   if (raw === "kabupaten" || raw === "kab") return "kabupaten";
+  if (raw === "kecamatan" || raw === "kec") return "kecamatan";
+  if (raw === "kelurahan" || raw === "kel" || raw === "desa") return "kelurahan";
   return "nasional";
 }
 
@@ -126,6 +138,8 @@ export function parseTpkListQuery(searchParams: URLSearchParams): TpkListQuery {
   return {
     provinsiId: parseOptionalInt("provinsiId"),
     kabupatenId: parseOptionalInt("kabupatenId"),
+    kecamatanId: parseOptionalInt("kecamatanId"),
+    kelurahanId: parseOptionalInt("kelurahanId"),
     q,
     page,
     pageSize,
@@ -198,6 +212,50 @@ export async function fetchPeringkatKabupaten(
   return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
 }
 
+export async function fetchPeringkatKecamatan(
+  kabupatenId: string,
+): Promise<PeringkatKecamatanPayload> {
+  const source = resolveDataSource();
+  const key = cacheKey(["peringkat", "kecamatan", source, kabupatenId]);
+  const hit = getCached<PeringkatKecamatanPayload>(key);
+  if (hit) return hit;
+
+  let payload: PeringkatKecamatanPayload;
+  if (source === "postgres") {
+    payload = await getPeringkatKecamatanPostgres(kabupatenId);
+  } else {
+    payload = getPeringkatKecamatanMock(kabupatenId);
+  }
+
+  if (payload.items.length > 120) {
+    payload = { ...payload, items: payload.items.slice(0, 120) };
+  }
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
+export async function fetchPeringkatKelurahan(
+  kecamatanId: string,
+): Promise<PeringkatKelurahanPayload> {
+  const source = resolveDataSource();
+  const key = cacheKey(["peringkat", "kelurahan", source, kecamatanId]);
+  const hit = getCached<PeringkatKelurahanPayload>(key);
+  if (hit) return hit;
+
+  let payload: PeringkatKelurahanPayload;
+  if (source === "postgres") {
+    payload = await getPeringkatKelurahanPostgres(kecamatanId);
+  } else {
+    payload = getPeringkatKelurahanMock(kecamatanId);
+  }
+
+  if (payload.items.length > 200) {
+    payload = { ...payload, items: payload.items.slice(0, 200) };
+  }
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
 /**
  * Daftar TPK paging — cache singkat per filter+page.
  * Tidak memakai by_name DWH.
@@ -205,10 +263,15 @@ export async function fetchPeringkatKabupaten(
 export async function fetchTpkList(
   query: TpkListQuery,
 ): Promise<TpkListPayload> {
-  if (query.provinsiId == null && query.kabupatenId == null) {
+  if (
+    query.provinsiId == null &&
+    query.kabupatenId == null &&
+    query.kecamatanId == null &&
+    query.kelurahanId == null
+  ) {
     throw new PostgresDataError(
       "missing_wilayah_filter",
-      "Daftar TPK membutuhkan provinsiId dan/atau kabupatenId.",
+      "Daftar TPK membutuhkan provinsiId, kabupatenId, kecamatanId, dan/atau kelurahanId.",
       { status: 400 },
     );
   }
@@ -219,6 +282,8 @@ export async function fetchTpkList(
     source,
     query.provinsiId ?? "",
     query.kabupatenId ?? "",
+    query.kecamatanId ?? "",
+    query.kelurahanId ?? "",
     query.q ?? "",
     query.sort,
     query.page,

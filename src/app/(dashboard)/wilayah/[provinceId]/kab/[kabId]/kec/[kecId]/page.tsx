@@ -3,15 +3,12 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { DrilldownBreadcrumb } from "@/components/dashboard/drilldown-breadcrumb";
-import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
-import { TpkListTable } from "@/components/dashboard/tpk-list-table";
-import { WilayahIdentityCards } from "@/components/dashboard/wilayah-meta-cards";
+import { LiveKecamatanWilayahPanel } from "@/components/dashboard/live-kecamatan-wilayah-panel";
 import { Button } from "@/components/ui/button";
-import {
-  getProvinceOrNull,
-  getTpkForScope,
-  summarizeTpkList,
-} from "@/lib/tpk-drilldown-data";
+import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
+import { getKecamatanApiId } from "@/lib/kecamatan-api-id";
+import { getProvinsiApiId } from "@/lib/province-api-id";
+import { getProvinceOrNull } from "@/lib/tpk-drilldown-data";
 import { getKabupatenById, getKecamatanById } from "@/lib/wilayah-hierarchy-data";
 
 type PageProps = {
@@ -33,12 +30,11 @@ export default async function KecamatanTpkPage({ params }: PageProps) {
   const kec = getKecamatanById(provinceId, kabId, kecId);
   if (!province || !kab || !kec) notFound();
 
-  const tpkList = getTpkForScope({
-    provinceId,
-    kabupatenId: kab.id,
-    kecamatanId: kec.id,
-  });
-  const summary = summarizeTpkList(tpkList);
+  const provinsiApiId = getProvinsiApiId(province);
+  const kabupatenApiId = getKabupatenApiId(kab.id) ?? getKabupatenApiId(kabId);
+  const kecamatanApiId = getKecamatanApiId(kec.id) ?? getKecamatanApiId(kecId);
+  if (!provinsiApiId || !kabupatenApiId || !kecamatanApiId) notFound();
+
   const kabHref = `/wilayah/${provinceId}/kab/${kabId}`;
 
   return (
@@ -58,13 +54,10 @@ export default async function KecamatanTpkPage({ params }: PageProps) {
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-extrabold tracking-wider text-primary uppercase">
               Kecamatan
             </span>
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-extrabold tracking-wider text-amber-700 uppercase">
-              Data simulasi
-            </span>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Kecamatan aktif di {kab.name}: daftar TPK di wilayah ini dengan
-            filter nama dan paging.
+            Kecamatan aktif di {kab.name}: ringkasan, daftar desa/kelurahan, dan
+            daftar TPK. Angka mengikuti API ringkasan &amp; peringkat.
           </p>
         </div>
         <Button
@@ -79,27 +72,14 @@ export default async function KecamatanTpkPage({ params }: PageProps) {
         </Button>
       </div>
 
-      <WilayahIdentityCards
-        levelLabel="Kecamatan"
-        wilayahName={kec.name}
-        wilayahHint={`${kab.name} · ${province.name}`}
-        childCountLabel="TPK di kecamatan"
-        childCount={tpkList.length}
-        childCountHint="Sampel simulasi di level ini"
-        krs={summary.krs}
-      />
-
-      <SasaranIndikatorPanel
-        scopeLabel={kec.name}
-        counts={summary.sasaran}
-        keluargaSasaran={summary.keluargaSasaran}
-        krs={summary.krs}
-      />
-
-      <TpkListTable
-        list={tpkList}
-        provinceId={provinceId}
-        scopeName={kec.name}
+      <LiveKecamatanWilayahPanel
+        provinceSlug={provinceId}
+        provinsiApiId={provinsiApiId}
+        kabupatenApiId={kabupatenApiId}
+        kecamatanApiId={kecamatanApiId}
+        kecName={kec.name}
+        kabName={kab.name}
+        provinceName={province.name}
       />
     </section>
   );
