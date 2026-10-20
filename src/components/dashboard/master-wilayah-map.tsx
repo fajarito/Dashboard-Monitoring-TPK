@@ -481,6 +481,95 @@ export function MasterWilayahMap({
   const kelurahanListRef = useRef(kelurahanList);
   kelurahanListRef.current = kelurahanList;
 
+  const metricRef = useRef(metric);
+  metricRef.current = metric;
+  const thematicDataRef = useRef(thematicData);
+  thematicDataRef.current = thematicData;
+
+  /**
+   * Warnai ulang poligon yang sudah ada — tanpa destroy/remount SDK
+   * (remount kedua sering meninggalkan pane kosong).
+   */
+  const applyClientChoropleth = useCallback(() => {
+    const instance = mapInstanceRef.current;
+    if (!instance?.boundaryGroup) return;
+
+    const currentMetric = metricRef.current;
+    const data = thematicDataRef.current || [];
+    const steps = hexStepsForMetric(currentMetric);
+    const thematicValues = data
+      .map((d) => d.value)
+      .filter((v) => Number.isFinite(v));
+    const tMin = thematicValues.length ? Math.min(...thematicValues) : 0;
+    const tMax = thematicValues.length ? Math.max(...thematicValues) : 1;
+    const thematicLookups = indexThematicLookups(data);
+
+    const cleanVillage =
+      currentLevel === "desa" && villageCode
+        ? String(villageCode).replace(/\D/g, "").trim()
+        : "";
+
+    const unmatchedDev: Array<{ code: string; name: string }> = [];
+
+    forEachPolygonLayer(instance.boundaryGroup, (layer) => {
+      const featProps = layer.feature?.properties || {};
+      const codeStr = String(featProps.code || featProps.kode || "").replace(
+        /\D/g,
+        "",
+      );
+      const featName = String(featProps.name || "");
+
+      if (cleanVillage) {
+        if (codeStr === cleanVillage) {
+          const selected = buildSelectedPathStyle(
+            steps[steps.length - 1] ?? "#1d4ed8",
+          );
+          layer._mwBaseStyle = selected;
+          layer.setStyle?.(selected);
+        } else {
+          const hidden: ChoroplethPathStyle = {
+            fillColor: CHOROPLETH_NO_DATA,
+            fillOpacity: 0,
+            weight: 0,
+            color: "#ffffff",
+            opacity: 0,
+          };
+          layer._mwBaseStyle = hidden;
+          layer.setStyle?.(hidden);
+        }
+        return;
+      }
+
+      const fromData = lookupThematicValue(thematicLookups, codeStr, featName);
+      const thematicVal =
+        fromData ??
+        (featProps.thematic?.value != null
+          ? Number(featProps.thematic.value)
+          : null);
+      const hasThematic = thematicVal != null && Number.isFinite(thematicVal);
+      if (!hasThematic && data.length > 0) {
+        unmatchedDev.push({ code: codeStr, name: featName });
+      }
+      const fillColor = hasThematic
+        ? colorForValue(thematicVal, tMin, tMax, steps)
+        : CHOROPLETH_NO_DATA;
+      const base = buildBasePathStyle(fillColor, hasThematic);
+      layer._mwBaseStyle = base;
+      layer.setStyle?.(base);
+    });
+
+    if (
+      process.env.NODE_ENV !== "production" &&
+      unmatchedDev.length > 0 &&
+      data.length > 0
+    ) {
+      console.warn(
+        `[MasterWilayahMap] ${unmatchedDev.length} poligon tanpa join metrik (bukan nodata denom):`,
+        unmatchedDev.slice(0, 20),
+      );
+    }
+  }, [currentLevel, villageCode]);
+
   // Pastikan style override tooltip terinjeksi
   useEffect(() => {
     injectTooltipStyles();
@@ -564,7 +653,7 @@ export function MasterWilayahMap({
       el._leaflet_id = null;
       el.innerHTML = "";
 
-      const palette = PALETTE_BY_METRIC[metric] || "blues";
+      const palette = PALETTE_BY_METRIC[metricRef.current] || "blues";
 
       if (!API_BASE_URL) {
         setError(MISSING_ENV_MESSAGE);
@@ -576,7 +665,7 @@ export function MasterWilayahMap({
         apiUrl: API_BASE_URL,
         palette,
         basemap: "none" as any,
-        data: thematicData,
+        data: thematicDataRef.current,
         zoomControl: true,
         showLabels: false,
         loadingText: "Memuat Peta Wilayah...",
@@ -679,7 +768,7 @@ export function MasterWilayahMap({
               value: 100,
               label: `Desa/Kelurahan: ${villageName || ""}`,
             },
-            ...(thematicData || []),
+            ...(thematicDataRef.current || []),
           ];
         }
       } else if (currentLevel === "kabupaten" && regencyCode) {
@@ -701,93 +790,10 @@ export function MasterWilayahMap({
             applyBasemapTiles(instance.map, basemapRef.current, currentLevel);
           }
 
-          // 2. Choropleth client-side (sumber warna = metric live, bukan props.color SDK).
-          //    SDK menaruh tiap poligon di L.geoJSON di dalam FeatureGroup — harus
-          //    recurse ke child yang punya `.feature`, lalu ganti handler hover
-          //    agar mouseout mengembalikan style base (bukan closure opacity SDK).
-          const steps = hexStepsForMetric(metric);
-          const thematicValues = (thematicData || [])
-            .map((d) => d.value)
-            .filter((v) => Number.isFinite(v));
-          const tMin = thematicValues.length
-            ? Math.min(...thematicValues)
-            : 0;
-          const tMax = thematicValues.length
-            ? Math.max(...thematicValues)
-            : 1;
-          const thematicLookups = indexThematicLookups(thematicData);
-
-          const cleanVillage =
-            currentLevel === "desa" && villageCode
-              ? String(villageCode).replace(/\D/g, "").trim()
-              : "";
-
+          // 2. Choropleth client-side + hover restore (tanpa remount saat ganti metrik).
+          applyClientChoropleth();
           if (instance?.boundaryGroup) {
-            const unmatchedDev: Array<{ code: string; name: string }> = [];
             forEachPolygonLayer(instance.boundaryGroup, (layer) => {
-              const featProps = layer.feature?.properties || {};
-              const codeStr = String(
-                featProps.code || featProps.kode || "",
-              ).replace(/\D/g, "");
-              const featName = String(featProps.name || "");
-
-              if (cleanVillage) {
-                if (codeStr === cleanVillage) {
-                  const selected = buildSelectedPathStyle(
-                    steps[steps.length - 1] ?? "#1d4ed8",
-                  );
-                  layer._mwBaseStyle = selected;
-                  layer.setStyle?.(selected);
-                  layer.openPopup?.();
-                  if (layer.getBounds && instance.map) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (instance.map as any).fitBounds(layer.getBounds(), {
-                      padding: [60, 60],
-                      maxZoom: 15,
-                    });
-                  }
-                } else {
-                  const hidden: ChoroplethPathStyle = {
-                    fillColor: CHOROPLETH_NO_DATA,
-                    fillOpacity: 0,
-                    weight: 0,
-                    color: "#ffffff",
-                    opacity: 0,
-                  };
-                  layer._mwBaseStyle = hidden;
-                  layer.setStyle?.(hidden);
-                  layer.unbindTooltip?.();
-                  layer.unbindPopup?.();
-                  return;
-                }
-              } else {
-                const fromData = lookupThematicValue(
-                  thematicLookups,
-                  codeStr,
-                  featName,
-                );
-                const thematicVal =
-                  fromData ??
-                  (featProps.thematic?.value != null
-                    ? Number(featProps.thematic.value)
-                    : null);
-                const hasThematic =
-                  thematicVal != null && Number.isFinite(thematicVal);
-                if (!hasThematic && (thematicData?.length ?? 0) > 0) {
-                  unmatchedDev.push({ code: codeStr, name: featName });
-                }
-                // Jangan pakai featProps.color SDK (#cbd5e1 abu / blues pudar).
-                const fillColor = hasThematic
-                  ? colorForValue(thematicVal, tMin, tMax, steps)
-                  : CHOROPLETH_NO_DATA;
-                const base = buildBasePathStyle(fillColor, hasThematic);
-                layer._mwBaseStyle = base;
-                layer.setStyle?.(base);
-              }
-
-              // Hover: tambah handler SETELAH SDK (jangan off — tooltip ikut mouseover).
-              // SDK mouseout mengembalikan opacity closure lama; handler kita jalan
-              // belakangan dan restore exact `_mwBaseStyle` (anti sticky biru/abu).
               layer.on?.("mouseover", () => {
                 const base = (layer._mwBaseStyle ||
                   buildBasePathStyle(
@@ -805,15 +811,27 @@ export function MasterWilayahMap({
                 if (base) layer.setStyle?.(base);
               });
             });
-            if (
-              process.env.NODE_ENV !== "production" &&
-              unmatchedDev.length > 0 &&
-              (thematicData?.length ?? 0) > 0
-            ) {
-              console.warn(
-                `[MasterWilayahMap] ${unmatchedDev.length} poligon tanpa join metrik (bukan nodata denom):`,
-                unmatchedDev.slice(0, 20),
-              );
+
+            // Desa highlight: fitBounds ke poligon terpilih
+            if (currentLevel === "desa" && villageCode) {
+              const cleanVillage = String(villageCode).replace(/\D/g, "").trim();
+              forEachPolygonLayer(instance.boundaryGroup, (layer) => {
+                const codeStr = String(
+                  layer.feature?.properties?.code ||
+                    layer.feature?.properties?.kode ||
+                    "",
+                ).replace(/\D/g, "");
+                if (codeStr === cleanVillage) {
+                  layer.openPopup?.();
+                  if (layer.getBounds && instance.map) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (instance.map as any).fitBounds(layer.getBounds(), {
+                      padding: [60, 60],
+                      maxZoom: 15,
+                    });
+                  }
+                }
+              });
             }
           }
         } else {
@@ -844,8 +862,9 @@ export function MasterWilayahMap({
     districtCode,
     villageCode,
     villageName,
-    metric,
-    thematicData,
+    applyClientChoropleth,
+    // metric + thematicData TIDAK di sini — recolor via effect terpisah
+    // agar ganti KPI tidak merusak remount SDK (pane kosong).
   ]);
 
   // Ganti basemap secara instan tanpa reload atau render ulang peta
@@ -853,6 +872,11 @@ export function MasterWilayahMap({
     if (!mapInstanceRef.current?.map) return;
     applyBasemapTiles(mapInstanceRef.current.map, basemap, currentLevel);
   }, [basemap, currentLevel]);
+
+  // Ganti metrik / thematic → recolor saja (jangan destroy Map).
+  useEffect(() => {
+    applyClientChoropleth();
+  }, [metric, thematicData, applyClientChoropleth]);
 
   useEffect(() => {
     if (sdkReady) {
