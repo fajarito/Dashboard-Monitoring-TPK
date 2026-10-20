@@ -3,9 +3,15 @@
 import { useEffect, useRef, useState, useCallback, useId } from "react";
 import { ChevronRight, RotateCcw, ArrowLeft, MapPin, AlertCircle, RefreshCw } from "lucide-react";
 import {
+  buildBasePathStyle,
+  buildHoverPathStyle,
+  buildSelectedPathStyle,
   colorForValue,
+  forEachPolygonLayer,
   hexStepsForMetric,
   sdkPaletteForMetric,
+  type ChoroplethPathStyle,
+  CHOROPLETH_NO_DATA,
 } from "@/lib/map-choropleth";
 import { formatNumber, provinces, type MetricKey } from "@/lib/map-data";
 import type {
@@ -672,7 +678,10 @@ export function MasterWilayahMap({
             applyBasemapTiles(instance.map, basemapRef.current, currentLevel);
           }
 
-          // 2. Choropleth tertahan (biru/amber/teal) — tanpa ungu neon
+          // 2. Choropleth client-side (sumber warna = metric live, bukan props.color SDK).
+          //    SDK menaruh tiap poligon di L.geoJSON di dalam FeatureGroup — harus
+          //    recurse ke child yang punya `.feature`, lalu ganti handler hover
+          //    agar mouseout mengembalikan style base (bukan closure opacity SDK).
           const steps = hexStepsForMetric(metric);
           const thematicValues = (thematicData || [])
             .map((d) => d.value)
@@ -690,51 +699,25 @@ export function MasterWilayahMap({
             ]),
           );
 
+          const cleanVillage =
+            currentLevel === "desa" && villageCode
+              ? String(villageCode).replace(/\D/g, "").trim()
+              : "";
+
           if (instance?.boundaryGroup) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (instance.boundaryGroup as any).eachLayer((layer: any) => {
+            forEachPolygonLayer(instance.boundaryGroup, (layer) => {
               const featProps = layer.feature?.properties || {};
               const codeStr = String(
                 featProps.code || featProps.kode || "",
               ).replace(/\D/g, "");
-              const fromData = thematicByCode.get(codeStr);
-              const thematicVal =
-                fromData ??
-                (featProps.thematic?.value != null
-                  ? Number(featProps.thematic.value)
-                  : null);
-              const hasThematic = thematicVal != null && Number.isFinite(thematicVal);
-              const fillColor = hasThematic
-                ? featProps.color ||
-                  colorForValue(thematicVal, tMin, tMax, steps)
-                : steps[1] ?? "#bfdbfe";
 
-              layer.setStyle?.({
-                fillColor,
-                fillOpacity: hasThematic ? 0.72 : 0.28,
-                weight: 1.25,
-                color: "#ffffff",
-                opacity: 0.95,
-              });
-            });
-          }
-
-          // 3. Sembunyikan wilayah di luar boundary yang sedang dipilih (tingkat desa)
-          if (currentLevel === "desa" && villageCode && instance?.boundaryGroup) {
-            try {
-              const cleanVillage = String(villageCode).replace(/\./g, "").trim();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (instance.boundaryGroup as any).eachLayer((layer: any) => {
-                const featProps = layer.feature?.properties;
-                const c = String(featProps?.code || featProps?.kode || "").replace(/\./g, "").trim();
-                if (c === cleanVillage) {
-                  layer.setStyle?.({
-                    weight: 3.5,
-                    color: "#1d4ed8",
-                    fillColor: "#2563eb",
-                    fillOpacity: 0.88,
-                    opacity: 1,
-                  });
+              if (cleanVillage) {
+                if (codeStr === cleanVillage) {
+                  const selected = buildSelectedPathStyle(
+                    steps[steps.length - 1] ?? "#0f766e",
+                  );
+                  layer._mwBaseStyle = selected;
+                  layer.setStyle?.(selected);
                   layer.openPopup?.();
                   if (layer.getBounds && instance.map) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -744,19 +727,57 @@ export function MasterWilayahMap({
                     });
                   }
                 } else {
-                  // Sembunyikan wilayah di luar boundary desa yang dipilih
-                  layer.setStyle?.({
-                    opacity: 0,
+                  const hidden: ChoroplethPathStyle = {
+                    fillColor: CHOROPLETH_NO_DATA,
                     fillOpacity: 0,
                     weight: 0,
-                  });
+                    color: "#ffffff",
+                    opacity: 0,
+                  };
+                  layer._mwBaseStyle = hidden;
+                  layer.setStyle?.(hidden);
                   layer.unbindTooltip?.();
                   layer.unbindPopup?.();
+                  return;
                 }
+              } else {
+                const fromData = thematicByCode.get(codeStr);
+                const thematicVal =
+                  fromData ??
+                  (featProps.thematic?.value != null
+                    ? Number(featProps.thematic.value)
+                    : null);
+                const hasThematic =
+                  thematicVal != null && Number.isFinite(thematicVal);
+                // Jangan pakai featProps.color SDK (#cbd5e1 abu / blues pudar).
+                const fillColor = hasThematic
+                  ? colorForValue(thematicVal, tMin, tMax, steps)
+                  : CHOROPLETH_NO_DATA;
+                const base = buildBasePathStyle(fillColor, hasThematic);
+                layer._mwBaseStyle = base;
+                layer.setStyle?.(base);
+              }
+
+              // Hover: tambah handler SETELAH SDK (jangan off — tooltip ikut mouseover).
+              // SDK mouseout mengembalikan opacity closure lama; handler kita jalan
+              // belakangan dan restore exact `_mwBaseStyle` (anti sticky biru/abu).
+              layer.on?.("mouseover", () => {
+                const base = (layer._mwBaseStyle ||
+                  buildBasePathStyle(
+                    CHOROPLETH_NO_DATA,
+                    false,
+                  )) as ChoroplethPathStyle;
+                if (base.fillOpacity <= 0) return;
+                layer.setStyle?.(buildHoverPathStyle(base));
+                layer.bringToFront?.();
               });
-            } catch (focusErr) {
-              console.warn("[MasterWilayahMap] Village focus failed:", focusErr);
-            }
+              layer.on?.("mouseout", () => {
+                const base = layer._mwBaseStyle as
+                  | ChoroplethPathStyle
+                  | undefined;
+                if (base) layer.setStyle?.(base);
+              });
+            });
           }
         } else {
           // If a newer render started, cleanly destroy this map

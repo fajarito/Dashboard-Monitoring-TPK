@@ -78,14 +78,14 @@ export const brandIcon = LayoutDashboard;
 
 /** Palette choropleth — selaras token --map-choro-* / Jumlah TPK (default). */
 export const mapPalette = [
-  "#dbeafe",
-  "#bfdbfe",
-  "#93c5fd",
-  "#3b82f6",
-  "#155eef",
+  "#5eead4",
+  "#14b8a6",
+  "#0f766e",
+  "#ca8a04",
+  "#ea580c",
 ] as const;
 
-export const mapNoDataColor = "#e2e8f0";
+export const mapNoDataColor = "#e8eef4";
 
 export const mapLegendItems = [
   { label: "Sangat sedikit", color: mapPalette[0] },

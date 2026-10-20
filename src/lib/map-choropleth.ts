@@ -1,46 +1,50 @@
 /**
  * Skala warna choropleth untuk Dashboard Monitoring TPK.
- * Selaras token CSS (--primary, --chart-*, --navy) — biru/teal/amber tertahan,
- * tanpa ungu neon / glow.
+ * Sequential teal → emerald → amber → coral (profesional, terbaca di
+ * basemap Terang/Satelit/Topo). Tanpa ungu neon / glow / abu seragam.
  */
 
 import type { MetricKey } from "@/lib/map-data";
 import { formatNumber } from "@/lib/map-data";
 import type { MasterWilayahThematicDataItem } from "@/types/master-wilayah";
 
-/** Sequential blues — default Jumlah TPK (sama keluarga metrik nasional). */
+/**
+ * Default Jumlah TPK — sequential berwarna (bukan slate/gray SDK).
+ * Low = teal, mid = emerald/gold, high = amber → coral.
+ */
 export const CHOROPLETH_TPK = [
-  "#dbeafe",
-  "#bfdbfe",
-  "#93c5fd",
-  "#3b82f6",
-  "#155eef",
-  "#0b4dd8",
-] as const;
-
-/** Amber tertahan — Jumlah KRS. */
-export const CHOROPLETH_KRS = [
-  "#fef3c7",
-  "#fde68a",
-  "#fbbf24",
-  "#f59e0b",
-  "#d97706",
-  "#b45309",
-] as const;
-
-/** Teal — rasio / beban (diverging ringan dari netral ke teal dalam). */
-export const CHOROPLETH_RASIO = [
-  "#ccfbf1",
-  "#99f6e4",
   "#5eead4",
   "#14b8a6",
   "#0f766e",
-  "#115e59",
+  "#ca8a04",
+  "#ea580c",
+  "#e11d48",
 ] as const;
 
-export const CHOROPLETH_NO_DATA = "#e2e8f0";
+/** Amber → coral — Jumlah KRS. */
+export const CHOROPLETH_KRS = [
+  "#fde68a",
+  "#fbbf24",
+  "#f59e0b",
+  "#ea580c",
+  "#e11d48",
+  "#be123c",
+] as const;
 
-/** Nama palette bawaan SDK Master Wilayah (paling dekat dengan token dashboard). */
+/** Deep navy → sky → gold — rasio / beban. */
+export const CHOROPLETH_RASIO = [
+  "#1e3a5f",
+  "#0369a1",
+  "#0ea5e9",
+  "#38bdf8",
+  "#fbbf24",
+  "#d97706",
+] as const;
+
+/** Netral lembut untuk wilayah tanpa metrik — jangan dipakai untuk nilai 0 valid. */
+export const CHOROPLETH_NO_DATA = "#e8eef4";
+
+/** Nama palette bawaan SDK Master Wilayah (mendekati arah warna kita). */
 export type SdkPaletteName =
   | "blues"
   | "oranges"
@@ -62,11 +66,12 @@ export function sdkPaletteForMetric(metric: ChoroplethMetric): SdkPaletteName {
     case "anggota":
     case "tpk":
     default:
-      return "blues";
+      // emerald lebih dekat teal/coral kit daripada blues (yang ujungnya slate abu)
+      return "emerald";
   }
 }
 
-/** Hex steps dipakai saat SDK tidak mewarnai (fallback layer style). */
+/** Hex steps dipakai saat mewarnai poligon client-side (sumber kebenaran). */
 export function hexStepsForMetric(metric: ChoroplethMetric): readonly string[] {
   switch (metric) {
     case "krs":
@@ -217,4 +222,79 @@ export function composeKemendagriCode(parts: {
   if (!parts.kel) return `${prov}${kab}${kec}`;
 
   return `${prov}${kab}${kec}${kel}`;
+}
+
+/** Style path Leaflet yang kita kendalikan (base + hover). */
+export type ChoroplethPathStyle = {
+  fillColor: string;
+  fillOpacity: number;
+  weight: number;
+  color: string;
+  opacity: number;
+};
+
+const HOVER_BORDER = "#0f172a";
+const BASE_BORDER = "#ffffff";
+const SELECTED_BORDER = "#0f766e";
+
+/**
+ * Walk boundaryGroup → nested GeoJSON → path layers that have `.feature`.
+ * SDK menaruh tiap poligon di L.geoJSON(feature) di dalam FeatureGroup,
+ * jadi eachLayer tingkat atas TIDAK punya `.feature` / properties.
+ */
+export function forEachPolygonLayer(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  group: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  visit: (layer: any) => void,
+  depth = 0,
+): void {
+  if (!group || typeof group.eachLayer !== "function" || depth > 6) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  group.eachLayer((layer: any) => {
+    if (layer?.feature?.properties) {
+      visit(layer);
+      return;
+    }
+    if (typeof layer?.eachLayer === "function") {
+      forEachPolygonLayer(layer, visit, depth + 1);
+    }
+  });
+}
+
+export function buildBasePathStyle(
+  fillColor: string,
+  hasThematic: boolean,
+): ChoroplethPathStyle {
+  return {
+    fillColor,
+    fillOpacity: hasThematic ? 0.82 : 0.4,
+    weight: 1.15,
+    color: BASE_BORDER,
+    opacity: 0.95,
+  };
+}
+
+export function buildHoverPathStyle(
+  base: ChoroplethPathStyle,
+): ChoroplethPathStyle {
+  return {
+    ...base,
+    weight: base.weight + 1.6,
+    color: HOVER_BORDER,
+    fillOpacity: Math.min(1, base.fillOpacity + 0.12),
+    opacity: 1,
+  };
+}
+
+export function buildSelectedPathStyle(
+  fillColor: string,
+): ChoroplethPathStyle {
+  return {
+    fillColor,
+    fillOpacity: 0.92,
+    weight: 3.25,
+    color: SELECTED_BORDER,
+    opacity: 1,
+  };
 }
