@@ -275,3 +275,76 @@ export type TpkListPayload = {
   };
   meta: RingkasanMeta;
 };
+
+/** Anggota satu TPK (detail) — dari dat_AnggotaTPK. */
+export type TpkDetailAnggota = {
+  nomorUrut: number | null;
+  nama: string;
+  nik: string | null;
+  noHp: string | null;
+  statusTpk: number | null;
+  /** Label peran (statustpk_tbl atau kamus 1/2/3). */
+  peran: string;
+  /** Label pelatihan / orientasi bila ada. */
+  pelatihanLabel: string | null;
+  /** true bila BelumDilatih≠1 dan ada sinyal pelatihan. */
+  terlatih: boolean;
+};
+
+/**
+ * Komposisi prioritas grain kelurahan (SUM by_rekap).
+ * null jika DWH miss — donut UI kosong/jujur.
+ */
+export type TpkDetailKomposisiPrioritas = {
+  prioritas1: number;
+  prioritas2: number;
+  prioritas3: number;
+  prioritas4: number;
+  bukan: number;
+  tidakRisiko: number;
+};
+
+/**
+ * Detail satu TPK — identitas + anggota + PKB desa + agregat kelurahan.
+ * Tidak memuat daftar keluarga by_name (deferred).
+ */
+export type TpkDetailPayload = {
+  tpkId: string;
+  /** Nama tampilan `TPK (Desa) - Register` (atau fallback). */
+  nama: string;
+  nomorRegister: string | null;
+  kodeTpk: string | null;
+  alamat: string | null;
+  status: number | null;
+  /** Label UI: Aktif / Nonaktif. */
+  statusLabel: string;
+  wilayah: {
+    provinsiId: number | null;
+    kabupatenId: number | null;
+    kecamatanId: number | null;
+    kelurahanId: number | null;
+    namaProvinsi: string | null;
+    namaKabupaten: string | null;
+    namaKecamatan: string | null;
+    namaKelurahan: string | null;
+  };
+  anggota: TpkDetailAnggota[];
+  /** PKB/PLKB binaan desa (Status=1); null jika tidak ada. */
+  pkb: TpkListPkb | null;
+  /** SUM(jumlah_keluarga_sasaran) kelurahan TPK. */
+  keluargaSasaran: number | null;
+  /** SUM(total_prioritas) = KRS kelurahan TPK. */
+  krs: number | null;
+  indikator: TpkListIndikator;
+  /**
+   * Jumlah TPK aktif se-kelurahan — caption agregat desa bila > 1.
+   */
+  tpkSeDesa: number;
+  komposisiPrioritas: TpkDetailKomposisiPrioritas | null;
+  /**
+   * Stub daftar keluarga — selalu [] di fase ini (by_name deferred).
+   * UI menampilkan empty jujur, bukan mock keluarga.
+   */
+  keluarga: [];
+  meta: RingkasanMeta;
+};

@@ -9,6 +9,7 @@ import { getPeringkatKecamatanMock } from "@/lib/data/mock/peringkat-kecamatan";
 import { getPeringkatKelurahanMock } from "@/lib/data/mock/peringkat-kelurahan";
 import { getPeringkatProvinsiMock } from "@/lib/data/mock/peringkat";
 import { getRingkasanMock } from "@/lib/data/mock/ringkasan";
+import { getTpkDetailMock } from "@/lib/data/mock/tpk-detail";
 import { getTpkListMock } from "@/lib/data/mock/tpk-list";
 import { getPeringkatKabupatenPostgres } from "@/lib/data/postgres/peringkat-kabupaten";
 import { getPeringkatKecamatanPostgres } from "@/lib/data/postgres/peringkat-kecamatan";
@@ -19,6 +20,7 @@ import {
   getPoolConfigs,
 } from "@/lib/data/postgres/pools";
 import { getRingkasanPostgres } from "@/lib/data/postgres/ringkasan";
+import { getTpkDetailPostgres } from "@/lib/data/postgres/tpk-detail";
 import { getTpkListPostgres } from "@/lib/data/postgres/tpk-list";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import type {
@@ -30,6 +32,7 @@ import type {
   RingkasanPayload,
   RingkasanQuery,
   RingkasanTingkat,
+  TpkDetailPayload,
   TpkListPayload,
   TpkListQuery,
   TpkListSort,
@@ -52,6 +55,9 @@ export type {
   RingkasanPayload,
   RingkasanQuery,
   RingkasanTingkat,
+  TpkDetailAnggota,
+  TpkDetailKomposisiPrioritas,
+  TpkDetailPayload,
   TpkListIndikator,
   TpkListItem,
   TpkListPayload,
@@ -297,6 +303,44 @@ export async function fetchTpkList(
     payload = await getTpkListPostgres(query);
   } else {
     payload = getTpkListMock(query);
+  }
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
+/**
+ * Detail satu TPK — cache 60 dtk.
+ * Tidak memakai by_name DWH; sasaran/KRS dari rollup kelurahan.
+ * null → TPK tidak ditemukan.
+ */
+export async function fetchTpkDetail(
+  tpkId: string,
+): Promise<TpkDetailPayload | null> {
+  const id = tpkId.trim();
+  if (!id) {
+    throw new PostgresDataError("invalid_tpk_id", "TPKID tidak valid.", {
+      status: 400,
+    });
+  }
+
+  const source = resolveDataSource();
+  const key = cacheKey(["tpk-detail", source, id]);
+  const hit = getCached<TpkDetailPayload | { __missing: true }>(key);
+  if (hit) {
+    if ("__missing" in hit) return null;
+    return hit;
+  }
+
+  let payload: TpkDetailPayload | null;
+  if (source === "postgres") {
+    payload = await getTpkDetailPostgres(id);
+  } else {
+    payload = getTpkDetailMock(id);
+  }
+
+  if (!payload) {
+    setCached(key, { __missing: true }, DEFAULT_CACHE_TTL_SEC);
+    return null;
   }
 
   return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);

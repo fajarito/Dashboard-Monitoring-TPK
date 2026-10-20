@@ -288,4 +288,38 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
   console.log(`OK ${path} total=${json.total} pageItems=${json.items.length}`);
 }
 
+{
+  const path = "/api/tpk/jabar-tpk-01";
+  const res = await fetch(`${base}${path}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${JSON.stringify(json)}`);
+  if (json?.meta?.source !== "mock") {
+    throw new Error(`${path} meta.source=${json?.meta?.source}, expected mock`);
+  }
+  if (!json.tpkId || !json.nama || !Array.isArray(json.anggota)) {
+    throw new Error(`${path} missing tpkId/nama/anggota`);
+  }
+  if (json.indikator?.rtlh !== null) {
+    throw new Error(`${path} indikator.rtlh expected null`);
+  }
+  if (!Array.isArray(json.keluarga) || json.keluarga.length !== 0) {
+    throw new Error(`${path} keluarga stub must be []`);
+  }
+  if (!json.pkb?.nama) {
+    throw new Error(`${path} expected pkb.nama in mock`);
+  }
+  console.log(
+    `OK ${path} nama=${json.nama} anggota=${json.anggota.length} krs=${json.krs} pkb=${json.pkb.nama}`,
+  );
+}
+
+{
+  const path = "/api/tpk/tidak-ada-tpk-xyz";
+  const res = await fetch(`${base}${path}`);
+  if (res.status !== 404) {
+    throw new Error(`${path} expected 404, got ${res.status}`);
+  }
+  console.log(`OK ${path} → 404`);
+}
+
 console.log("smoke mock OK");

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import type { DataSource } from "@/lib/data/types";
+import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { formatNumber } from "@/lib/map-data";
 import type { PrioritasSlice } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
@@ -25,12 +27,17 @@ export function TpkPrioritasDonut({
   tpkName,
   total,
   slices,
+  dataSource = "mock",
+  caption,
 }: {
   tpkName: string;
   total: number;
   slices: PrioritasSlice[];
+  dataSource?: DataSource | null;
+  caption?: string | null;
 }) {
   const [revealed, setRevealed] = useState(false);
+  const sourceBadge = resolveSourceBadge(dataSource);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setRevealed(true));
@@ -56,11 +63,19 @@ export function TpkPrioritasDonut({
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Prioritas 1–4 dan bukan prioritas · {tpkName}
+            {caption ? ` · ${caption}` : ""}
           </p>
         </div>
-        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-extrabold tracking-wider text-amber-700 uppercase">
-          Data simulasi
-        </span>
+        {sourceBadge ? (
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[9px] font-extrabold tracking-wider uppercase",
+              sourceBadge.className,
+            )}
+          >
+            {sourceBadge.label}
+          </span>
+        ) : null}
       </div>
 
       <div className="relative mt-5 flex flex-col items-center gap-5 sm:flex-row sm:items-center">
