@@ -102,6 +102,8 @@ export default async function KecamatanTpkPage({ params }: PageProps) {
 
       <LiveKecamatanWilayahPanel
         provinceSlug={provinceId}
+        kabSlug={kabId}
+        kecSlug={kecId}
         provinsiApiId={provinsiApiId}
         kabupatenApiId={kabupatenApiId}
         kecamatanApiId={kecamatanApiId}

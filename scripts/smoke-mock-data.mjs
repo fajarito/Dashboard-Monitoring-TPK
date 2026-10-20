@@ -289,6 +289,42 @@ await check("/api/ringkasan?tingkat=nasional", "mock");
 }
 
 {
+  const kelRes = await fetch(`${base}/api/peringkat/kelurahan?kecamatanId=16601`);
+  const kelJson = await kelRes.json();
+  if (!kelRes.ok) throw new Error(`peringkat/kelurahan → HTTP ${kelRes.status}`);
+  const desaId = kelJson.items?.[0]?.id;
+  const desaNama = kelJson.items?.[0]?.nama;
+  if (!desaId) throw new Error("missing kelurahan sample for desa drill smoke");
+
+  const pagePath = `/wilayah/jabar/kab/kota-depok/kec/kec-beji-depok/desa/${desaId}`;
+  const pageRes = await fetch(`${base}${pagePath}`);
+  if (!pageRes.ok) {
+    throw new Error(`${pagePath} → HTTP ${pageRes.status}`);
+  }
+  const html = await pageRes.text();
+  if (!html.includes("Desa/Kelurahan")) {
+    throw new Error(`${pagePath} missing Desa/Kelurahan badge`);
+  }
+  if (desaNama && !html.includes(desaNama)) {
+    console.warn(`WARN ${pagePath} HTML may not include nama ${desaNama} (SSR resolve)`);
+  }
+  console.log(`OK ${pagePath} → 200`);
+
+  const tpkPath = `/api/tpk?provinsiId=12&kabupatenId=166&kecamatanId=16601&kelurahanId=${encodeURIComponent(desaId)}&page=1&pageSize=25`;
+  const tpkRes = await fetch(`${base}${tpkPath}`);
+  const tpkJson = await tpkRes.json();
+  if (!tpkRes.ok) {
+    throw new Error(`${tpkPath} → HTTP ${tpkRes.status}: ${JSON.stringify(tpkJson)}`);
+  }
+  if (Number(tpkJson.filters?.kelurahanId) !== Number(desaId)) {
+    throw new Error(`${tpkPath} filters.kelurahanId expected ${desaId}`);
+  }
+  console.log(
+    `OK ${tpkPath} total=${tpkJson.total} pageItems=${tpkJson.items.length}`,
+  );
+}
+
+{
   const path = "/api/tpk/jabar-tpk-01";
   const res = await fetch(`${base}${path}`);
   const json = await res.json();

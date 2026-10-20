@@ -6,18 +6,23 @@
 import {
   fetchPeringkatKabupaten,
   fetchPeringkatKecamatan,
+  fetchPeringkatKelurahan,
 } from "@/lib/data";
 import {
   lookupNamaKabupatenById,
   lookupNamaKecamatanById,
+  lookupNamaKelurahanById,
 } from "@/lib/data/postgres/wilayah-nama";
 import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
 import { getKecamatanApiId } from "@/lib/kecamatan-api-id";
+import { getKelurahanApiId } from "@/lib/kelurahan-api-id";
 import {
   kabNameFallback,
   kecNameFallback,
+  kelNameFallback,
   isUnresolvedKabName,
   isUnresolvedKecName,
+  isUnresolvedKelName,
 } from "@/lib/wilayah-name-labels";
 import {
   getKabupatenById,
@@ -30,6 +35,7 @@ export {
   kelNameFallback,
   isUnresolvedKabName,
   isUnresolvedKecName,
+  isUnresolvedKelName,
 } from "@/lib/wilayah-name-labels";
 
 /**
@@ -105,4 +111,32 @@ export async function resolveKecamatanDisplayName(args: {
   }
 
   return kecNameFallback(apiId);
+}
+
+/**
+ * Nama desa/kelurahan untuk header halaman.
+ * Urutan: v_kelurahan → peringkat kelurahan → fallback ID.
+ */
+export async function resolveKelurahanDisplayName(args: {
+  desaId: string;
+  kecamatanApiId: string;
+}): Promise<string> {
+  const { desaId, kecamatanApiId } = args;
+  const apiId = getKelurahanApiId(desaId) ?? desaId.trim();
+
+  const fromView = await lookupNamaKelurahanById(apiId);
+  if (fromView && !isUnresolvedKelName(fromView, apiId)) return fromView;
+
+  try {
+    const peringkat = await fetchPeringkatKelurahan(kecamatanApiId);
+    const hit = peringkat.items.find(
+      (item) => item.id === apiId || item.id === String(Number(apiId)),
+    );
+    const nama = hit?.nama?.trim();
+    if (nama && !isUnresolvedKelName(nama, apiId)) return nama;
+  } catch {
+    // ignore
+  }
+
+  return kelNameFallback(apiId);
 }
