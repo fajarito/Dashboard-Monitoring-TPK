@@ -234,15 +234,13 @@ function applyBasemapTiles(
       },
     );
   } else if (selectedBasemap === "canvas") {
-    if (level === "nasional") {
-      newTile = L.tileLayer(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        },
-      );
-    }
+    newTile = L.tileLayer(
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      },
+    );
   }
 
   if (newTile) {

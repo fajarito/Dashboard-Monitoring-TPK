@@ -755,7 +755,7 @@ export function MapSebaran() {
                 </div>
                 <div className="mt-2.5 flex items-center justify-between gap-2">
                   <span className="truncate text-[9px] font-medium text-slate-400">
-                    {ringkasanState === "loading" ? "Memuat…" : note}
+                    {note}
                   </span>
                   <span
                     className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase ${
