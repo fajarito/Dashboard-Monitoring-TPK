@@ -4,10 +4,20 @@ import {
   PhoneStatusHint,
   TpkContactAction,
 } from "@/components/dashboard/tpk-contact-action";
-import type { TpkMember } from "@/lib/tpk-drilldown-data";
+import type { TrainingStatus } from "@/lib/tpk-drilldown-data";
 import { cn } from "@/lib/utils";
 
-export function TpkMemberCards({ members }: { members: TpkMember[] }) {
+/** Shape minimal untuk kartu anggota (mock drilldown atau API detail). */
+export type TpkMemberCardItem = {
+  id: string;
+  role: string;
+  name: string;
+  nik: string;
+  phone: string | null;
+  trainingStatus: TrainingStatus;
+};
+
+export function TpkMemberCards({ members }: { members: TpkMemberCardItem[] }) {
   return (
     <section className="design-card p-6 sm:p-7" aria-label="Anggota TPK">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4">
@@ -26,6 +36,12 @@ export function TpkMemberCards({ members }: { members: TpkMember[] }) {
           <Users className="size-4" />
         </span>
       </div>
+
+      {members.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-line bg-slate-50/80 px-4 py-8 text-center text-[12px] text-muted-foreground">
+          Belum ada data anggota untuk TPK ini.
+        </p>
+      ) : null}
 
       <ul
         className="grid gap-4 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3 xl:gap-5"

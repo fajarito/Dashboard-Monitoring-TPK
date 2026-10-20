@@ -66,7 +66,7 @@ const sasaranMeta: Record<
 type ExtraCard = {
   id: string;
   label: string;
-  value: number;
+  value: number | null;
   icon: LucideIcon;
   color: string;
 };
@@ -80,7 +80,8 @@ function IndikatorCard({
   glossaryId,
 }: {
   label: string;
-  value: number;
+  /** null → tampil "—" (mis. RTLH belum ada di DWH). */
+  value: number | null;
   scopeLabel: string;
   icon: LucideIcon;
   color: string;
@@ -105,7 +106,7 @@ function IndikatorCard({
         </span>
       </div>
       <div className="mt-2.5 text-[1.35rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[1.5rem]">
-        {formatNumber(value)}
+        {value == null ? "—" : formatNumber(value)}
       </div>
       <div className="mt-2 text-[9px] font-medium text-slate-400">
         {scopeLabel}
@@ -114,27 +115,34 @@ function IndikatorCard({
   );
 }
 
+export type SasaranCountsNullable = {
+  [K in keyof SasaranCounts]: number | null;
+};
+
 export function SasaranIndikatorPanel({
   scopeLabel,
   counts,
   keluargaSasaran,
   krs,
   dataSource = "mock",
+  caption,
 }: {
   scopeLabel: string;
-  counts: SasaranCounts;
-  /** Opsional — ditampilkan di detail TPK sebelum 6 indikator. */
-  keluargaSasaran?: number;
-  /** Keluarga Berisiko Stunting — ejaan Berisiko. */
-  krs?: number;
+  counts: SasaranCounts | SasaranCountsNullable;
+  /** Opsional — ditampilkan di detail TPK sebelum 6 indikator. null → "—". */
+  keluargaSasaran?: number | null;
+  /** Keluarga Berisiko Stunting — ejaan Berisiko. null → "—". */
+  krs?: number | null;
   /**
    * Sumber efektif dari meta.source API (home nasional).
    * Default mock — halaman drilldown wilayah masih simulasi lokal.
    */
   dataSource?: DataSource | null;
+  /** Caption tambahan (mis. agregat desa · N TPK). */
+  caption?: string | null;
 }) {
   const extras: ExtraCard[] = [];
-  if (keluargaSasaran != null) {
+  if (keluargaSasaran !== undefined) {
     extras.push({
       id: "keluargaSasaran",
       label: "Keluarga Sasaran",
@@ -143,7 +151,7 @@ export function SasaranIndikatorPanel({
       color: "bg-indigo-50 text-indigo-700",
     });
   }
-  if (krs != null) {
+  if (krs !== undefined) {
     extras.push({
       id: "krs",
       label: "Keluarga Berisiko Stunting",
@@ -166,6 +174,12 @@ export function SasaranIndikatorPanel({
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             Keluarga & lingkungan · agregat{" "}
             <span className="font-semibold text-navy">{scopeLabel}</span>
+            {caption ? (
+              <>
+                {" · "}
+                <span className="font-medium text-slate-500">{caption}</span>
+              </>
+            ) : null}
           </p>
         </div>
         {sourceBadge ? (
