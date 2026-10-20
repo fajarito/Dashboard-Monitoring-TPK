@@ -76,13 +76,13 @@ export const navItems: NavItem[] = [
 
 export const brandIcon = LayoutDashboard;
 
-/** Palette choropleth dari desain Figma Make (App.tsx). */
+/** Palette choropleth — selaras token --map-choro-* / Jumlah TPK (default). */
 export const mapPalette = [
   "#dbeafe",
   "#bfdbfe",
   "#93c5fd",
   "#3b82f6",
-  "#1d4ed8",
+  "#155eef",
 ] as const;
 
 export const mapNoDataColor = "#e2e8f0";

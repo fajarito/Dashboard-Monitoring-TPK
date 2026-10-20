@@ -92,6 +92,8 @@ export type PeringkatProvinsiItem = {
   rasioPkbDesa: number;
   /** true jika rasioPkbDesa > 2. */
   warningBeban: boolean;
+  /** Kode Kemendagri 2 digit (untuk peta). Opsional. */
+  kode?: string | null;
 };
 
 export type PeringkatProvinsiPayload = {
@@ -114,6 +116,8 @@ export type PeringkatKabupatenItem = {
   warningBeban: boolean;
   /** Indikator DWH per kab — RTLH null/0 (kolom tidak ada). */
   indikator: IndikatorRingkasan;
+  /** Kode Kemendagri 4 digit untuk choropleth Master Wilayah. Opsional di mock. */
+  kode?: string | null;
 };
 
 export type PeringkatKabupatenPayload = {
@@ -135,6 +139,8 @@ export type PeringkatKecamatanItem = {
   rasioPkbDesa: number;
   warningBeban: boolean;
   indikator: IndikatorRingkasan;
+  /** Kode Kemendagri 6 digit untuk choropleth Master Wilayah. Opsional di mock. */
+  kode?: string | null;
 };
 
 export type PeringkatKecamatanPayload = {
@@ -156,6 +162,8 @@ export type PeringkatKelurahanItem = {
   rasioPkbDesa: number;
   warningBeban: boolean;
   indikator: IndikatorRingkasan;
+  /** Kode Kemendagri 10 digit untuk choropleth Master Wilayah. Opsional di mock. */
+  kode?: string | null;
 };
 
 export type PeringkatKelurahanPayload = {

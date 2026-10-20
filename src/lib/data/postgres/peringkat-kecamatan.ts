@@ -10,6 +10,7 @@ import type {
   PeringkatKecamatanItem,
   PeringkatKecamatanPayload,
 } from "@/lib/data/types";
+import { composeKemendagriCode } from "@/lib/map-choropleth";
 import {
   getDesaPerPkbRatio,
   getKrsPerTpkRatio,
@@ -39,6 +40,9 @@ type DwhKecRow = {
 type WilayahKecRow = {
   id_kecamatan: number;
   nama_kecamatan: string;
+  depdagri_kecamatan: string | null;
+  depdagri_kabupaten: string | null;
+  depdagri_provinsi: string | null;
 };
 
 function toInt(value: string | number | null | undefined): number {
@@ -125,7 +129,10 @@ GROUP BY r."id_kecamatan"
 export const SQL_WILAYAH_NAMA_KEC = `
 SELECT
   k."id_kecamatan",
-  k."nama_kecamatan"
+  k."nama_kecamatan",
+  k."depdagri_kecamatan",
+  k."depdagri_kabupaten",
+  k."depdagri_provinsi"
 FROM "pk2025"."v_kecamatan" k
 WHERE k."id_kecamatan" = ANY($1::int[])
 `;
@@ -186,6 +193,7 @@ export async function getPeringkatKecamatanPostgres(
   ).filter((id) => id > 0);
 
   const namaById = new Map<number, string>();
+  const kodeById = new Map<number, string>();
   if (ids.length > 0) {
     const wilayah = await queryPool<WilayahKecRow>(
       "wilayah",
@@ -193,10 +201,17 @@ export async function getPeringkatKecamatanPostgres(
       [ids],
     );
     for (const row of wilayah.rows) {
+      const id = toInt(row.id_kecamatan);
       namaById.set(
-        toInt(row.id_kecamatan),
+        id,
         row.nama_kecamatan?.trim() || `Kecamatan ${row.id_kecamatan}`,
       );
+      const kode = composeKemendagriCode({
+        prov: row.depdagri_provinsi,
+        kab: row.depdagri_kabupaten,
+        kec: row.depdagri_kecamatan,
+      });
+      if (kode && kode.length === 6) kodeById.set(id, kode);
     }
   }
 
@@ -220,6 +235,7 @@ export async function getPeringkatKecamatanPostgres(
         rasio: getKrsPerTpkRatio(tpk, krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode: kodeById.get(id) ?? null,
         indikator: {
           bumil: dwhRow?.bumil ?? 0,
           baduta: dwhRow?.baduta ?? 0,

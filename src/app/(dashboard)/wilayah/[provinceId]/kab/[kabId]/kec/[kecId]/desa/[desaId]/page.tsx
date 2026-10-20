@@ -119,6 +119,9 @@ export default async function DesaKelurahanWilayahPage({ params }: PageProps) {
 
       <LiveKelurahanWilayahPanel
         provinceSlug={provinceId}
+        kabSlug={kabId}
+        kecSlug={kecId}
+        desaSlug={desaId}
         provinsiApiId={provinsiApiId}
         kabupatenApiId={kabupatenApiId}
         kecamatanApiId={kecamatanApiId}

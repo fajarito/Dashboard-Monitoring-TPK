@@ -10,6 +10,7 @@ import type {
   PeringkatKelurahanItem,
   PeringkatKelurahanPayload,
 } from "@/lib/data/types";
+import { composeKemendagriCode } from "@/lib/map-choropleth";
 import {
   getDesaPerPkbRatio,
   getKrsPerTpkRatio,
@@ -39,6 +40,10 @@ type DwhKelRow = {
 type WilayahKelRow = {
   id_kelurahan: number;
   nama_kelurahan: string;
+  depdagri_kelurahan: string | null;
+  depdagri_kecamatan: string | null;
+  depdagri_kabupaten: string | null;
+  depdagri_provinsi: string | null;
 };
 
 function toInt(value: string | number | null | undefined): number {
@@ -124,7 +129,11 @@ GROUP BY r."id_kelurahan"
 export const SQL_WILAYAH_NAMA_KEL = `
 SELECT
   k."id_kelurahan",
-  k."nama_kelurahan"
+  k."nama_kelurahan",
+  COALESCE(k."depdagri_kelurahan", k."KodeDepdagri") AS depdagri_kelurahan,
+  k."depdagri_kecamatan",
+  k."depdagri_kabupaten",
+  k."depdagri_provinsi"
 FROM "pk2025"."v_kelurahan" k
 WHERE k."id_kelurahan" = ANY($1::int[])
 `;
@@ -185,6 +194,7 @@ export async function getPeringkatKelurahanPostgres(
   ).filter((id) => id > 0);
 
   const namaById = new Map<number, string>();
+  const kodeById = new Map<number, string>();
   if (ids.length > 0) {
     const wilayah = await queryPool<WilayahKelRow>(
       "wilayah",
@@ -192,10 +202,18 @@ export async function getPeringkatKelurahanPostgres(
       [ids],
     );
     for (const row of wilayah.rows) {
+      const id = toInt(row.id_kelurahan);
       namaById.set(
-        toInt(row.id_kelurahan),
+        id,
         row.nama_kelurahan?.trim() || `Kelurahan ${row.id_kelurahan}`,
       );
+      const kode = composeKemendagriCode({
+        prov: row.depdagri_provinsi,
+        kab: row.depdagri_kabupaten,
+        kec: row.depdagri_kecamatan,
+        kel: row.depdagri_kelurahan,
+      });
+      if (kode && kode.length === 10) kodeById.set(id, kode);
     }
   }
 
@@ -219,6 +237,7 @@ export async function getPeringkatKelurahanPostgres(
         rasio: getKrsPerTpkRatio(tpk, krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode: kodeById.get(id) ?? null,
         indikator: {
           bumil: dwhRow?.bumil ?? 0,
           baduta: dwhRow?.baduta ?? 0,

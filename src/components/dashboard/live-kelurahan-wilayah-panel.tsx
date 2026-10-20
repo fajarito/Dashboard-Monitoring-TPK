@@ -10,13 +10,15 @@ import {
 } from "@/components/dashboard/data-state";
 import { LiveTpkListPanel } from "@/components/dashboard/live-tpk-list-panel";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
+import { WilayahScopeMap } from "@/components/dashboard/wilayah-scope-map";
 import type { DataSource } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
-import { formatNumber } from "@/lib/map-data";
+import type { MetricRow } from "@/lib/map-choropleth";
+import { formatNumber, provinces } from "@/lib/map-data";
 import type { SasaranCounts } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
 import {
@@ -129,6 +131,9 @@ function SummaryKpiCards({
  */
 export function LiveKelurahanWilayahPanel({
   provinceSlug,
+  kabSlug,
+  kecSlug,
+  desaSlug,
   provinsiApiId,
   kabupatenApiId,
   kecamatanApiId,
@@ -139,6 +144,9 @@ export function LiveKelurahanWilayahPanel({
   provinceName,
 }: {
   provinceSlug: string;
+  kabSlug: string;
+  kecSlug: string;
+  desaSlug: string;
   provinsiApiId: string;
   kabupatenApiId: string;
   kecamatanApiId: string;
@@ -161,9 +169,8 @@ export function LiveKelurahanWilayahPanel({
   const peringkatKec = usePeringkatKecamatan(
     needKecName ? kabupatenApiId : null,
   );
-  const peringkatKel = usePeringkatKelurahan(
-    needKelName ? kecamatanApiId : null,
-  );
+  /** Selalu ambil saudara desa untuk choropleth di tingkat desa. */
+  const peringkatKel = usePeringkatKelurahan(kecamatanApiId);
 
   const displayKabName = useMemo(() => {
     if (!needKabName) return kabName;
@@ -201,8 +208,29 @@ export function LiveKelurahanWilayahPanel({
     return kelName;
   }, [needKelName, kelName, peringkatKel.payload, kelurahanApiId]);
 
+  const provinceAdminCode = useMemo(() => {
+    const prov = provinces.find((p) => p.id === provinceSlug);
+    return String(prov?.adminCode ?? "").padStart(2, "0");
+  }, [provinceSlug]);
+
+  const mapChildRows: MetricRow[] = useMemo(
+    () =>
+      (peringkatKel.payload?.items ?? []).map((item) => ({
+        id: item.id,
+        nama: item.nama,
+        tpk: item.tpk,
+        krs: item.krs,
+        pkb: item.pkb,
+        rasio: item.rasio,
+        kode: item.kode,
+      })),
+    [peringkatKel.payload?.items],
+  );
+
   const dataSource: DataSource | null =
-    ringkasan.ringkasan?.meta.source ?? null;
+    ringkasan.ringkasan?.meta.source ??
+    peringkatKel.payload?.meta.source ??
+    null;
   const sourceBadge = resolveSourceBadge(dataSource);
 
   const sasaranCounts: SasaranCounts | null = ringkasan.ringkasan
@@ -286,6 +314,28 @@ export function LiveKelurahanWilayahPanel({
             />
           ) : null}
         </>
+      ) : null}
+
+      {provinceAdminCode !== "00" ? (
+        <WilayahScopeMap
+          currentLevel="desa"
+          provinceSlug={provinceSlug}
+          provinceAdminCode={provinceAdminCode}
+          provinceName={provinceName}
+          kabSlug={kabSlug}
+          kabName={displayKabName}
+          kabupatenApiId={kabupatenApiId}
+          kecSlug={kecSlug}
+          kecName={displayKecName}
+          kecamatanApiId={kecamatanApiId}
+          desaSlug={desaSlug}
+          desaName={displayKelName}
+          kelurahanApiId={kelurahanApiId}
+          childRows={mapChildRows}
+          childStatus={peringkatKel.status}
+          childError={peringkatKel.error}
+          onRetryChildren={peringkatKel.refetch}
+        />
       ) : null}
 
       <LiveTpkListPanel

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, BriefcaseBusiness, Users, UsersRound } from "lucide-react";
+import { useMemo } from "react";
 
 import {
   EmptyState,
@@ -10,12 +11,14 @@ import {
 import { LiveTpkListPanel } from "@/components/dashboard/live-tpk-list-panel";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
+import { WilayahScopeMap } from "@/components/dashboard/wilayah-scope-map";
 import type { DataSource, PeringkatKabupatenItem } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { getKabupatenSlugByApiId } from "@/lib/kabupaten-api-id";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
-import { formatNumber } from "@/lib/map-data";
+import type { MetricRow } from "@/lib/map-choropleth";
+import { formatNumber, provinces } from "@/lib/map-data";
 import type { SasaranCounts } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +158,25 @@ export function LiveProvinceWilayahPanel({
   });
   const peringkat = usePeringkatKabupaten(provinsiApiId);
 
+  const provinceAdminCode = useMemo(() => {
+    const prov = provinces.find((p) => p.id === provinceSlug);
+    return String(prov?.adminCode ?? "").padStart(2, "0");
+  }, [provinceSlug]);
+
+  const mapChildRows: MetricRow[] = useMemo(
+    () =>
+      (peringkat.payload?.items ?? []).map((item) => ({
+        id: item.id,
+        nama: item.nama,
+        tpk: item.tpk,
+        krs: item.krs,
+        pkb: item.pkb,
+        rasio: item.rasio,
+        kode: item.kode,
+      })),
+    [peringkat.payload?.items],
+  );
+
   const dataSource: DataSource | null =
     ringkasan.ringkasan?.meta.source ??
     peringkat.payload?.meta.source ??
@@ -248,6 +270,19 @@ export function LiveProvinceWilayahPanel({
             />
           ) : null}
         </>
+      ) : null}
+
+      {provinceAdminCode !== "00" ? (
+        <WilayahScopeMap
+          currentLevel="provinsi"
+          provinceSlug={provinceSlug}
+          provinceAdminCode={provinceAdminCode}
+          provinceName={provinceName}
+          childRows={mapChildRows}
+          childStatus={peringkat.status}
+          childError={peringkat.error}
+          onRetryChildren={peringkat.refetch}
+        />
       ) : null}
 
       {peringkat.status === "loading" ? (

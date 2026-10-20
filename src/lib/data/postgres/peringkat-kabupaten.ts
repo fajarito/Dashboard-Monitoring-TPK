@@ -10,6 +10,7 @@ import type {
   PeringkatKabupatenItem,
   PeringkatKabupatenPayload,
 } from "@/lib/data/types";
+import { composeKemendagriCode } from "@/lib/map-choropleth";
 import {
   getDesaPerPkbRatio,
   getKrsPerTpkRatio,
@@ -39,6 +40,8 @@ type DwhKabRow = {
 type WilayahKabRow = {
   id_kabupaten: number;
   nama_kabupaten: string;
+  depdagri_kabupaten: string | null;
+  depdagri_provinsi: string | null;
 };
 
 function toInt(value: string | number | null | undefined): number {
@@ -142,7 +145,9 @@ GROUP BY r."id_kabupaten"
 export const SQL_WILAYAH_NAMA_KAB = `
 SELECT
   k."id_kabupaten",
-  k."nama_kabupaten"
+  k."nama_kabupaten",
+  k."depdagri_kabupaten",
+  k."depdagri_provinsi"
 FROM "pk2025"."v_kabupaten" k
 WHERE k."id_kabupaten" = ANY($1::int[])
 `;
@@ -203,6 +208,7 @@ export async function getPeringkatKabupatenPostgres(
   ).filter((id) => id > 0);
 
   const namaById = new Map<number, string>();
+  const kodeById = new Map<number, string>();
   if (ids.length > 0) {
     const wilayah = await queryPool<WilayahKabRow>(
       "wilayah",
@@ -210,10 +216,16 @@ export async function getPeringkatKabupatenPostgres(
       [ids],
     );
     for (const row of wilayah.rows) {
+      const id = toInt(row.id_kabupaten);
       namaById.set(
-        toInt(row.id_kabupaten),
+        id,
         row.nama_kabupaten?.trim() || `Kabupaten ${row.id_kabupaten}`,
       );
+      const kode = composeKemendagriCode({
+        prov: row.depdagri_provinsi,
+        kab: row.depdagri_kabupaten,
+      });
+      if (kode && kode.length === 4) kodeById.set(id, kode);
     }
   }
 
@@ -237,6 +249,7 @@ export async function getPeringkatKabupatenPostgres(
         rasio: getKrsPerTpkRatio(tpk, krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode: kodeById.get(id) ?? null,
         indikator: {
           bumil: dwhRow?.bumil ?? 0,
           baduta: dwhRow?.baduta ?? 0,

@@ -14,6 +14,7 @@ import {
   getKrsPerTpkRatio,
   PKB_DESA_IDEAL_MAX,
 } from "@/lib/map-data";
+import { resolveProvinceFromPeringkatId } from "@/lib/province-api-id";
 
 const MAX_ROWS = 40;
 
@@ -173,9 +174,15 @@ export async function getPeringkatProvinsiPostgres(): Promise<PeringkatProvinsiP
       const desa = sigaRow?.desa ?? 0;
       const krs = krsById.get(id) ?? 0;
       const rasioPkbDesa = getDesaPerPkbRatio(pkb, desa);
+      const nama = namaById.get(id) ?? `Provinsi ${id}`;
+      const prov = resolveProvinceFromPeringkatId(String(id), nama);
+      const kode =
+        prov?.adminCode != null && prov.adminCode > 0
+          ? String(prov.adminCode).padStart(2, "0")
+          : null;
       return {
         id: String(id),
-        nama: namaById.get(id) ?? `Provinsi ${id}`,
+        nama,
         tpk,
         pkb,
         desa,
@@ -183,6 +190,7 @@ export async function getPeringkatProvinsiPostgres(): Promise<PeringkatProvinsiP
         rasio: getKrsPerTpkRatio(tpk, krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode,
       };
     })
     .sort(

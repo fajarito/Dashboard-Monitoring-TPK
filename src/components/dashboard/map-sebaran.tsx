@@ -48,7 +48,10 @@ import {
 } from "@/lib/map-data";
 import { getLegendRanges } from "@/lib/map-style";
 import { mapNoDataColor } from "@/lib/navigation";
-import { getProvinsiApiId } from "@/lib/province-api-id";
+import {
+  getProvinsiApiId,
+  resolveProvinceFromPeringkatId,
+} from "@/lib/province-api-id";
 import {
   getPrioritasKomposisi,
   type PrioritasSlice,
@@ -278,8 +281,42 @@ export function MapSebaran() {
   const thematicData = useMemo(() => {
     const unit = kpiCards.find((c) => c.key === metric)?.unit ?? "";
 
+    const metricVal = (item: {
+      tpk: number;
+      pkb: number;
+      krs: number;
+      rasio?: number;
+    }) =>
+      metric === "tpk"
+        ? item.tpk
+        : metric === "pkb"
+          ? item.pkb
+          : metric === "krs"
+            ? item.krs
+            : item.tpk * 3;
+
     if (!selected) {
-      // Tingkat Nasional: mapping seluruh provinsi dari dataset mock
+      // Nasional: prefer /api/peringkat/provinsi (live) → kode Kemendagri via adminCode
+      const live = homeAgregat.peringkat?.items;
+      if (live?.length) {
+        return live
+          .map((item) => {
+            const prov = resolveProvinceFromPeringkatId(item.id, item.nama);
+            const code =
+              item.kode?.replace(/\D/g, "") ||
+              (prov
+                ? String(prov.adminCode).padStart(2, "0")
+                : null);
+            if (!code) return null;
+            const val = metricVal(item);
+            return {
+              code,
+              value: val,
+              label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
+            };
+          })
+          .filter((row): row is NonNullable<typeof row> => row != null);
+      }
       return provinces.map((p) => {
         const code = String(p.adminCode).padStart(2, "0");
         const val = p[metric] ?? 0;
@@ -292,18 +329,12 @@ export function MapSebaran() {
     }
 
     if (selected && !selectedKab && peringkatKab.payload?.items) {
-      // Tingkat Provinsi: mapping kab/kota dari dataset mock
+      // Provinsi → kab: kode Kemendagri 4 digit bila ada; fallback id (MW name-match di halaman wilayah)
       return peringkatKab.payload.items.map((item) => {
-        const val =
-          metric === "tpk"
-            ? item.tpk
-            : metric === "pkb"
-              ? item.pkb
-              : metric === "krs"
-                ? item.krs
-                : item.tpk * 3;
+        const val = metricVal(item);
+        const code = item.kode?.replace(/\D/g, "") || item.id;
         return {
-          code: item.id,
+          code,
           value: val,
           label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
         };
@@ -311,18 +342,11 @@ export function MapSebaran() {
     }
 
     if (selectedKab && !selectedKec && peringkatKec.payload?.items) {
-      // Tingkat Kabupaten: mapping kecamatan dari dataset mock
       return peringkatKec.payload.items.map((item) => {
-        const val =
-          metric === "tpk"
-            ? item.tpk
-            : metric === "pkb"
-              ? item.pkb
-              : metric === "krs"
-                ? item.krs
-                : item.tpk * 3;
+        const val = metricVal(item);
+        const code = item.kode?.replace(/\D/g, "") || item.id;
         return {
-          code: item.id,
+          code,
           value: val,
           label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
         };
@@ -330,18 +354,11 @@ export function MapSebaran() {
     }
 
     if (selectedKec && peringkatKel.payload?.items) {
-      // Tingkat Kecamatan: mapping desa/kelurahan dari dataset mock
       return peringkatKel.payload.items.map((item) => {
-        const val =
-          metric === "tpk"
-            ? item.tpk
-            : metric === "pkb"
-              ? item.pkb
-              : metric === "krs"
-                ? item.krs
-                : item.tpk * 3;
+        const val = metricVal(item);
+        const code = item.kode?.replace(/\D/g, "") || item.id;
         return {
-          code: item.id,
+          code,
           value: val,
           label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
         };
@@ -349,7 +366,16 @@ export function MapSebaran() {
     }
 
     return [];
-  }, [selected, selectedKab, selectedKec, metric, peringkatKab.payload, peringkatKec.payload, peringkatKel.payload]);
+  }, [
+    selected,
+    selectedKab,
+    selectedKec,
+    metric,
+    homeAgregat.peringkat,
+    peringkatKab.payload,
+    peringkatKec.payload,
+    peringkatKel.payload,
+  ]);
 
   const sasaranScope = useMemo(() => {
     if (!activeRingkasan) {

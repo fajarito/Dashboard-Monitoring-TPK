@@ -84,6 +84,26 @@
   --chart-3: #93c5fd;
   --chart-4: #0b4dd8;
   --chart-5: #102a56;
+  /* Choropleth peta (TPK blues / KRS amber / rasio teal) — dipakai legend & docs */
+  --map-choro-1: #dbeafe;
+  --map-choro-2: #bfdbfe;
+  --map-choro-3: #93c5fd;
+  --map-choro-4: #3b82f6;
+  --map-choro-5: #155eef;
+  --map-choro-6: #0b4dd8;
+  --map-choro-krs-1: #fef3c7;
+  --map-choro-krs-2: #fde68a;
+  --map-choro-krs-3: #fbbf24;
+  --map-choro-krs-4: #f59e0b;
+  --map-choro-krs-5: #d97706;
+  --map-choro-krs-6: #b45309;
+  --map-choro-rasio-1: #ccfbf1;
+  --map-choro-rasio-2: #99f6e4;
+  --map-choro-rasio-3: #5eead4;
+  --map-choro-rasio-4: #14b8a6;
+  --map-choro-rasio-5: #0f766e;
+  --map-choro-rasio-6: #115e59;
+  --map-choro-nodata: #e2e8f0;
   --radius: 0.875rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #253858;
