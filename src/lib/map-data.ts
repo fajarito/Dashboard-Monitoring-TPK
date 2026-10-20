@@ -508,6 +508,62 @@ export const provinces: Province[] = [
     "balita": 78400,
     "pus": 198200,
     "ibuHamil": 30200
+  },
+  {
+    "id": "papsel",
+    "adminCode": 93,
+    "name": "Papua Selatan",
+    "capital": "Merauke",
+    "tpk": 2140,
+    "anggota": 6420,
+    "pkb": 312,
+    "krs": 148620,
+    "baduta": 38600,
+    "balita": 108400,
+    "pus": 268200,
+    "ibuHamil": 41200
+  },
+  {
+    "id": "papteng",
+    "adminCode": 94,
+    "name": "Papua Tengah",
+    "capital": "Nabire",
+    "tpk": 2864,
+    "anggota": 8592,
+    "pkb": 418,
+    "krs": 192480,
+    "baduta": 52400,
+    "balita": 146800,
+    "pus": 318600,
+    "ibuHamil": 54800
+  },
+  {
+    "id": "pappeg",
+    "adminCode": 95,
+    "name": "Papua Pegunungan",
+    "capital": "Wamena",
+    "tpk": 1926,
+    "anggota": 5778,
+    "pkb": 264,
+    "krs": 136940,
+    "baduta": 36800,
+    "balita": 98400,
+    "pus": 242800,
+    "ibuHamil": 38600
+  },
+  {
+    "id": "papbd",
+    "adminCode": 96,
+    "name": "Papua Barat Daya",
+    "capital": "Sorong",
+    "tpk": 1582,
+    "anggota": 4746,
+    "pkb": 236,
+    "krs": 108420,
+    "baduta": 27800,
+    "balita": 76200,
+    "pus": 188400,
+    "ibuHamil": 29400
   }
 ];
 

@@ -1,7 +1,7 @@
 /**
  * Skala warna choropleth untuk Dashboard Monitoring TPK.
- * Sequential teal → emerald → amber → coral (profesional, terbaca di
- * basemap Terang/Satelit/Topo). Tanpa ungu neon / glow / abu seragam.
+ * Default Jumlah TPK: sequential blues (icy → navy), 5 kelas —
+ * selaras legenda referensi user. Tanpa teal→coral / ungu neon.
  */
 
 import type { MetricKey } from "@/lib/map-data";
@@ -9,40 +9,39 @@ import { formatNumber } from "@/lib/map-data";
 import type { MasterWilayahThematicDataItem } from "@/types/master-wilayah";
 
 /**
- * Default Jumlah TPK — sequential berwarna (bukan slate/gray SDK).
- * Low = teal, mid = emerald/gold, high = amber → coral.
+ * Default Jumlah TPK — 5 kelas sequential biru:
+ * pale icy cyan → light blue → medium royal → deep blue → navy.
+ * Stop 1 sengaja cukup cyan (bukan hampir-putih) agar tidak terbaca
+ * sebagai nodata abu di basemap Terang.
  */
 export const CHOROPLETH_TPK = [
-  "#5eead4",
-  "#14b8a6",
-  "#0f766e",
-  "#ca8a04",
-  "#ea580c",
-  "#e11d48",
+  "#b9e6fe",
+  "#7dd3fc",
+  "#3b82f6",
+  "#1d4ed8",
+  "#0c2340",
 ] as const;
 
-/** Amber → coral — Jumlah KRS. */
+/** Amber → coral — Jumlah KRS (metrik sekunder, tetap sequential). */
 export const CHOROPLETH_KRS = [
-  "#fde68a",
+  "#fef3c7",
   "#fbbf24",
   "#f59e0b",
-  "#ea580c",
-  "#e11d48",
-  "#be123c",
-] as const;
-
-/** Deep navy → sky → gold — rasio / beban. */
-export const CHOROPLETH_RASIO = [
-  "#1e3a5f",
-  "#0369a1",
-  "#0ea5e9",
-  "#38bdf8",
-  "#fbbf24",
   "#d97706",
+  "#92400e",
 ] as const;
 
-/** Netral lembut untuk wilayah tanpa metrik — jangan dipakai untuk nilai 0 valid. */
-export const CHOROPLETH_NO_DATA = "#e8eef4";
+/** Deep navy → sky — rasio / beban (tetap di keluarga biru). */
+export const CHOROPLETH_RASIO = [
+  "#b9e6fe",
+  "#38bdf8",
+  "#0284c7",
+  "#1d4ed8",
+  "#0c2340",
+] as const;
+
+/** Netral (tanpa cast biru) — hanya untuk wilayah benar-benar tanpa metrik. */
+export const CHOROPLETH_NO_DATA = "#e8edf2";
 
 /** Nama palette bawaan SDK Master Wilayah (mendekati arah warna kita). */
 export type SdkPaletteName =
@@ -66,9 +65,22 @@ export function sdkPaletteForMetric(metric: ChoroplethMetric): SdkPaletteName {
     case "anggota":
     case "tpk":
     default:
-      // emerald lebih dekat teal/coral kit daripada blues (yang ujungnya slate abu)
-      return "emerald";
+      return "blues";
   }
+}
+
+/** Normalisasi nama wilayah untuk cocokkan poligon ↔ baris metrik. */
+export function normalizeWilayahNama(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(
+      /\b(provinsi|daerah istimewa|di|kabupaten|kota|kecamatan|desa|kelurahan|kel)\b/g,
+      " ",
+    )
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 /** Hex steps dipakai saat mewarnai poligon client-side (sumber kebenaran). */
@@ -184,10 +196,70 @@ export function buildThematicData(
     out.push({
       code,
       value,
+      name: row.nama,
       label: `${row.nama}: ${formatNumber(value)} ${unit}`.trim(),
     });
   }
   return out;
+}
+
+/**
+ * Index thematic rows by Kemendagri code and exact normalized name.
+ * Name index avoids gray fills when GeoJSON has DOB codes (93–96) that
+ * must join even if a code string is oddly padded.
+ */
+export function indexThematicLookups(
+  thematicData: MasterWilayahThematicDataItem[] | undefined | null,
+): {
+  byCode: Map<string, number>;
+  byName: Map<string, number>;
+} {
+  const byCode = new Map<string, number>();
+  const byName = new Map<string, number>();
+  for (const item of thematicData || []) {
+    const code = String(item.code ?? "").replace(/\D/g, "");
+    if (code && Number.isFinite(item.value)) {
+      byCode.set(code, item.value);
+      // Also index unpadded / zero-padded 2-digit forms for provinces.
+      byCode.set(code.replace(/^0+/, "") || "0", item.value);
+      if (code.length <= 2) {
+        byCode.set(code.padStart(2, "0"), item.value);
+      }
+    }
+    const rawName =
+      item.name ||
+      (typeof item.label === "string" ? item.label.split(":")[0] : "") ||
+      "";
+    const key = normalizeWilayahNama(rawName);
+    if (key && Number.isFinite(item.value) && !byName.has(key)) {
+      byName.set(key, item.value);
+    }
+  }
+  return { byCode, byName };
+}
+
+export function lookupThematicValue(
+  lookups: {
+    byCode: Map<string, number>;
+    byName: Map<string, number>;
+  },
+  code: string,
+  name: string,
+): number | null {
+  const codeStr = String(code || "").replace(/\D/g, "");
+  if (codeStr) {
+    const fromCode =
+      lookups.byCode.get(codeStr) ??
+      lookups.byCode.get(codeStr.padStart(2, "0")) ??
+      lookups.byCode.get(codeStr.replace(/^0+/, "") || "0");
+    if (fromCode != null && Number.isFinite(fromCode)) return fromCode;
+  }
+  const key = normalizeWilayahNama(name || "");
+  if (key) {
+    const fromName = lookups.byName.get(key);
+    if (fromName != null && Number.isFinite(fromName)) return fromName;
+  }
+  return null;
 }
 
 /** Compose kode penuh dari segmen Depdagri di MV pk2025. */
@@ -235,7 +307,7 @@ export type ChoroplethPathStyle = {
 
 const HOVER_BORDER = "#0f172a";
 const BASE_BORDER = "#ffffff";
-const SELECTED_BORDER = "#0f766e";
+const SELECTED_BORDER = "#1d4ed8";
 
 /**
  * Walk boundaryGroup → nested GeoJSON → path layers that have `.feature`.

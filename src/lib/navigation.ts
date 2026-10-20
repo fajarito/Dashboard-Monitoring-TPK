@@ -76,16 +76,16 @@ export const navItems: NavItem[] = [
 
 export const brandIcon = LayoutDashboard;
 
-/** Palette choropleth — selaras token --map-choro-* / Jumlah TPK (default). */
+/** Palette choropleth — sequential blues 5 kelas (icy → navy), Jumlah TPK. */
 export const mapPalette = [
-  "#5eead4",
-  "#14b8a6",
-  "#0f766e",
-  "#ca8a04",
-  "#ea580c",
+  "#b9e6fe",
+  "#7dd3fc",
+  "#3b82f6",
+  "#1d4ed8",
+  "#0c2340",
 ] as const;
 
-export const mapNoDataColor = "#e8eef4";
+export const mapNoDataColor = "#e8edf2";
 
 export const mapLegendItems = [
   { label: "Sangat sedikit", color: mapPalette[0] },

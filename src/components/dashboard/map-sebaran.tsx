@@ -313,6 +313,7 @@ export function MapSebaran() {
             return {
               code,
               value: val,
+              name: item.nama,
               label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
             };
           })
@@ -324,7 +325,8 @@ export function MapSebaran() {
         return {
           code,
           value: val,
-          label: `${formatNumber(val)} ${unit}`.trim(),
+          name: p.name,
+          label: `${p.name}: ${formatNumber(val)} ${unit}`.trim(),
         };
       });
     }
@@ -337,6 +339,7 @@ export function MapSebaran() {
         return {
           code,
           value: val,
+          name: item.nama,
           label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
         };
       });
@@ -349,6 +352,7 @@ export function MapSebaran() {
         return {
           code,
           value: val,
+          name: item.nama,
           label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
         };
       });
@@ -361,6 +365,7 @@ export function MapSebaran() {
         return {
           code,
           value: val,
+          name: item.nama,
           label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
         };
       });

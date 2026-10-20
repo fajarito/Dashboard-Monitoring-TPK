@@ -9,6 +9,9 @@ import {
   colorForValue,
   forEachPolygonLayer,
   hexStepsForMetric,
+  indexThematicLookups,
+  lookupThematicValue,
+  normalizeWilayahNama,
   sdkPaletteForMetric,
   type ChoroplethPathStyle,
   CHOROPLETH_NO_DATA,
@@ -325,6 +328,27 @@ function injectTooltipStyles() {
 }
 
 // Helper untuk mengambil metrik wilayah (Jumlah TPK dan Jumlah KRS)
+function findStatsByCodeOrExactName<
+  T extends { tpk: number; krs: number },
+>(
+  items: T[],
+  cleanCode: string,
+  nameKey: string,
+  getCode: (item: T) => string,
+  getName: (item: T) => string,
+): T | undefined {
+  const byCode = items.find((item) => {
+    const c = getCode(item).replace(/\D/g, "");
+    return Boolean(c) && (c === cleanCode || c.padStart(2, "0") === cleanCode);
+  });
+  if (byCode) return byCode;
+  if (!nameKey) return undefined;
+  // Exact normalized name only — jangan pakai includes():
+  // "papua tengah".includes("papua") sempat menempelkan metrik Papua (91)
+  // ke poligon DOB 93–96 yang seharusnya punya baris sendiri.
+  return items.find((item) => normalizeWilayahNama(getName(item)) === nameKey);
+}
+
 function getWilayahStats(
   code: string,
   name: string,
@@ -332,17 +356,16 @@ function getWilayahStats(
   kecamatanList?: { id: string; nama: string; tpk: number; krs: number }[],
   kelurahanList?: { id: string; nama: string; tpk: number; krs: number }[],
 ): { tpk: number; krs: number } {
-  const cleanCode = String(code || "").replace(/\./g, "").trim();
-  const lowerName = String(name || "").toLowerCase().trim();
+  const cleanCode = String(code || "").replace(/\D/g, "").trim();
+  const nameKey = normalizeWilayahNama(name || "");
 
-  // 1. Cek di daftar provinsi resmi (mock provinsi)
-  const prov = provinces.find(
-    (p) =>
-      String(p.adminCode) === cleanCode ||
-      String(p.adminCode).padStart(2, "0") === cleanCode ||
-      p.name.toLowerCase() === lowerName ||
-      lowerName.includes(p.name.toLowerCase()) ||
-      p.name.toLowerCase().includes(lowerName),
+  // 1. Provinsi — kode Kemendagri (91–96) atau nama exact
+  const prov = findStatsByCodeOrExactName(
+    provinces,
+    cleanCode,
+    nameKey,
+    (p) => String(p.adminCode),
+    (p) => p.name,
   );
   if (prov) {
     return {
@@ -351,14 +374,14 @@ function getWilayahStats(
     };
   }
 
-  // 2. Cek di daftar kabupaten aktif (mock kab/kota)
+  // 2. Kabupaten aktif
   if (kabupatenList && kabupatenList.length > 0) {
-    const kab = kabupatenList.find(
-      (k) =>
-        k.id === cleanCode ||
-        k.nama.toLowerCase() === lowerName ||
-        lowerName.includes(k.nama.toLowerCase()) ||
-        k.nama.toLowerCase().includes(lowerName),
+    const kab = findStatsByCodeOrExactName(
+      kabupatenList,
+      cleanCode,
+      nameKey,
+      (k) => k.id,
+      (k) => k.nama,
     );
     if (kab) {
       return {
@@ -368,14 +391,14 @@ function getWilayahStats(
     }
   }
 
-  // 3. Cek di daftar kecamatan aktif (mock kecamatan)
+  // 3. Kecamatan aktif
   if (kecamatanList && kecamatanList.length > 0) {
-    const kec = kecamatanList.find(
-      (k) =>
-        k.id === cleanCode ||
-        k.nama.toLowerCase() === lowerName ||
-        lowerName.includes(k.nama.toLowerCase()) ||
-        k.nama.toLowerCase().includes(lowerName),
+    const kec = findStatsByCodeOrExactName(
+      kecamatanList,
+      cleanCode,
+      nameKey,
+      (k) => k.id,
+      (k) => k.nama,
     );
     if (kec) {
       return {
@@ -385,14 +408,14 @@ function getWilayahStats(
     }
   }
 
-  // 4. Cek di daftar desa/kelurahan aktif (mock kelurahan)
+  // 4. Desa/kelurahan aktif
   if (kelurahanList && kelurahanList.length > 0) {
-    const kel = kelurahanList.find(
-      (k) =>
-        k.id === cleanCode ||
-        k.nama.toLowerCase() === lowerName ||
-        lowerName.includes(k.nama.toLowerCase()) ||
-        k.nama.toLowerCase().includes(lowerName),
+    const kel = findStatsByCodeOrExactName(
+      kelurahanList,
+      cleanCode,
+      nameKey,
+      (k) => k.id,
+      (k) => k.nama,
     );
     if (kel) {
       return {
@@ -403,7 +426,7 @@ function getWilayahStats(
   }
 
   // 5. Fallback deterministik berbasis hash nama atau kode wilayah
-  const hashKey = cleanCode || lowerName;
+  const hashKey = cleanCode || nameKey;
   const hash = hashKey.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const fallbackTpk = Math.max(12, ((hash * 17) % 240) + 30);
   const fallbackKrs = fallbackTpk * (((hash % 20) + 35));
@@ -692,12 +715,7 @@ export function MasterWilayahMap({
           const tMax = thematicValues.length
             ? Math.max(...thematicValues)
             : 1;
-          const thematicByCode = new Map(
-            (thematicData || []).map((d) => [
-              String(d.code).replace(/\D/g, ""),
-              d.value,
-            ]),
-          );
+          const thematicLookups = indexThematicLookups(thematicData);
 
           const cleanVillage =
             currentLevel === "desa" && villageCode
@@ -710,11 +728,12 @@ export function MasterWilayahMap({
               const codeStr = String(
                 featProps.code || featProps.kode || "",
               ).replace(/\D/g, "");
+              const featName = String(featProps.name || "");
 
               if (cleanVillage) {
                 if (codeStr === cleanVillage) {
                   const selected = buildSelectedPathStyle(
-                    steps[steps.length - 1] ?? "#0f766e",
+                    steps[steps.length - 1] ?? "#1d4ed8",
                   );
                   layer._mwBaseStyle = selected;
                   layer.setStyle?.(selected);
@@ -741,7 +760,11 @@ export function MasterWilayahMap({
                   return;
                 }
               } else {
-                const fromData = thematicByCode.get(codeStr);
+                const fromData = lookupThematicValue(
+                  thematicLookups,
+                  codeStr,
+                  featName,
+                );
                 const thematicVal =
                   fromData ??
                   (featProps.thematic?.value != null
