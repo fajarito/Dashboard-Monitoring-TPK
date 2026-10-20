@@ -34,3 +34,12 @@ export function isUnresolvedKecName(name: string, apiId?: string): boolean {
   if (apiId && trimmed === kecNameFallback(apiId)) return true;
   return false;
 }
+
+export function isUnresolvedKelName(name: string, apiId?: string): boolean {
+  const trimmed = name.trim();
+  if (/^Desa\/Kelurahan\s*\(\s*ID\s+\d+\s*\)$/i.test(trimmed)) return true;
+  if (/^Desa\/Kelurahan\s+\d+$/i.test(trimmed)) return true;
+  if (apiId && trimmed === `Desa/Kelurahan ${apiId}`) return true;
+  if (apiId && trimmed === kelNameFallback(apiId)) return true;
+  return false;
+}

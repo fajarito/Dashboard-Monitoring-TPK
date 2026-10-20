@@ -190,6 +190,36 @@ export function getTpkListMock(query: TpkListQuery): TpkListPayload {
     });
   }
 
+  // Samakan ID sintetis dengan peringkat-kelurahan mock: kecApiId * 100 + index + 1
+  if (query.kelurahanId != null) {
+    const kecApi =
+      query.kecamatanId ??
+      (kecSlug
+        ? Number.parseInt(getKecamatanApiId(kecSlug) ?? "", 10)
+        : NaN);
+    const desaOrder: string[] = [];
+    const seen = new Set<string>();
+    for (const tpk of list) {
+      const nama = (tpk.desa?.trim() || tpk.name).toLowerCase();
+      if (!seen.has(nama)) {
+        seen.add(nama);
+        desaOrder.push(nama);
+      }
+    }
+    const targetNama = desaOrder.find((_, index) => {
+      const base = Number.isFinite(kecApi) && kecApi > 0 ? kecApi : 0;
+      const id = base * 100 + index + 1 || index + 1;
+      return id === query.kelurahanId;
+    });
+    if (targetNama) {
+      list = list.filter(
+        (tpk) => (tpk.desa?.trim() || tpk.name).toLowerCase() === targetNama,
+      );
+    } else {
+      list = [];
+    }
+  }
+
   const qRaw = query.q?.trim() || "";
   const q = qRaw.toLowerCase();
   if (q) {

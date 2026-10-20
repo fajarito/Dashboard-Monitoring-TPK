@@ -140,6 +140,8 @@ function SummaryKpiCards({
  */
 export function LiveKecamatanWilayahPanel({
   provinceSlug,
+  kabSlug,
+  kecSlug,
   provinsiApiId,
   kabupatenApiId,
   kecamatanApiId,
@@ -148,6 +150,8 @@ export function LiveKecamatanWilayahPanel({
   provinceName,
 }: {
   provinceSlug: string;
+  kabSlug: string;
+  kecSlug: string;
   provinsiApiId: string;
   kabupatenApiId: string;
   kecamatanApiId: string;
@@ -206,8 +210,7 @@ export function LiveKecamatanWilayahPanel({
       krs: item.krs,
       sasaran: indikatorToSasaran(item),
       tpkCount: item.tpk,
-      // Belum ada halaman desa terpisah — deep-link ke daftar TPK kec + filter kel.
-      href: `/wilayah/${provinceSlug}/tpk?kabupatenId=${encodeURIComponent(kabupatenApiId)}&kecamatanId=${encodeURIComponent(kecamatanApiId)}&kelurahanId=${encodeURIComponent(item.id)}`,
+      href: `/wilayah/${provinceSlug}/kab/${kabSlug}/kec/${kecSlug}/desa/${encodeURIComponent(item.id)}`,
     })) ?? [];
 
   const sasaranCounts: SasaranCounts | null = ringkasan.ringkasan
