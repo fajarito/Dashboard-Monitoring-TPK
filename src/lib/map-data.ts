@@ -24,10 +24,10 @@ export const metricLabels: Record<MetricKey, string> = {
 };
 
 export const metricHelp: Record<MetricKey, string> = {
-  tpk: "Tim Pendamping Keluarga di wilayah.",
-  anggota: "Total anggota TPK (misalnya Bidan/Perawat, PKK, Kader KB).",
-  pkb: "Koordinator / petugas PKB–PLKB pembina wilayah.",
-  krs: "Keluarga unik yang berisiko stunting di wilayah.",
+  tpk: "KPI: jumlah tim. Warna peta: rasio TPK / keluarga sasaran.",
+  anggota: "KPI + warna peta: jumlah personil TPK (Bidan/PKK/Kader KB, dll.).",
+  pkb: "KPI: jumlah PKB. Warna peta: rasio desa binaan / PKB.",
+  krs: "KPI: jumlah KRS. Warna peta: % KRS terhadap keluarga sasaran.",
 };
 
 export const metricOptions: MetricKey[] = ["tpk", "anggota", "pkb", "krs"];

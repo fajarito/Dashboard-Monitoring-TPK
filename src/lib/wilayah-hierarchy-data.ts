@@ -22,6 +22,8 @@ export type WilayahChildRow = {
   krs: number;
   sasaran: SasaranCounts;
   tpkCount: number;
+  /** Kode Kemendagri (4/6/10 digit) untuk join choropleth — opsional. */
+  kode?: string;
 };
 
 export type KabupatenUnit = WilayahChildRow & {
@@ -94,25 +96,86 @@ const DEPOK_KECAMATAN = [
   "Tapos",
 ] as const;
 
-/** Kabupaten/Kota inti Jawa Barat untuk demo drill-down. */
-const JABAR_KAB: { id: string; name: string; share: number; kec?: string[] }[] =
-  [
-    {
-      id: "kota-depok",
-      name: "Kota Depok",
-      share: 0.09,
-      kec: [...DEPOK_KECAMATAN],
-    },
-    { id: "kota-bandung", name: "Kota Bandung", share: 0.12 },
-    { id: "kab-bandung", name: "Kabupaten Bandung", share: 0.14 },
-    { id: "kab-bogor", name: "Kabupaten Bogor", share: 0.16 },
-    { id: "kota-bogor", name: "Kota Bogor", share: 0.07 },
-    { id: "kota-bekasi", name: "Kota Bekasi", share: 0.11 },
-    { id: "kab-bekasi", name: "Kabupaten Bekasi", share: 0.13 },
-    { id: "kab-karawang", name: "Kabupaten Karawang", share: 0.1 },
-    { id: "kota-cirebon", name: "Kota Cirebon", share: 0.04 },
-    { id: "kab-garut", name: "Kabupaten Garut", share: 0.04 },
-  ];
+/**
+ * Seluruh 27 kab/kota Jawa Barat (Kemendagri) agar choropleth mock
+ * tidak menyisakan poligon abu karena gap data — join by `kode`.
+ */
+const JABAR_KAB: {
+  id: string;
+  name: string;
+  share: number;
+  kode: string;
+  kec?: string[];
+}[] = [
+  { id: "kab-bogor", name: "Kabupaten Bogor", share: 0.09, kode: "3201" },
+  { id: "kab-sukabumi", name: "Kabupaten Sukabumi", share: 0.035, kode: "3202" },
+  { id: "kab-cianjur", name: "Kabupaten Cianjur", share: 0.03, kode: "3203" },
+  { id: "kab-bandung", name: "Kabupaten Bandung", share: 0.08, kode: "3204" },
+  { id: "kab-garut", name: "Kabupaten Garut", share: 0.03, kode: "3205" },
+  {
+    id: "kab-tasikmalaya",
+    name: "Kabupaten Tasikmalaya",
+    share: 0.025,
+    kode: "3206",
+  },
+  { id: "kab-ciamis", name: "Kabupaten Ciamis", share: 0.02, kode: "3207" },
+  { id: "kab-kuningan", name: "Kabupaten Kuningan", share: 0.02, kode: "3208" },
+  { id: "kab-cirebon", name: "Kabupaten Cirebon", share: 0.03, kode: "3209" },
+  {
+    id: "kab-majalengka",
+    name: "Kabupaten Majalengka",
+    share: 0.02,
+    kode: "3210",
+  },
+  { id: "kab-sumedang", name: "Kabupaten Sumedang", share: 0.02, kode: "3211" },
+  {
+    id: "kab-indramayu",
+    name: "Kabupaten Indramayu",
+    share: 0.025,
+    kode: "3212",
+  },
+  { id: "kab-subang", name: "Kabupaten Subang", share: 0.025, kode: "3213" },
+  {
+    id: "kab-purwakarta",
+    name: "Kabupaten Purwakarta",
+    share: 0.02,
+    kode: "3214",
+  },
+  { id: "kab-karawang", name: "Kabupaten Karawang", share: 0.055, kode: "3215" },
+  { id: "kab-bekasi", name: "Kabupaten Bekasi", share: 0.07, kode: "3216" },
+  {
+    id: "kab-bandung-barat",
+    name: "Kabupaten Bandung Barat",
+    share: 0.025,
+    kode: "3217",
+  },
+  {
+    id: "kab-pangandaran",
+    name: "Kabupaten Pangandaran",
+    share: 0.015,
+    kode: "3218",
+  },
+  { id: "kota-bogor", name: "Kota Bogor", share: 0.04, kode: "3271" },
+  { id: "kota-sukabumi", name: "Kota Sukabumi", share: 0.015, kode: "3272" },
+  { id: "kota-bandung", name: "Kota Bandung", share: 0.07, kode: "3273" },
+  { id: "kota-cirebon", name: "Kota Cirebon", share: 0.02, kode: "3274" },
+  { id: "kota-bekasi", name: "Kota Bekasi", share: 0.06, kode: "3275" },
+  {
+    id: "kota-depok",
+    name: "Kota Depok",
+    share: 0.05,
+    kode: "3276",
+    kec: [...DEPOK_KECAMATAN],
+  },
+  { id: "kota-cimahi", name: "Kota Cimahi", share: 0.02, kode: "3277" },
+  {
+    id: "kota-tasikmalaya",
+    name: "Kota Tasikmalaya",
+    share: 0.02,
+    kode: "3278",
+  },
+  { id: "kota-banjar", name: "Kota Banjar", share: 0.01, kode: "3279" },
+];
 
 const GENERIC_KEC_NAMES = [
   "Sukamaju",
@@ -210,6 +273,7 @@ function buildJabarKabupaten(province: Province): KabupatenUnit[] {
       krs,
       sasaran,
       tpkCount,
+      kode: kab.kode,
       kecamatan,
     };
   });

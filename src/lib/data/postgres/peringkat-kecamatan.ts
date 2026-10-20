@@ -22,6 +22,7 @@ const MAX_ROWS = 120;
 type SigaKecRow = {
   id_kecamatan: number;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
 };
@@ -85,6 +86,17 @@ WITH tpk AS (
     AND t."KecamatanID" IS NOT NULL
   GROUP BY t."KecamatanID"
 ),
+anggota AS (
+  SELECT
+    t."KecamatanID" AS id_kecamatan,
+    COUNT(*)::int AS anggota
+  FROM "sigabaru"."dat_AnggotaTPK" a
+  INNER JOIN "sigabaru"."dat_TPK" t
+    ON t."TPKID" = a."TPKID" AND t."Status" = 1
+  WHERE t."KabupatenID" = $1
+    AND t."KecamatanID" IS NOT NULL
+  GROUP BY t."KecamatanID"
+),
 pkb AS (
   SELECT
     p."KecamatanID" AS id_kecamatan,
@@ -99,14 +111,18 @@ ids AS (
   SELECT id_kecamatan FROM tpk
   UNION
   SELECT id_kecamatan FROM pkb
+  UNION
+  SELECT id_kecamatan FROM anggota
 )
 SELECT
   i.id_kecamatan,
   COALESCE(t.tpk, 0)::int AS tpk,
+  COALESCE(a.anggota, 0)::int AS anggota,
   COALESCE(p.pkb, 0)::int AS pkb,
   COALESCE(t.desa, 0)::int AS desa
 FROM ids i
 LEFT JOIN tpk t ON t.id_kecamatan = i.id_kecamatan
+LEFT JOIN anggota a ON a.id_kecamatan = i.id_kecamatan
 LEFT JOIN pkb p ON p.id_kecamatan = i.id_kecamatan
 `;
 
@@ -154,11 +170,12 @@ export async function getPeringkatKecamatanPostgres(
 
   const sigaById = new Map<
     number,
-    { tpk: number; pkb: number; desa: number }
+    { tpk: number; anggota: number; pkb: number; desa: number }
   >();
   for (const row of siga.rows) {
     sigaById.set(toInt(row.id_kecamatan), {
       tpk: toInt(row.tpk),
+      anggota: toInt(row.anggota),
       pkb: toInt(row.pkb),
       desa: toInt(row.desa),
     });
@@ -220,6 +237,7 @@ export async function getPeringkatKecamatanPostgres(
       const sigaRow = sigaById.get(id);
       const dwhRow = dwhById.get(id);
       const tpk = sigaRow?.tpk ?? 0;
+      const anggota = sigaRow?.anggota ?? 0;
       const pkb = sigaRow?.pkb ?? 0;
       const desa = sigaRow?.desa ?? 0;
       const krs = dwhRow?.krs ?? 0;
@@ -228,6 +246,7 @@ export async function getPeringkatKecamatanPostgres(
         id: String(id),
         nama: namaById.get(id) ?? `Kecamatan ${id}`,
         tpk,
+        anggota,
         pkb,
         desa,
         krs,

@@ -50,6 +50,7 @@ export function getPeringkatKecamatanMock(
         id: String(apiId),
         nama: kec.name,
         tpk: kec.tpkCount,
+        anggota: Math.max(1, Math.round(kec.tpkCount * 3)),
         pkb,
         desa,
         krs: kec.krs,
@@ -57,6 +58,7 @@ export function getPeringkatKecamatanMock(
         rasio: getKrsPerTpkRatio(kec.tpkCount, kec.krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode: kec.kode ?? null,
         indikator: {
           bumil: kec.sasaran.ibuHamil,
           baduta: kec.sasaran.baduta,

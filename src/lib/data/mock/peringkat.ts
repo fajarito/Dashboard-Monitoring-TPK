@@ -6,6 +6,7 @@ import {
   provinces,
 } from "@/lib/map-data";
 import { getProvinsiApiId } from "@/lib/province-api-id";
+import { getKeluargaSasaranForProvince } from "@/lib/sasaran-indikator";
 
 import type { DataSource, PeringkatProvinsiPayload } from "@/lib/data/types";
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
@@ -27,12 +28,15 @@ export function getPeringkatProvinsiMock(): PeringkatProvinsiPayload {
         id: getProvinsiApiId(province) ?? province.id,
         nama: province.name,
         tpk: province.tpk,
+        anggota: province.anggota,
         pkb: province.pkb,
         desa,
         krs: province.krs,
+        keluargaSasaran: getKeluargaSasaranForProvince(province),
         rasio: getKrsPerTpkRatio(province.tpk, province.krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode: String(province.adminCode).padStart(2, "0"),
       };
     });
 

@@ -102,6 +102,7 @@ export function getPeringkatKelurahanMock(
         id,
         nama: row.nama,
         tpk: row.tpk,
+        anggota: Math.max(1, Math.round(row.tpk * 3)),
         pkb,
         desa,
         krs: row.krs,

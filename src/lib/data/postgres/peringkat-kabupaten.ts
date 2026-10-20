@@ -22,6 +22,7 @@ const MAX_ROWS = 80;
 type SigaKabRow = {
   id_kabupaten: number;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
 };
@@ -83,6 +84,17 @@ WITH tpk AS (
     AND t."KabupatenID" IS NOT NULL
   GROUP BY t."KabupatenID"
 ),
+anggota AS (
+  SELECT
+    t."KabupatenID" AS id_kabupaten,
+    COUNT(*)::int AS anggota
+  FROM "sigabaru"."dat_AnggotaTPK" a
+  INNER JOIN "sigabaru"."dat_TPK" t
+    ON t."TPKID" = a."TPKID" AND t."Status" = 1
+  WHERE t."ProvinsiID" = $1
+    AND t."KabupatenID" IS NOT NULL
+  GROUP BY t."KabupatenID"
+),
 pkb_aktif AS (
   SELECT
     p."KabupatenID" AS id_kabupaten,
@@ -114,14 +126,18 @@ ids AS (
   SELECT id_kabupaten FROM pkb
   UNION
   SELECT id_kabupaten FROM desa
+  UNION
+  SELECT id_kabupaten FROM anggota
 )
 SELECT
   i.id_kabupaten,
   COALESCE(t.tpk, 0)::int AS tpk,
+  COALESCE(a.anggota, 0)::int AS anggota,
   COALESCE(p.pkb, 0)::int AS pkb,
   COALESCE(d.desa, 0)::int AS desa
 FROM ids i
 LEFT JOIN tpk t ON t.id_kabupaten = i.id_kabupaten
+LEFT JOIN anggota a ON a.id_kabupaten = i.id_kabupaten
 LEFT JOIN pkb p ON p.id_kabupaten = i.id_kabupaten
 LEFT JOIN desa d ON d.id_kabupaten = i.id_kabupaten
 `;
@@ -169,11 +185,12 @@ export async function getPeringkatKabupatenPostgres(
 
   const sigaById = new Map<
     number,
-    { tpk: number; pkb: number; desa: number }
+    { tpk: number; anggota: number; pkb: number; desa: number }
   >();
   for (const row of siga.rows) {
     sigaById.set(toInt(row.id_kabupaten), {
       tpk: toInt(row.tpk),
+      anggota: toInt(row.anggota),
       pkb: toInt(row.pkb),
       desa: toInt(row.desa),
     });
@@ -234,6 +251,7 @@ export async function getPeringkatKabupatenPostgres(
       const sigaRow = sigaById.get(id);
       const dwhRow = dwhById.get(id);
       const tpk = sigaRow?.tpk ?? 0;
+      const anggota = sigaRow?.anggota ?? 0;
       const pkb = sigaRow?.pkb ?? 0;
       const desa = sigaRow?.desa ?? 0;
       const krs = dwhRow?.krs ?? 0;
@@ -242,6 +260,7 @@ export async function getPeringkatKabupatenPostgres(
         id: String(id),
         nama: namaById.get(id) ?? `Kabupaten ${id}`,
         tpk,
+        anggota,
         pkb,
         desa,
         krs,

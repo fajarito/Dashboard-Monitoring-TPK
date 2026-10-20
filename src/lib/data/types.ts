@@ -81,11 +81,15 @@ export type PeringkatProvinsiItem = {
   id: string;
   nama: string;
   tpk: number;
+  /** COUNT dat_AnggotaTPK join TPK aktif per ProvinsiID. */
+  anggota: number;
   /** COUNT dat_PKB Status=1 per ProvinsiID. */
   pkb: number;
   /** COUNT desa binaan aktif join PKB aktif, group by PKB.ProvinsiID. */
   desa: number;
   krs: number;
+  /** SUM(jumlah_keluarga_sasaran) grain RT per id_provinsi. */
+  keluargaSasaran: number;
   /** KRS ÷ TPK (sama getKrsPerTpkRatio). */
   rasio: number;
   /** desa ÷ PKB (sama getDesaPerPkbRatio). */
@@ -106,6 +110,8 @@ export type PeringkatKabupatenItem = {
   id: string;
   nama: string;
   tpk: number;
+  /** COUNT anggota TPK aktif dalam kab. */
+  anggota: number;
   pkb: number;
   desa: number;
   krs: number;
@@ -131,6 +137,7 @@ export type PeringkatKecamatanItem = {
   id: string;
   nama: string;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
   krs: number;
@@ -154,6 +161,7 @@ export type PeringkatKelurahanItem = {
   id: string;
   nama: string;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
   krs: number;

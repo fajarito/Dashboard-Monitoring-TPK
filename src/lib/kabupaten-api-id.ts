@@ -26,6 +26,14 @@ export const KABUPATEN_ID_BY_SLUG: Record<string, number> = {
   "kota-tasikmalaya": 168,
   "kota-cimahi": 167,
   "kab-pangandaran": 499,
+  "kab-ciamis": 157,
+  "kab-kuningan": 158,
+  "kab-majalengka": 159,
+  "kab-sumedang": 160,
+  "kab-indramayu": 146,
+  "kab-subang": 152,
+  "kab-purwakarta": 155,
+  "kota-banjar": 169,
   "kab-sleman": 206,
 };
 

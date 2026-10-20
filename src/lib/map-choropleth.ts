@@ -1,11 +1,17 @@
 /**
  * Skala warna choropleth untuk Dashboard Monitoring TPK.
- * Default Jumlah TPK: sequential blues (icy → navy), 5 kelas —
- * selaras legenda referensi user. Tanpa teal→coral / ungu neon.
+ *
+ * Metrik UI (KPI switcher) → nilai pewarnaan peta:
+ * - Jumlah TPK      → rasio TPK / keluarga sasaran
+ * - Jumlah Anggota  → jumlah personil (anggota)
+ * - Jumlah PKB      → rasioPkbDesa (desa ÷ PKB)
+ * - Jumlah KRS      → % KRS terhadap keluarga sasaran
+ *
+ * Palette: sequential blues (icy → navy), 5 kelas.
  */
 
 import type { MetricKey } from "@/lib/map-data";
-import { formatNumber } from "@/lib/map-data";
+import { formatNumber, formatRatioValue } from "@/lib/map-data";
 import type { MasterWilayahThematicDataItem } from "@/types/master-wilayah";
 
 /**
@@ -22,23 +28,11 @@ export const CHOROPLETH_TPK = [
   "#0c2340",
 ] as const;
 
-/** Amber → coral — Jumlah KRS (metrik sekunder, tetap sequential). */
-export const CHOROPLETH_KRS = [
-  "#fef3c7",
-  "#fbbf24",
-  "#f59e0b",
-  "#d97706",
-  "#92400e",
-] as const;
+/** @deprecated Amber palette — semua mode peta memakai blues. */
+export const CHOROPLETH_KRS = CHOROPLETH_TPK;
 
-/** Deep navy → sky — rasio / beban (tetap di keluarga biru). */
-export const CHOROPLETH_RASIO = [
-  "#b9e6fe",
-  "#38bdf8",
-  "#0284c7",
-  "#1d4ed8",
-  "#0c2340",
-] as const;
+/** @deprecated Rasio palette — semua mode peta memakai blues. */
+export const CHOROPLETH_RASIO = CHOROPLETH_TPK;
 
 /** Netral (tanpa cast biru) — hanya untuk wilayah benar-benar tanpa metrik. */
 export const CHOROPLETH_NO_DATA = "#e8edf2";
@@ -55,44 +49,62 @@ export type SdkPaletteName =
 
 export type ChoroplethMetric = MetricKey | "rasio";
 
-export function sdkPaletteForMetric(metric: ChoroplethMetric): SdkPaletteName {
-  switch (metric) {
-    case "krs":
-      return "oranges";
-    case "rasio":
-      return "emerald";
-    case "pkb":
-    case "anggota":
-    case "tpk":
-    default:
-      return "blues";
-  }
+export function sdkPaletteForMetric(_metric: ChoroplethMetric): SdkPaletteName {
+  // Semua mode switcher mewarnai dengan sequential blues.
+  return "blues";
 }
+
+/**
+ * Alias nama resmi → bentuk short yang dipakai mock/UI.
+ * Dipakai dua arah saat normalize agar DKI/DIY tetap cocok ke GeoJSON MW.
+ */
+const WILAYAH_NAME_ALIASES: Record<string, string> = {
+  "daerah khusus ibukota jakarta": "dki jakarta",
+  "khusus ibukota jakarta": "dki jakarta",
+  "dki jakarta": "dki jakarta",
+  jakarta: "dki jakarta",
+  "daerah istimewa yogyakarta": "yogyakarta",
+  "di yogyakarta": "yogyakarta",
+  yogyakarta: "yogyakarta",
+};
 
 /** Normalisasi nama wilayah untuk cocokkan poligon ↔ baris metrik. */
 export function normalizeWilayahNama(value: string): string {
-  return value
+  // Pertahankan kota vs kabupaten agar "Kota Bogor" ≠ "Kabupaten Bogor".
+  let key = value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/\b(kab\.?|kabupaten)\b/g, "kabupaten")
+    .replace(/\bkota\b/g, "kota")
     .replace(
-      /\b(provinsi|daerah istimewa|di|kabupaten|kota|kecamatan|desa|kelurahan|kel)\b/g,
+      /\b(provinsi|daerah istimewa|daerah khusus ibukota|daerah khusus|di|dki|kecamatan|desa|kelurahan|kel)\b/g,
       " ",
     )
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+
+  // Canonicalize known aliases (DKI / DIY) after stripping prefixes.
+  const raw = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  if (WILAYAH_NAME_ALIASES[raw]) {
+    key = WILAYAH_NAME_ALIASES[raw];
+  } else if (WILAYAH_NAME_ALIASES[key]) {
+    key = WILAYAH_NAME_ALIASES[key];
+  } else if (key === "jakarta" || key === "ibukota jakarta") {
+    key = "dki jakarta";
+  }
+
+  return key;
 }
 
 /** Hex steps dipakai saat mewarnai poligon client-side (sumber kebenaran). */
-export function hexStepsForMetric(metric: ChoroplethMetric): readonly string[] {
-  switch (metric) {
-    case "krs":
-      return CHOROPLETH_KRS;
-    case "rasio":
-      return CHOROPLETH_RASIO;
-    default:
-      return CHOROPLETH_TPK;
-  }
+export function hexStepsForMetric(_metric: ChoroplethMetric): readonly string[] {
+  return CHOROPLETH_TPK;
 }
 
 export function colorForValue(
@@ -117,25 +129,59 @@ export type MetricRow = {
   tpk: number;
   krs: number;
   pkb?: number;
+  /** Personil TPK (live SIGA COUNT anggota; mock province.anggota). */
+  anggota?: number;
+  /** Denominator DWH jumlah_keluarga_sasaran. */
+  keluargaSasaran?: number;
+  /** Desa/kelurahan binaan (SIGA) — numerator rasioPkbDesa. */
+  desa?: number;
+  /** KRS ÷ TPK (ranking lama). */
   rasio?: number;
+  /** desa ÷ PKB — sama ranking rasioPkbDesa. */
+  rasioPkbDesa?: number;
   /** Kode Kemendagri penuh untuk SDK (2/4/6/10 digit). */
   kode?: string | null;
 };
 
+/**
+ * Nilai pewarnaan choropleth untuk mode switcher.
+ * null = denominator kosong / metrik absen → nodata gray (bukan join miss).
+ */
 export function metricValueFromRow(
   row: MetricRow,
   metric: ChoroplethMetric,
-): number {
+): number | null {
   switch (metric) {
-    case "krs":
-      return row.krs;
-    case "pkb":
-      return row.pkb ?? 0;
+    case "tpk": {
+      // Rasio Tim TPK / Keluarga Sasaran
+      const denom = row.keluargaSasaran ?? 0;
+      if (denom <= 0) return null;
+      return row.tpk / denom;
+    }
+    case "anggota": {
+      if (row.anggota != null && Number.isFinite(row.anggota)) {
+        return row.anggota;
+      }
+      return null;
+    }
+    case "pkb": {
+      // Sama konsep ranking rasioPkbDesa = desa ÷ PKB
+      if (row.rasioPkbDesa != null && Number.isFinite(row.rasioPkbDesa)) {
+        return row.rasioPkbDesa;
+      }
+      const pkb = row.pkb ?? 0;
+      const desa = row.desa ?? 0;
+      if (pkb <= 0) return null;
+      return desa / pkb;
+    }
+    case "krs": {
+      // % KRS terhadap Jumlah Keluarga Sasaran
+      const denom = row.keluargaSasaran ?? 0;
+      if (denom <= 0) return null;
+      return (row.krs / denom) * 100;
+    }
     case "rasio":
-      return row.rasio ?? (row.tpk > 0 ? row.krs / row.tpk : 0);
-    case "anggota":
-      return row.tpk * 3;
-    case "tpk":
+      return row.rasio ?? (row.tpk > 0 ? row.krs / row.tpk : null);
     default:
       return row.tpk;
   }
@@ -144,16 +190,17 @@ export function metricValueFromRow(
 export function metricUnitLabel(metric: ChoroplethMetric): string {
   switch (metric) {
     case "krs":
-      return "keluarga";
+      return "% KRS/sasaran";
     case "pkb":
-      return "petugas";
+      return "desa/PKB";
     case "rasio":
       return "KRS/TPK";
     case "anggota":
       return "orang";
     case "tpk":
+      return "TPK/sasaran";
     default:
-      return "tim";
+      return "";
   }
 }
 
@@ -173,9 +220,44 @@ export function metricDisplayLabel(metric: ChoroplethMetric): string {
   }
 }
 
+/** Label rumus pewarnaan (untuk legenda / tooltip peta). */
+export function choroplethFormulaLabel(metric: ChoroplethMetric): string {
+  switch (metric) {
+    case "tpk":
+      return "Rasio TPK / Keluarga Sasaran";
+    case "anggota":
+      return "Jumlah personil (anggota TPK)";
+    case "pkb":
+      return "Rasio desa binaan / PKB";
+    case "krs":
+      return "% KRS terhadap Keluarga Sasaran";
+    case "rasio":
+      return "Rasio KRS / TPK";
+    default:
+      return metricDisplayLabel(metric);
+  }
+}
+
+export function formatChoroplethValue(
+  value: number,
+  metric: ChoroplethMetric,
+): string {
+  switch (metric) {
+    case "tpk":
+    case "pkb":
+    case "rasio":
+      return formatRatioValue(value, 3);
+    case "krs":
+      return `${formatRatioValue(value, 1)}%`;
+    case "anggota":
+    default:
+      return formatNumber(value);
+  }
+}
+
 /**
  * Default metrik peta = Jumlah TPK (sama default home / Peta Sebaran).
- * Rasio tersedia sebagai opsi sekunder.
+ * Pewarnaan memakai rasio TPK/sasaran — bukan raw count.
  */
 export const DEFAULT_MAP_METRIC: ChoroplethMetric = "tpk";
 
@@ -190,40 +272,50 @@ export function buildThematicData(
     const code =
       (row.kode && String(row.kode).replace(/\D/g, "")) ||
       codeById.get(row.id) ||
-      codeById.get(String(Number(row.id)));
-    if (!code) continue;
+      codeById.get(String(Number(row.id))) ||
+      "";
     const value = metricValueFromRow(row, metric);
+    // Tetap emit baris bila ada kode ATAU nama — name-join menutup gap kode.
+    // value null (denom 0) tidak di-index sebagai angka → nodata gray setelah join.
+    if (!code && !row.nama) continue;
+    if (value == null || !Number.isFinite(value)) continue;
     out.push({
-      code,
+      code: code || `name:${normalizeWilayahNama(row.nama)}`,
       value,
       name: row.nama,
-      label: `${row.nama}: ${formatNumber(value)} ${unit}`.trim(),
+      label: `${row.nama}: ${formatChoroplethValue(value, metric)} ${unit}`.trim(),
     });
   }
   return out;
 }
 
+export type ThematicLookups = {
+  byCode: Map<string, number>;
+  byName: Map<string, number>;
+};
+
 /**
  * Index thematic rows by Kemendagri code and exact normalized name.
- * Name index avoids gray fills when GeoJSON has DOB codes (93–96) that
- * must join even if a code string is oddly padded.
+ * Name index menghindari gray fill bila kode poligon beda padding / DOB.
  */
 export function indexThematicLookups(
   thematicData: MasterWilayahThematicDataItem[] | undefined | null,
-): {
-  byCode: Map<string, number>;
-  byName: Map<string, number>;
-} {
+): ThematicLookups {
   const byCode = new Map<string, number>();
   const byName = new Map<string, number>();
   for (const item of thematicData || []) {
     const code = String(item.code ?? "").replace(/\D/g, "");
     if (code && Number.isFinite(item.value)) {
       byCode.set(code, item.value);
-      // Also index unpadded / zero-padded 2-digit forms for provinces.
       byCode.set(code.replace(/^0+/, "") || "0", item.value);
       if (code.length <= 2) {
         byCode.set(code.padStart(2, "0"), item.value);
+      }
+      if (code.length <= 4) {
+        byCode.set(code.padStart(4, "0"), item.value);
+      }
+      if (code.length <= 6) {
+        byCode.set(code.padStart(6, "0"), item.value);
       }
     }
     const rawName =
@@ -239,20 +331,24 @@ export function indexThematicLookups(
 }
 
 export function lookupThematicValue(
-  lookups: {
-    byCode: Map<string, number>;
-    byName: Map<string, number>;
-  },
+  lookups: ThematicLookups,
   code: string,
   name: string,
 ): number | null {
   const codeStr = String(code || "").replace(/\D/g, "");
   if (codeStr) {
-    const fromCode =
-      lookups.byCode.get(codeStr) ??
-      lookups.byCode.get(codeStr.padStart(2, "0")) ??
-      lookups.byCode.get(codeStr.replace(/^0+/, "") || "0");
-    if (fromCode != null && Number.isFinite(fromCode)) return fromCode;
+    const candidates = [
+      codeStr,
+      codeStr.padStart(2, "0"),
+      codeStr.padStart(4, "0"),
+      codeStr.padStart(6, "0"),
+      codeStr.padStart(10, "0"),
+      codeStr.replace(/^0+/, "") || "0",
+    ];
+    for (const c of candidates) {
+      const fromCode = lookups.byCode.get(c);
+      if (fromCode != null && Number.isFinite(fromCode)) return fromCode;
+    }
   }
   const key = normalizeWilayahNama(name || "");
   if (key) {
@@ -260,6 +356,26 @@ export function lookupThematicValue(
     if (fromName != null && Number.isFinite(fromName)) return fromName;
   }
   return null;
+}
+
+/**
+ * Audit join miss: poligon punya data di thematic rows (by name/code intent)
+ * tetapi lookup gagal. Dipakai smoke / dev log.
+ */
+export function auditUnmatchedFeatures(
+  features: Array<{ code?: string; name?: string }>,
+  lookups: ThematicLookups,
+): { matched: number; unmatched: Array<{ code: string; name: string }> } {
+  const unmatched: Array<{ code: string; name: string }> = [];
+  let matched = 0;
+  for (const feat of features) {
+    const code = String(feat.code || "").replace(/\D/g, "");
+    const name = String(feat.name || "");
+    const val = lookupThematicValue(lookups, code, name);
+    if (val == null) unmatched.push({ code, name });
+    else matched += 1;
+  }
+  return { matched, unmatched };
 }
 
 /** Compose kode penuh dari segmen Depdagri di MV pk2025. */

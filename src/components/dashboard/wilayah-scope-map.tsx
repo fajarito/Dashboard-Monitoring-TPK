@@ -13,6 +13,7 @@ import {
 import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map";
 import {
   buildThematicData,
+  choroplethFormulaLabel,
   CHOROPLETH_NO_DATA,
   DEFAULT_MAP_METRIC,
   hexStepsForMetric,
@@ -107,7 +108,10 @@ export function WilayahScopeMap({
   const childFingerprint = useMemo(
     () =>
       childRows
-        .map((r) => `${r.id}:${r.nama}:${r.kode ?? ""}:${r.tpk}:${r.krs}`)
+        .map(
+          (r) =>
+            `${r.id}:${r.nama}:${r.kode ?? ""}:${r.tpk}:${r.krs}:${r.anggota ?? ""}:${r.keluargaSasaran ?? ""}:${r.desa ?? ""}`,
+        )
         .join("|"),
     [childRows],
   );
@@ -433,12 +437,12 @@ export function WilayahScopeMap({
                   : provinceName}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Kamera fokus fokus wilayah aktif. Warna = {metricDisplayLabel(metric)}{" "}
+            Kamera fokus wilayah aktif. Warna = {choroplethFormulaLabel(metric)}{" "}
             pada batas {childLabel} (API peringkat + Master Wilayah).
           </p>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-primary">
-          {metricDisplayLabel(metric)}
+          {choroplethFormulaLabel(metric)}
         </span>
       </div>
 

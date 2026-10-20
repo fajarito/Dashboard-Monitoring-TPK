@@ -723,6 +723,7 @@ export function MasterWilayahMap({
               : "";
 
           if (instance?.boundaryGroup) {
+            const unmatchedDev: Array<{ code: string; name: string }> = [];
             forEachPolygonLayer(instance.boundaryGroup, (layer) => {
               const featProps = layer.feature?.properties || {};
               const codeStr = String(
@@ -772,6 +773,9 @@ export function MasterWilayahMap({
                     : null);
                 const hasThematic =
                   thematicVal != null && Number.isFinite(thematicVal);
+                if (!hasThematic && (thematicData?.length ?? 0) > 0) {
+                  unmatchedDev.push({ code: codeStr, name: featName });
+                }
                 // Jangan pakai featProps.color SDK (#cbd5e1 abu / blues pudar).
                 const fillColor = hasThematic
                   ? colorForValue(thematicVal, tMin, tMax, steps)
@@ -801,6 +805,16 @@ export function MasterWilayahMap({
                 if (base) layer.setStyle?.(base);
               });
             });
+            if (
+              process.env.NODE_ENV !== "production" &&
+              unmatchedDev.length > 0 &&
+              (thematicData?.length ?? 0) > 0
+            ) {
+              console.warn(
+                `[MasterWilayahMap] ${unmatchedDev.length} poligon tanpa join metrik (bukan nodata denom):`,
+                unmatchedDev.slice(0, 20),
+              );
+            }
           }
         } else {
           // If a newer render started, cleanly destroy this map

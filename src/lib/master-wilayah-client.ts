@@ -4,6 +4,8 @@
  * Tidak menyentuh Postgres / tidak menambah beban home overview.
  */
 
+import { normalizeWilayahNama } from "@/lib/map-choropleth";
+
 function resolveApiBase(): string | null {
   const raw = process.env.NEXT_PUBLIC_MASTER_WILAYAH_API_URL?.trim();
   if (!raw) return null;
@@ -19,16 +21,7 @@ type MwListResponse = {
 };
 
 function normalizeNama(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(
-      /\b(provinsi|daerah istimewa|di|kabupaten|kota|kecamatan|desa|kelurahan|kel)\b/g,
-      " ",
-    )
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  return normalizeWilayahNama(value);
 }
 
 const cache = new Map<string, { at: number; items: MwChild[] }>();

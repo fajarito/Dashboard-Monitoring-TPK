@@ -52,10 +52,12 @@ export function getPeringkatKabupatenMock(
           )
         : Math.max(1, Math.round(kab.tpkCount * 0.4));
       const rasioPkbDesa = getDesaPerPkbRatio(pkb, desa);
+      const anggota = Math.max(1, Math.round(kab.tpkCount * 3));
       return {
         id: String(apiId),
         nama: kab.name,
         tpk: kab.tpkCount,
+        anggota,
         pkb,
         desa,
         krs: kab.krs,
@@ -63,6 +65,8 @@ export function getPeringkatKabupatenMock(
         rasio: getKrsPerTpkRatio(kab.tpkCount, kab.krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        // Kemendagri 4-digit bila hierarki mock menyertakan (Jabar lengkap).
+        kode: kab.kode ?? null,
         indikator: {
           bumil: kab.sasaran.ibuHamil,
           baduta: kab.sasaran.baduta,

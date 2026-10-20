@@ -22,6 +22,7 @@ const MAX_ROWS = 200;
 type SigaKelRow = {
   id_kelurahan: number;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
 };
@@ -85,6 +86,17 @@ WITH tpk AS (
     AND t."KelurahanID" IS NOT NULL
   GROUP BY t."KelurahanID"
 ),
+anggota AS (
+  SELECT
+    t."KelurahanID" AS id_kelurahan,
+    COUNT(*)::int AS anggota
+  FROM "sigabaru"."dat_AnggotaTPK" a
+  INNER JOIN "sigabaru"."dat_TPK" t
+    ON t."TPKID" = a."TPKID" AND t."Status" = 1
+  WHERE t."KecamatanID" = $1
+    AND t."KelurahanID" IS NOT NULL
+  GROUP BY t."KelurahanID"
+),
 pkb AS (
   SELECT
     p."KelurahanID" AS id_kelurahan,
@@ -99,14 +111,18 @@ ids AS (
   SELECT id_kelurahan FROM tpk
   UNION
   SELECT id_kelurahan FROM pkb
+  UNION
+  SELECT id_kelurahan FROM anggota
 )
 SELECT
   i.id_kelurahan,
   COALESCE(t.tpk, 0)::int AS tpk,
+  COALESCE(a.anggota, 0)::int AS anggota,
   COALESCE(p.pkb, 0)::int AS pkb,
   1::int AS desa
 FROM ids i
 LEFT JOIN tpk t ON t.id_kelurahan = i.id_kelurahan
+LEFT JOIN anggota a ON a.id_kelurahan = i.id_kelurahan
 LEFT JOIN pkb p ON p.id_kelurahan = i.id_kelurahan
 `;
 
@@ -155,11 +171,12 @@ export async function getPeringkatKelurahanPostgres(
 
   const sigaById = new Map<
     number,
-    { tpk: number; pkb: number; desa: number }
+    { tpk: number; anggota: number; pkb: number; desa: number }
   >();
   for (const row of siga.rows) {
     sigaById.set(toInt(row.id_kelurahan), {
       tpk: toInt(row.tpk),
+      anggota: toInt(row.anggota),
       pkb: toInt(row.pkb),
       desa: toInt(row.desa) || 1,
     });
@@ -222,6 +239,7 @@ export async function getPeringkatKelurahanPostgres(
       const sigaRow = sigaById.get(id);
       const dwhRow = dwhById.get(id);
       const tpk = sigaRow?.tpk ?? 0;
+      const anggota = sigaRow?.anggota ?? 0;
       const pkb = sigaRow?.pkb ?? 0;
       const desa = sigaRow?.desa ?? 1;
       const krs = dwhRow?.krs ?? 0;
@@ -230,6 +248,7 @@ export async function getPeringkatKelurahanPostgres(
         id: String(id),
         nama: namaById.get(id) ?? `Kelurahan ${id}`,
         tpk,
+        anggota,
         pkb,
         desa,
         krs,
