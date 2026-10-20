@@ -10,8 +10,21 @@ import type {
   MasterWilayahThematicDataItem,
 } from "@/types/master-wilayah";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_MASTER_WILAYAH_API_URL ;
-const WIDGET_SCRIPT_URL = `${API_BASE_URL}/map/widget.js`;
+/** Base URL Master Wilayah API/SDK. NEXT_PUBLIC_* di-inline saat `next build`. */
+function resolveMasterWilayahApiBaseUrl(): string | null {
+  const raw = process.env.NEXT_PUBLIC_MASTER_WILAYAH_API_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+const API_BASE_URL = resolveMasterWilayahApiBaseUrl();
+const WIDGET_SCRIPT_URL = API_BASE_URL
+  ? `${API_BASE_URL}/map/widget.js`
+  : null;
+
+const MISSING_ENV_MESSAGE =
+  "Env NEXT_PUBLIC_MASTER_WILAYAH_API_URL belum diset (atau kosong saat build). Salin nilai dari .env.example ke .env.local, lalu restart `next dev` / rebuild. Di OpenShift, set build-arg saat image build — `oc set env` saja tidak cukup untuk NEXT_PUBLIC_*.";
+
 const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 
 
@@ -172,7 +185,11 @@ function loadScriptPromise(src: string): Promise<void> {
       resolve();
     };
     script.onerror = () =>
-      reject(new Error("Tidak dapat memuat script SDK Master Wilayah"));
+      reject(
+        new Error(
+          `Tidak dapat memuat script SDK Master Wilayah dari ${src}. Periksa NEXT_PUBLIC_MASTER_WILAYAH_API_URL dan koneksi ke host Master Wilayah.`,
+        ),
+      );
     document.head.appendChild(script);
   });
 }
@@ -434,9 +451,18 @@ export function MasterWilayahMap({
     onDrillDownRef.current = onDrillDown;
   }, [onDrillDown]);
 
-  // Load SDK Script once
+  // Load SDK Script once — jangan pernah request `/undefined/map/widget.js`
   useEffect(() => {
     let active = true;
+
+    if (!WIDGET_SCRIPT_URL) {
+      setError(MISSING_ENV_MESSAGE);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
     loadScriptPromise(WIDGET_SCRIPT_URL)
       .then(() => {
         if (active) {
@@ -498,6 +524,12 @@ export function MasterWilayahMap({
       el.innerHTML = "";
 
       const palette = PALETTE_BY_METRIC[metric] || "blues";
+
+      if (!API_BASE_URL) {
+        setError(MISSING_ENV_MESSAGE);
+        setLoading(false);
+        return;
+      }
 
       const options: MasterWilayahRenderOptions = {
         apiUrl: API_BASE_URL,
@@ -929,14 +961,41 @@ export function MasterWilayahMap({
               Gagal Memuat Peta Master Wilayah
             </h4>
             <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={() => renderMap()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Coba Muat Ulang
-            </button>
+            {WIDGET_SCRIPT_URL ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (sdkReady) {
+                    void renderMap();
+                    return;
+                  }
+                  setError(null);
+                  setLoading(true);
+                  loadScriptPromise(WIDGET_SCRIPT_URL)
+                    .then(() => {
+                      installMasterWilayahSafeguard();
+                      setSdkReady(true);
+                    })
+                    .catch((err) => {
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Gagal memuat widget Master Wilayah.",
+                      );
+                      setLoading(false);
+                    });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Coba Muat Ulang
+              </button>
+            ) : (
+              <p className="text-[11px] text-slate-400 max-w-sm">
+                Perbaiki env lalu restart server lokal atau rebuild image
+                OpenShift.
+              </p>
+            )}
           </div>
         )}
       </div>

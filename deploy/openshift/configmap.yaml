@@ -10,3 +10,8 @@ data:
   PORT: "8080"
   NODE_ENV: "production"
   HOSTNAME: "0.0.0.0"
+  # Master Wilayah map SDK (BKKBN). NEXT_PUBLIC_* harus ikut saat `next build`
+  # (Dockerfile ARG / buildConfig). Nilai di ConfigMap saja tidak mengubah
+  # client bundle yang sudah di-build — tetap set agar dokumentasi & rebuild jelas.
+  # UAT (default). URL production: konfirmasi ke tim Master Wilayah.
+  NEXT_PUBLIC_MASTER_WILAYAH_API_URL: "https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id"
