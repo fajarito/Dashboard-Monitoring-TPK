@@ -61,7 +61,8 @@ export function useTpkList(filters: TpkListFilters): TpkListState {
     if (kabupatenId) params.set("kabupatenId", kabupatenId);
     if (kecamatanId) params.set("kecamatanId", kecamatanId);
     if (kelurahanId) params.set("kelurahanId", kelurahanId);
-    if (q.trim()) params.set("q", q.trim());
+    // UI debounce + min 2 karakter; jaga agar q sempit tidak di-kirim.
+    if (q.trim().length >= 2) params.set("q", q.trim());
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
     params.set("sort", sort);

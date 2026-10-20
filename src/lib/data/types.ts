@@ -185,7 +185,11 @@ export type TpkListQuery = {
   kabupatenId: number | null;
   kecamatanId: number | null;
   kelurahanId: number | null;
-  /** Cari NamaTPK / label wilayah (opsional). */
+  /**
+   * Cari dalam scope: desa/kelurahan, NomorRegister, nama anggota, nama PKB.
+   * Min 2 karakter di UI; server mengabaikan string kosong.
+   * Urutan hasil saat q aktif: exact register → prefix desa → partial.
+   */
   q: string | null;
   page: number;
   pageSize: number;
