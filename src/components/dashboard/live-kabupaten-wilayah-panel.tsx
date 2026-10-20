@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { AlertTriangle, BriefcaseBusiness, Users, UsersRound } from "lucide-react";
 
 import {
@@ -13,11 +14,13 @@ import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
 import type { DataSource, PeringkatKecamatanItem } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { getKecamatanSlugByApiId } from "@/lib/kecamatan-api-id";
+import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { formatNumber } from "@/lib/map-data";
 import type { SasaranCounts } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
+import { isUnresolvedKabName } from "@/lib/wilayah-name-labels";
 
 function indikatorToSasaran(item: PeringkatKecamatanItem): SasaranCounts {
   return {
@@ -152,6 +155,21 @@ export function LiveKabupatenWilayahPanel({
     id: kabupatenApiId,
   });
   const peringkat = usePeringkatKecamatan(kabupatenApiId);
+  const needKabName = isUnresolvedKabName(kabName, kabupatenApiId);
+  const peringkatKab = usePeringkatKabupaten(
+    needKabName ? provinsiApiId : null,
+  );
+  const displayKabName = useMemo(() => {
+    if (!needKabName) return kabName;
+    const hit = peringkatKab.payload?.items.find(
+      (item) =>
+        item.id === kabupatenApiId ||
+        item.id === String(Number(kabupatenApiId)),
+    );
+    const nama = hit?.nama?.trim();
+    if (nama && !isUnresolvedKabName(nama, kabupatenApiId)) return nama;
+    return kabName;
+  }, [needKabName, kabName, peringkatKab.payload, kabupatenApiId]);
 
   const dataSource: DataSource | null =
     ringkasan.ringkasan?.meta.source ??
@@ -233,12 +251,12 @@ export function LiveKabupatenWilayahPanel({
             jumlahAnggota={ringkasan.ringkasan.jumlahAnggota}
             jumlahPKB={ringkasan.ringkasan.jumlahPKB}
             jumlahKRS={ringkasan.ringkasan.jumlahKRS}
-            scopeLabel={kabName}
+            scopeLabel={displayKabName}
             dataSource={ringkasan.ringkasan.meta.source}
           />
           {sasaranCounts ? (
             <SasaranIndikatorPanel
-              scopeLabel={kabName}
+              scopeLabel={displayKabName}
               counts={sasaranCounts}
               keluargaSasaran={ringkasan.ringkasan.jumlahSasaran}
               krs={ringkasan.ringkasan.jumlahKRS}
@@ -268,7 +286,7 @@ export function LiveKabupatenWilayahPanel({
         <div className="design-card p-5">
           <EmptyState
             title="Belum ada kecamatan"
-            description={`Tidak ada data kecamatan untuk ${kabName}.`}
+            description={`Tidak ada data kecamatan untuk ${displayKabName}.`}
           />
         </div>
       ) : null}
@@ -276,7 +294,7 @@ export function LiveKabupatenWilayahPanel({
       {peringkat.status === "ready" && kecRows.length > 0 ? (
         <WilayahChildTable
           rows={kecRows}
-          scopeLabel={kabName}
+          scopeLabel={displayKabName}
           childLabel="Kecamatan"
           actionLabel="lihat detail"
           dataSource={peringkat.payload?.meta.source ?? dataSource}
@@ -287,7 +305,7 @@ export function LiveKabupatenWilayahPanel({
         provinceSlug={provinceSlug}
         provinsiApiId={provinsiApiId}
         initialKabupatenId={kabupatenApiId}
-        provinceName={`${kabName} · ${provinceName}`}
+        provinceName={`${displayKabName} · ${provinceName}`}
         showSummaryCards={false}
         filterLevel="kecamatan"
       />
