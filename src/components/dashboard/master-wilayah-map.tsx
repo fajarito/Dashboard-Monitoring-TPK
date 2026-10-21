@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
-import { ChevronRight, RotateCcw, ArrowLeft, MapPin, AlertCircle, RefreshCw } from "lucide-react";
+import {
+  ChevronRight,
+  RotateCcw,
+  ArrowLeft,
+  MapPin,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+} from "lucide-react";
 import { MapIndicatorLegend } from "@/components/dashboard/map-indicator-legend";
 import {
   buildBasePathStyle,
@@ -104,6 +112,14 @@ export type MasterWilayahMapProps = {
    * tetap tampilkan basemap + label tingkat.
    */
   embedded?: boolean;
+  /**
+   * Status fetch metrik choropleth (`/api/peringkat*` / home agregat).
+   * Saat loading: overlay "Memuat indikator…" agar abu-abu sementara tidak terlihat "rusak".
+   * Saat error: overlay + retry (breadcrumb tetap bisa dipakai — tidak mengunci drill selamanya).
+   */
+  indicatorStatus?: "idle" | "loading" | "ready" | "error";
+  indicatorError?: string | null;
+  onRetryIndicator?: () => void;
 };
 
 function preloadLeafletCss() {
@@ -380,6 +396,9 @@ export function MasterWilayahMap({
   onNavigateToLevel,
   onReset,
   embedded = false,
+  indicatorStatus,
+  indicatorError = null,
+  onRetryIndicator,
 }: MasterWilayahMapProps) {
   const containerId = useId().replace(/:/g, "_");
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -392,9 +411,15 @@ export function MasterWilayahMap({
   const [sdkReady, setSdkReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** True setelah applyClientChoropleth sukses saat indikator siap (hindari flash abu-abu). */
+  const [choroplethReady, setChoroplethReady] = useState(
+    () => indicatorStatus == null,
+  );
   const [basemap, setBasemap] = useState<"canvas" | "satellite" | "topo">("canvas");
   const basemapRef = useRef(basemap);
   basemapRef.current = basemap;
+  const indicatorStatusRef = useRef(indicatorStatus);
+  indicatorStatusRef.current = indicatorStatus;
 
   const metricRowsRef = useRef(metricRows);
   metricRowsRef.current = metricRows;
@@ -599,7 +624,35 @@ export function MasterWilayahMap({
         unmatchedDev.slice(0, 20),
       );
     }
+
+    // Indikator siap (atau tidak di-gate) → izinkan lepas overlay setelah cat pertama.
+    const gate = indicatorStatusRef.current;
+    if (gate == null || gate === "ready") {
+      setChoroplethReady(true);
+    }
   }, [currentLevel, villageCode, buildChoroplethTooltipHtml, classifyFeature]);
+
+  // Ganti level / mulai fetch indikator baru → tutup warna sampai cat ulang.
+  useEffect(() => {
+    if (indicatorStatus == null) {
+      setChoroplethReady(true);
+      return;
+    }
+    if (
+      indicatorStatus === "loading" ||
+      indicatorStatus === "idle" ||
+      indicatorStatus === "error"
+    ) {
+      setChoroplethReady(false);
+    }
+  }, [
+    indicatorStatus,
+    currentLevel,
+    provinceCode,
+    regencyCode,
+    districtCode,
+    villageCode,
+  ]);
 
   // Pastikan style override tooltip terinjeksi
   useEffect(() => {
@@ -661,6 +714,9 @@ export function MasterWilayahMap({
 
       setLoading(true);
       setError(null);
+      if (indicatorStatusRef.current != null) {
+        setChoroplethReady(false);
+      }
 
       // Clean up previous map instance safely
       if (mapInstanceRef.current) {
@@ -1130,9 +1186,92 @@ export function MasterWilayahMap({
           className="w-full h-full"
         />
 
-        {!loading && !error ? (
-          <MapIndicatorLegend metric={metric} items={legendItems} />
-        ) : null}
+        {(() => {
+          const indicatorBusy =
+            indicatorStatus === "loading" || indicatorStatus === "idle";
+          const waitingChoropleth =
+            indicatorStatus === "ready" && !choroplethReady && !loading;
+          const showBusyOverlay =
+            !error &&
+            indicatorStatus !== "error" &&
+            (loading || indicatorBusy || waitingChoropleth);
+          const showIndicatorError =
+            !error && indicatorStatus === "error";
+          const showLegend =
+            !loading &&
+            !error &&
+            !showBusyOverlay &&
+            !showIndicatorError &&
+            choroplethReady;
+
+          return (
+            <>
+              {showLegend ? (
+                <MapIndicatorLegend metric={metric} items={legendItems} />
+              ) : null}
+
+              {/* Tunggu batas MW + data peringkat — jangan biarkan abu-abu tanpa penjelasan */}
+              {showBusyOverlay ? (
+                <div
+                  className="absolute inset-0 z-[1400] flex flex-col items-center justify-center gap-2 bg-white/85 dark:bg-slate-900/85 backdrop-blur-[2px] text-center px-4"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <Loader2
+                    className="h-8 w-8 animate-spin text-blue-600"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    {loading && !indicatorBusy
+                      ? "Memuat peta wilayah…"
+                      : "Memuat indikator…"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 max-w-xs">
+                    Menyiapkan warna choropleth dari data peringkat. Poligon abu-abu
+                    sementara bukan kesalahan tampilan.
+                  </p>
+                </div>
+              ) : null}
+
+              {/* Peringkat gagal — retry; breadcrumb di atas tetap bisa navigasi */}
+              {showIndicatorError ? (
+                <div className="absolute inset-0 z-[1450] flex flex-col items-center justify-center p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs text-center">
+                  <AlertCircle className="h-10 w-10 text-amber-500 mb-2" />
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Gagal Memuat Indikator Peta
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">
+                    {indicatorError ||
+                      "Data peringkat tidak dapat dimuat. Coba lagi, atau kembali ke level sebelumnya lewat breadcrumb."}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {prevLevel ? (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToLevel(prevLevel)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        Kembali ke {LEVEL_LABELS[prevLevel]}
+                      </button>
+                    ) : null}
+                    {onRetryIndicator ? (
+                      <button
+                        type="button"
+                        onClick={() => onRetryIndicator()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Coba Lagi
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
 
         {/* Error Overlay — HTTP 500/404 tidak crash; user bisa kembali / retry */}
         {error && (

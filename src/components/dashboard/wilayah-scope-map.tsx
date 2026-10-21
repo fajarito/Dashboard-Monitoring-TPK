@@ -15,7 +15,6 @@ import {
   buildThematicData,
   choroplethFormulaLabel,
   DEFAULT_MAP_METRIC,
-  metricDisplayLabel,
   type ChoroplethMetric,
   type MetricRow,
 } from "@/lib/map-choropleth";
@@ -401,18 +400,14 @@ export function WilayahScopeMap({
     );
   }
 
-  if (
-    childStatus === "loading" ||
-    childStatus === "idle" ||
-    resolveStatus === "loading" ||
-    resolveStatus === "idle"
-  ) {
+  // Kode kamera belum siap → skeleton. Peringkat anak boleh menyusul di overlay peta.
+  if (resolveStatus === "loading" || resolveStatus === "idle") {
     return (
       <div className="design-card overflow-hidden">
         <div className="px-6 pt-5 pb-2">
           <div className="section-title">Peta sebaran · {provinceName}</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Memuat batas {childLabel} dan metrik {metricDisplayLabel(metric)}…
+            Memuat indikator… menyiapkan kode wilayah &amp; batas {childLabel}.
           </p>
         </div>
         <MapSkeleton />
@@ -443,6 +438,14 @@ export function WilayahScopeMap({
         : metric === "pkb"
           ? "pkb"
           : "krs";
+
+  // childStatus "error" sudah di-return di atas — sisa: idle | loading | ready
+  const indicatorStatus: "idle" | "loading" | "ready" =
+    childStatus === "ready"
+      ? "ready"
+      : childStatus === "idle"
+        ? "idle"
+        : "loading";
 
   return (
     <div className="design-card overflow-hidden">
@@ -546,6 +549,9 @@ export function WilayahScopeMap({
             onNavigateToLevel={handleNavigateToLevel}
             onReset={handleReset}
             embedded
+            indicatorStatus={indicatorStatus}
+            indicatorError={childError}
+            onRetryIndicator={onRetryChildren}
           />
         </ClientOnly>
       </div>

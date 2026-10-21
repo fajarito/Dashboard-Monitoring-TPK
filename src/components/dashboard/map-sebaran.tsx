@@ -512,6 +512,83 @@ export function MapSebaran() {
     return "ready";
   }, [demoParam]);
 
+  /**
+   * Status data choropleth untuk overlay "Memuat indikator…".
+   * Nasional → home peringkat; drill → peringkat kab/kec/kel sesuai level.
+   */
+  const mapIndicatorStatus = useMemo(():
+    | "idle"
+    | "loading"
+    | "ready"
+    | "error" => {
+    if (mapDemoState === "loading") return "loading";
+    if (mapDemoState === "error") return "error";
+    if (!selected) {
+      if (homeAgregat.status === "loading") return "loading";
+      if (homeAgregat.status === "error") return "error";
+      return "ready";
+    }
+    if (!selectedKab) {
+      if (peringkatKab.status === "loading" || peringkatKab.status === "idle") {
+        return "loading";
+      }
+      if (peringkatKab.status === "error") return "error";
+      return "ready";
+    }
+    if (!selectedKec) {
+      if (peringkatKec.status === "loading" || peringkatKec.status === "idle") {
+        return "loading";
+      }
+      if (peringkatKec.status === "error") return "error";
+      return "ready";
+    }
+    if (peringkatKel.status === "loading" || peringkatKel.status === "idle") {
+      return "loading";
+    }
+    if (peringkatKel.status === "error") return "error";
+    return "ready";
+  }, [
+    mapDemoState,
+    selected,
+    selectedKab,
+    selectedKec,
+    homeAgregat.status,
+    peringkatKab.status,
+    peringkatKec.status,
+    peringkatKel.status,
+  ]);
+
+  const mapIndicatorError = useMemo(() => {
+    if (!selected) return homeAgregat.error;
+    if (!selectedKab) return peringkatKab.error;
+    if (!selectedKec) return peringkatKec.error;
+    return peringkatKel.error;
+  }, [
+    selected,
+    selectedKab,
+    selectedKec,
+    homeAgregat.error,
+    peringkatKab.error,
+    peringkatKec.error,
+    peringkatKel.error,
+  ]);
+
+  const retryMapIndicator = () => {
+    if (!selected) {
+      homeAgregat.refetch();
+      return;
+    }
+    if (!selectedKab) {
+      peringkatKab.refetch();
+      return;
+    }
+    if (!selectedKec) {
+      peringkatKec.refetch();
+      return;
+    }
+    peringkatKel.refetch();
+  };
+
   useEffect(() => {
     if (!wilayahParam) {
       setFocusedWilayah(null);
@@ -931,6 +1008,9 @@ export function MapSebaran() {
                 onDrillDown={handleDrillDown}
                 onNavigateToLevel={handleNavigateToLevel}
                 onReset={clearFocus}
+                indicatorStatus={mapIndicatorStatus}
+                indicatorError={mapIndicatorError}
+                onRetryIndicator={retryMapIndicator}
               />
             </ClientOnly>
           )}
