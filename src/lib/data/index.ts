@@ -78,6 +78,19 @@ export function resolveDataSource(): DataSource {
   return "mock";
 }
 
+/**
+ * DATA_SOURCE=postgres wajib punya triple-pool URL.
+ * Jangan diam-diam serve mock (KPI live + peta mock = data palsu).
+ */
+function assertPostgresReady(): void {
+  if (!arePostgresPoolsConfigured()) {
+    throw new PostgresDataError(
+      "postgres_not_configured",
+      "DATA_SOURCE=postgres tetapi DATABASE_URL_SIGA / DATABASE_URL_WILAYAH / DATABASE_URL_DWH belum di-set. Isi ketiga URL atau set DATA_SOURCE=mock.",
+    );
+  }
+}
+
 function parseTingkat(value: string | null | undefined): RingkasanTingkat {
   const raw = value?.trim().toLowerCase();
   if (raw === "provinsi") return "provinsi";
@@ -170,6 +183,7 @@ export async function fetchRingkasan(
 
   let payload: RingkasanPayload;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getRingkasanPostgres(query);
   } else {
     payload = getRingkasanMock(query);
@@ -186,6 +200,7 @@ export async function fetchPeringkatProvinsi(): Promise<PeringkatProvinsiPayload
 
   let payload: PeringkatProvinsiPayload;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getPeringkatProvinsiPostgres();
   } else {
     payload = getPeringkatProvinsiMock();
@@ -208,6 +223,7 @@ export async function fetchPeringkatKabupaten(
 
   let payload: PeringkatKabupatenPayload;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getPeringkatKabupatenPostgres(provinsiId);
   } else {
     payload = getPeringkatKabupatenMock(provinsiId);
@@ -230,9 +246,10 @@ export async function fetchPeringkatKecamatan(
 
   let payload: PeringkatKecamatanPayload;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getPeringkatKecamatanPostgres(kabupatenId);
   } else {
-    payload = getPeringkatKecamatanMock(kabupatenId);
+    payload = await getPeringkatKecamatanMock(kabupatenId);
   }
 
   if (payload.items.length > 120) {
@@ -252,9 +269,10 @@ export async function fetchPeringkatKelurahan(
 
   let payload: PeringkatKelurahanPayload;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getPeringkatKelurahanPostgres(kecamatanId);
   } else {
-    payload = getPeringkatKelurahanMock(kecamatanId);
+    payload = await getPeringkatKelurahanMock(kecamatanId);
   }
 
   if (payload.items.length > 200) {
@@ -302,6 +320,7 @@ export async function fetchTpkList(
 
   let payload: TpkListPayload;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getTpkListPostgres(query);
   } else {
     payload = getTpkListMock(query);
@@ -335,6 +354,7 @@ export async function fetchTpkDetail(
 
   let payload: TpkDetailPayload | null;
   if (source === "postgres") {
+    assertPostgresReady();
     payload = await getTpkDetailPostgres(id);
   } else {
     payload = getTpkDetailMock(id);

@@ -76,22 +76,26 @@ export const navItems: NavItem[] = [
 
 export const brandIcon = LayoutDashboard;
 
-/** Palette choropleth dari desain Figma Make (App.tsx). */
+/**
+ * Palette choropleth spek Fajar (docs/map-indicator-spec.md).
+ * Urutan visual: merah (berat/sedikit) → biru (baik/banyak).
+ * Klasifikasi aktual via `getLegendItems` / threshold tetap — bukan equal quintile.
+ */
 export const mapPalette = [
-  "#dbeafe",
-  "#bfdbfe",
-  "#93c5fd",
-  "#3b82f6",
-  "#1d4ed8",
+  "#D92D20",
+  "#F79009",
+  "#FEC84B",
+  "#12B76A",
+  "#2E90FA",
 ] as const;
 
-export const mapNoDataColor = "#e2e8f0";
+export const mapNoDataColor = "#D0D5DD";
 
 export const mapLegendItems = [
-  { label: "Sangat sedikit", color: mapPalette[0] },
-  { label: "Sedikit", color: mapPalette[1] },
-  { label: "Sedang", color: mapPalette[2] },
-  { label: "Banyak", color: mapPalette[3] },
-  { label: "Sangat banyak", color: mapPalette[4] },
-  { label: "Tanpa data", color: mapNoDataColor },
+  { label: "Sangat Berat / Sangat Sedikit", color: mapPalette[0] },
+  { label: "Berat / Sedikit", color: mapPalette[1] },
+  { label: "Waspada / Sedang", color: mapPalette[2] },
+  { label: "Ideal / Banyak", color: mapPalette[3] },
+  { label: "Sangat Baik / Sangat Banyak", color: mapPalette[4] },
+  { label: "Tidak Ada Data", color: mapNoDataColor },
 ];

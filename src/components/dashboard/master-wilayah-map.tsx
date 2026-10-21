@@ -1,8 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useId } from "react";
+import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
 import { ChevronRight, RotateCcw, ArrowLeft, MapPin, AlertCircle, RefreshCw } from "lucide-react";
-import { formatNumber, provinces, type MetricKey } from "@/lib/map-data";
+import { MapIndicatorLegend } from "@/components/dashboard/map-indicator-legend";
+import {
+  buildBasePathStyle,
+  buildHoverPathStyle,
+  buildSelectedPathStyle,
+  forEachPolygonLayer,
+  formatChoroplethHover,
+  formatHoverPrimary,
+  indexThematicLookups,
+  lookupMetricRow,
+  lookupThematicValue,
+  sdkPaletteForMetric,
+  type ChoroplethPathStyle,
+  type MetricRow,
+  CHOROPLETH_NO_DATA,
+} from "@/lib/map-choropleth";
+import {
+  classifyMetricRow,
+  getIndicatorCategory,
+  getLegendItems,
+  getQuintileBreaks,
+  indicatorTitle,
+  type IndicatorClassification,
+} from "@/lib/map-indicator";
+import { type MetricKey } from "@/lib/map-data";
 import type {
   MasterWilayahFeatureProps,
   MasterWilayahInstance,
@@ -10,8 +34,21 @@ import type {
   MasterWilayahThematicDataItem,
 } from "@/types/master-wilayah";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_MASTER_WILAYAH_API_URL ;
-const WIDGET_SCRIPT_URL = `${API_BASE_URL}/map/widget.js`;
+/** Base URL Master Wilayah API/SDK. NEXT_PUBLIC_* di-inline saat `next build`. */
+function resolveMasterWilayahApiBaseUrl(): string | null {
+  const raw = process.env.NEXT_PUBLIC_MASTER_WILAYAH_API_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+const API_BASE_URL = resolveMasterWilayahApiBaseUrl();
+const WIDGET_SCRIPT_URL = API_BASE_URL
+  ? `${API_BASE_URL}/map/widget.js`
+  : null;
+
+const MISSING_ENV_MESSAGE =
+  "Env NEXT_PUBLIC_MASTER_WILAYAH_API_URL belum diset (atau kosong saat build). Salin nilai dari .env.example ke .env.local, lalu restart `next dev` / rebuild. Di OpenShift, set build-arg saat image build — `oc set env` saja tidak cukup untuk NEXT_PUBLIC_*.";
+
 const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 
 
@@ -44,12 +81,22 @@ export type MasterWilayahMapProps = {
   villageCode: string | null;
   villageName?: string | null;
   thematicData?: MasterWilayahThematicDataItem[];
+  /**
+   * Baris metrik live (`/api/peringkat*`) untuk hover + join stats.
+   * Prioritas di atas list kab/kec/kel stub dan mock hash.
+   */
+  metricRows?: MetricRow[];
   kabupatenList?: { id: string; nama: string; tpk: number; krs: number }[];
   kecamatanList?: { id: string; nama: string; tpk: number; krs: number }[];
   kelurahanList?: { id: string; nama: string; tpk: number; krs: number }[];
   onDrillDown: (level: WilayahLevelKey, code: string, name: string) => void;
   onNavigateToLevel: (level: WilayahLevelKey) => void;
   onReset: () => void;
+  /**
+   * Mode halaman wilayah: chrome lebih ringkas (breadcrumb halaman sudah ada),
+   * tetap tampilkan basemap + label tingkat.
+   */
+  embedded?: boolean;
 };
 
 function preloadLeafletCss() {
@@ -172,17 +219,22 @@ function loadScriptPromise(src: string): Promise<void> {
       resolve();
     };
     script.onerror = () =>
-      reject(new Error("Tidak dapat memuat script SDK Master Wilayah"));
+      reject(
+        new Error(
+          `Tidak dapat memuat script SDK Master Wilayah dari ${src}. Periksa NEXT_PUBLIC_MASTER_WILAYAH_API_URL dan koneksi ke host Master Wilayah.`,
+        ),
+      );
     document.head.appendChild(script);
   });
 }
 
-const PALETTE_BY_METRIC: Record<MetricKey, "blues" | "purples" | "oranges"> = {
-  tpk: "blues",
-  anggota: "blues",
-  pkb: "purples",
-  krs: "oranges",
-};
+const PALETTE_BY_METRIC: Record<MetricKey, ReturnType<typeof sdkPaletteForMetric>> =
+  {
+    tpk: sdkPaletteForMetric("tpk"),
+    anggota: sdkPaletteForMetric("anggota"),
+    pkb: sdkPaletteForMetric("pkb"),
+    krs: sdkPaletteForMetric("krs"),
+  };
 
 const LEVEL_LABELS: Record<WilayahLevelKey, string> = {
   nasional: "Nasional",
@@ -290,96 +342,6 @@ function injectTooltipStyles() {
   document.head.appendChild(style);
 }
 
-// Helper untuk mengambil metrik wilayah (Jumlah TPK dan Jumlah KRS)
-function getWilayahStats(
-  code: string,
-  name: string,
-  kabupatenList?: { id: string; nama: string; tpk: number; krs: number }[],
-  kecamatanList?: { id: string; nama: string; tpk: number; krs: number }[],
-  kelurahanList?: { id: string; nama: string; tpk: number; krs: number }[],
-): { tpk: number; krs: number } {
-  const cleanCode = String(code || "").replace(/\./g, "").trim();
-  const lowerName = String(name || "").toLowerCase().trim();
-
-  // 1. Cek di daftar provinsi resmi (mock provinsi)
-  const prov = provinces.find(
-    (p) =>
-      String(p.adminCode) === cleanCode ||
-      String(p.adminCode).padStart(2, "0") === cleanCode ||
-      p.name.toLowerCase() === lowerName ||
-      lowerName.includes(p.name.toLowerCase()) ||
-      p.name.toLowerCase().includes(lowerName),
-  );
-  if (prov) {
-    return {
-      tpk: prov.tpk,
-      krs: prov.krs,
-    };
-  }
-
-  // 2. Cek di daftar kabupaten aktif (mock kab/kota)
-  if (kabupatenList && kabupatenList.length > 0) {
-    const kab = kabupatenList.find(
-      (k) =>
-        k.id === cleanCode ||
-        k.nama.toLowerCase() === lowerName ||
-        lowerName.includes(k.nama.toLowerCase()) ||
-        k.nama.toLowerCase().includes(lowerName),
-    );
-    if (kab) {
-      return {
-        tpk: kab.tpk,
-        krs: kab.krs,
-      };
-    }
-  }
-
-  // 3. Cek di daftar kecamatan aktif (mock kecamatan)
-  if (kecamatanList && kecamatanList.length > 0) {
-    const kec = kecamatanList.find(
-      (k) =>
-        k.id === cleanCode ||
-        k.nama.toLowerCase() === lowerName ||
-        lowerName.includes(k.nama.toLowerCase()) ||
-        k.nama.toLowerCase().includes(lowerName),
-    );
-    if (kec) {
-      return {
-        tpk: kec.tpk,
-        krs: kec.krs,
-      };
-    }
-  }
-
-  // 4. Cek di daftar desa/kelurahan aktif (mock kelurahan)
-  if (kelurahanList && kelurahanList.length > 0) {
-    const kel = kelurahanList.find(
-      (k) =>
-        k.id === cleanCode ||
-        k.nama.toLowerCase() === lowerName ||
-        lowerName.includes(k.nama.toLowerCase()) ||
-        k.nama.toLowerCase().includes(lowerName),
-    );
-    if (kel) {
-      return {
-        tpk: kel.tpk,
-        krs: kel.krs,
-      };
-    }
-  }
-
-  // 5. Fallback deterministik berbasis hash nama atau kode wilayah
-  const hashKey = cleanCode || lowerName;
-  const hash = hashKey.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const fallbackTpk = Math.max(12, ((hash * 17) % 240) + 30);
-  const fallbackKrs = fallbackTpk * (((hash % 20) + 35));
-
-  return {
-    tpk: fallbackTpk,
-    krs: fallbackKrs,
-  };
-}
-
 export function MasterWilayahMap({
   metric,
   currentLevel,
@@ -392,12 +354,14 @@ export function MasterWilayahMap({
   villageCode,
   villageName,
   thematicData = [],
+  metricRows,
   kabupatenList,
   kecamatanList,
   kelurahanList,
   onDrillDown,
   onNavigateToLevel,
   onReset,
+  embedded = false,
 }: MasterWilayahMapProps) {
   const containerId = useId().replace(/:/g, "_");
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -414,6 +378,9 @@ export function MasterWilayahMap({
   const basemapRef = useRef(basemap);
   basemapRef.current = basemap;
 
+  const metricRowsRef = useRef(metricRows);
+  metricRowsRef.current = metricRows;
+
   const kabupatenListRef = useRef(kabupatenList);
   kabupatenListRef.current = kabupatenList;
 
@@ -422,6 +389,199 @@ export function MasterWilayahMap({
 
   const kelurahanListRef = useRef(kelurahanList);
   kelurahanListRef.current = kelurahanList;
+
+  const metricRef = useRef(metric);
+  metricRef.current = metric;
+  const thematicDataRef = useRef(thematicData);
+  thematicDataRef.current = thematicData;
+
+  const quintileBreaksFor = useCallback((metric: MetricKey): number[] => {
+    if (metric !== "anggota") return [];
+    const rows = metricRowsRef.current || [];
+    const fromRows = rows
+      .map((r) => r.anggota)
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    if (fromRows.length > 0) return getQuintileBreaks(fromRows);
+    const fromThematic = (thematicDataRef.current || [])
+      .map((d) => d.value)
+      .filter((v) => Number.isFinite(v));
+    return getQuintileBreaks(fromThematic);
+  }, []);
+
+  const classifyFeature = useCallback(
+    (code: string, name: string, metric: MetricKey): IndicatorClassification => {
+      const breaks = quintileBreaksFor(metric);
+      const liveRow = lookupMetricRow(metricRowsRef.current, code, name);
+      if (liveRow) return classifyMetricRow(liveRow, metric, breaks);
+
+      const lookups = indexThematicLookups(thematicDataRef.current);
+      const choroVal = lookupThematicValue(lookups, code, name);
+      if (metric === "anggota") {
+        return getIndicatorCategory(metric, choroVal, { quintileBreaks: breaks });
+      }
+      return getIndicatorCategory(metric, choroVal, {});
+    },
+    [quintileBreaksFor],
+  );
+
+  const buildChoroplethTooltipHtml = useCallback(
+    (props: MasterWilayahFeatureProps, pointerNone: boolean) => {
+      const name = escapeHtml(props.name || "-");
+      const rawCode = String(props.code || props.kode || "")
+        .replace(/\./g, "")
+        .trim();
+      const liveRow = lookupMetricRow(
+        metricRowsRef.current,
+        rawCode,
+        props.name || "",
+      );
+      const metric = metricRef.current;
+      const classification = classifyFeature(rawCode, props.name || "", metric);
+      const title = indicatorTitle(metric);
+
+      let valueLines: string;
+      if (metric === "anggota") {
+        const primary = liveRow
+          ? formatHoverPrimary(liveRow, metric)
+          : classification.value != null
+            ? formatChoroplethHover(classification.value, metric)
+            : "Data tidak tersedia";
+        const parts = (primary || "Data tidak tersedia").split("\n");
+        valueLines = parts
+          .map(
+            (line) =>
+              `<div style="font-size: 12px; font-weight: 700; color: #0a2540; line-height: 1.35;">${escapeHtml(line)}</div>`,
+          )
+          .join("");
+      } else if (classification.status === "attention") {
+        valueLines = `<div style="font-size: 12px; font-weight: 800; color: #b42318;">${escapeHtml(classification.category)}</div>`;
+      } else {
+        const primary =
+          (liveRow ? formatHoverPrimary(liveRow, metric) : null) ??
+          (classification.value != null
+            ? formatChoroplethHover(classification.value, metric)
+            : "—");
+        valueLines = `<div style="font-size: 13px; font-weight: 800; color: #0a2540;">${escapeHtml(primary)}</div>`;
+      }
+
+      const kategoriLabel =
+        metric === "anggota" ? "Kategori Sebaran" : "Kategori";
+      const showKeterangan =
+        metric !== "anggota" &&
+        classification.status !== "noData" &&
+        Boolean(classification.keterangan);
+
+      return `
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 12px 14px; width: max-content; min-width: 240px; max-width: 320px; box-sizing: border-box; box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.16); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;${pointerNone ? " pointer-events: none;" : ""}">
+              <div style="font-size: 13px; font-weight: 800; color: #0a2540; margin-bottom: 6px;">${name}</div>
+              <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;">${escapeHtml(title)}</div>
+              ${valueLines}
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                <span style="font-size: 10px; color: #64748b; font-weight: 600;">${escapeHtml(kategoriLabel)}:</span>
+                <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; color: #0a2540;">
+                  <span style="width: 8px; height: 8px; border-radius: 999px; background: ${escapeHtml(classification.color)}; flex-shrink: 0;"></span>
+                  ${escapeHtml(classification.category)}
+                </span>
+              </div>
+              ${
+                showKeterangan
+                  ? `<div style="margin-top: 6px; font-size: 10px; font-weight: 500; color: #64748b; line-height: 1.35;">Keterangan: ${escapeHtml(classification.keterangan)}</div>`
+                  : ""
+              }
+            </div>
+          `;
+    },
+    [classifyFeature],
+  );
+
+  /**
+   * Warnai ulang poligon yang sudah ada — tanpa destroy/remount SDK
+   * (remount kedua sering meninggalkan pane kosong).
+   */
+  const applyClientChoropleth = useCallback(() => {
+    const instance = mapInstanceRef.current;
+    if (!instance?.boundaryGroup) return;
+
+    const currentMetric = metricRef.current;
+    const data = thematicDataRef.current || [];
+    const rows = metricRowsRef.current || [];
+
+    const cleanVillage =
+      currentLevel === "desa" && villageCode
+        ? String(villageCode).replace(/\D/g, "").trim()
+        : "";
+
+    const unmatchedDev: Array<{ code: string; name: string }> = [];
+
+    forEachPolygonLayer(instance.boundaryGroup, (layer) => {
+      const featProps = layer.feature?.properties || {};
+      const codeStr = String(featProps.code || featProps.kode || "").replace(
+        /\D/g,
+        "",
+      );
+      const featName = String(featProps.name || "");
+
+      const classification = classifyFeature(codeStr, featName, currentMetric);
+      const hasData =
+        classification.status === "ok" || classification.status === "attention";
+      if (
+        !hasData &&
+        (data.length > 0 || rows.length > 0) &&
+        !lookupMetricRow(rows, codeStr, featName)
+      ) {
+        unmatchedDev.push({ code: codeStr, name: featName });
+      }
+
+      // Desa aktif: choropleth spek + border selected (bukan warna biru tetap).
+      // Sibling desa tetap terwarna agar legenda/indikator konsisten.
+      if (cleanVillage && codeStr === cleanVillage) {
+        const selected = buildSelectedPathStyle(classification.color);
+        layer._mwBaseStyle = selected;
+        layer.setStyle?.(selected);
+      } else {
+        const base = buildBasePathStyle(classification.color, hasData);
+        layer._mwBaseStyle = base;
+        layer.setStyle?.(base);
+      }
+
+      // Refresh tooltip saat ganti metrik (hindari HTML cache SDK / flicker).
+      const tipHtml = buildChoroplethTooltipHtml(
+        featProps as MasterWilayahFeatureProps,
+        true,
+      );
+      if (typeof layer.setTooltipContent === "function" && layer.getTooltip?.()) {
+        layer.setTooltipContent(tipHtml);
+      } else if (typeof layer.bindTooltip === "function") {
+        layer.unbindTooltip?.();
+        layer.bindTooltip(tipHtml, {
+          sticky: true,
+          opacity: 1,
+          className: "mw-tooltip",
+          direction: "top",
+          permanent: false,
+        });
+      }
+      if (typeof layer.setPopupContent === "function" && layer.getPopup?.()) {
+        layer.setPopupContent(
+          buildChoroplethTooltipHtml(
+            featProps as MasterWilayahFeatureProps,
+            false,
+          ),
+        );
+      }
+    });
+
+    if (
+      process.env.NODE_ENV !== "production" &&
+      unmatchedDev.length > 0 &&
+      data.length > 0
+    ) {
+      console.warn(
+        `[MasterWilayahMap] ${unmatchedDev.length} poligon tanpa join metrik (bukan nodata denom):`,
+        unmatchedDev.slice(0, 20),
+      );
+    }
+  }, [currentLevel, villageCode, buildChoroplethTooltipHtml, classifyFeature]);
 
   // Pastikan style override tooltip terinjeksi
   useEffect(() => {
@@ -434,9 +594,18 @@ export function MasterWilayahMap({
     onDrillDownRef.current = onDrillDown;
   }, [onDrillDown]);
 
-  // Load SDK Script once
+  // Load SDK Script once — jangan pernah request `/undefined/map/widget.js`
   useEffect(() => {
     let active = true;
+
+    if (!WIDGET_SCRIPT_URL) {
+      setError(MISSING_ENV_MESSAGE);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
     loadScriptPromise(WIDGET_SCRIPT_URL)
       .then(() => {
         if (active) {
@@ -497,86 +666,26 @@ export function MasterWilayahMap({
       el._leaflet_id = null;
       el.innerHTML = "";
 
-      const palette = PALETTE_BY_METRIC[metric] || "blues";
+      const palette = PALETTE_BY_METRIC[metricRef.current] || "blues";
+
+      if (!API_BASE_URL) {
+        setError(MISSING_ENV_MESSAGE);
+        setLoading(false);
+        return;
+      }
 
       const options: MasterWilayahRenderOptions = {
         apiUrl: API_BASE_URL,
         palette,
         basemap: "none" as any,
-        data: thematicData,
+        data: thematicDataRef.current,
         zoomControl: true,
         showLabels: false,
         loadingText: "Memuat Peta Wilayah...",
-        tooltipFormatter: (props: MasterWilayahFeatureProps) => {
-          const name = escapeHtml(props.name || "-");
-          const rawCode = escapeHtml(String(props.code || props.kode || "").replace(/\./g, "").trim());
-          const stats = getWilayahStats(
-            rawCode,
-            props.name || "",
-            kabupatenListRef.current,
-            kecamatanListRef.current,
-            kelurahanListRef.current,
-          );
-
-          return `
-            <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; pointer-events: none;">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
-                <span style="font-size: 12.5px; font-weight: 800; color: #0a2540; line-height: 1.2;">${name}</span>
-                <span style="background: #eff6ff; color: #2563eb; font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap;">
-                  KODE ${rawCode}
-                </span>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.tpk)}</span>
-                </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.krs)}</span>
-                </div>
-              </div>
-              <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
-                Klik untuk membuka ringkasan
-              </div>
-            </div>
-          `;
-        },
-        popupFormatter: (props: MasterWilayahFeatureProps) => {
-          const name = escapeHtml(props.name || "-");
-          const rawCode = escapeHtml(String(props.code || props.kode || "").replace(/\./g, "").trim());
-          const stats = getWilayahStats(
-            rawCode,
-            props.name || "",
-            kabupatenListRef.current,
-            kecamatanListRef.current,
-            kelurahanListRef.current,
-          );
-
-          return `
-            <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
-                <span style="font-size: 12.5px; font-weight: 800; color: #0a2540; line-height: 1.2;">${name}</span>
-                <span style="background: #eff6ff; color: #2563eb; font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap;">
-                  KODE ${rawCode}
-                </span>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.tpk)}</span>
-                </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.krs)}</span>
-                </div>
-              </div>
-              <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
-                Klik untuk membuka ringkasan
-              </div>
-            </div>
-          `;
-        },
+        tooltipFormatter: (props: MasterWilayahFeatureProps) =>
+          buildChoroplethTooltipHtml(props, true),
+        popupFormatter: (props: MasterWilayahFeatureProps) =>
+          buildChoroplethTooltipHtml(props, false),
         onFeatureClick: (props: MasterWilayahFeatureProps) => {
           const code = String(props.code || props.kode || "").replace(/\./g, "").trim();
           const name = String(props.name || "").trim();
@@ -606,7 +715,7 @@ export function MasterWilayahMap({
               value: 100,
               label: `Desa/Kelurahan: ${villageName || ""}`,
             },
-            ...(thematicData || []),
+            ...(thematicDataRef.current || []),
           ];
         }
       } else if (currentLevel === "kabupaten" && regencyCode) {
@@ -628,61 +737,38 @@ export function MasterWilayahMap({
             applyBasemapTiles(instance.map, basemapRef.current, currentLevel);
           }
 
-          // 2. Buat poligon batas wilayah terpilih lebih hidup dan berwarna
-          const VIBRANT_PALETTE = [
-            "#3b82f6", // Royal blue
-            "#10b981", // Emerald green
-            "#f59e0b", // Warm amber
-            "#8b5cf6", // Violet purple
-            "#ec4899", // Rose
-            "#06b6d4", // Cyan
-            "#f97316", // Orange
-            "#14b8a6", // Teal
-            "#6366f1", // Indigo
-            "#84cc16", // Lime
-            "#d946ef", // Fuchsia
-            "#0ea5e9", // Sky blue
-          ];
-
+          // 2. Choropleth client-side + hover restore (tanpa remount saat ganti metrik).
+          applyClientChoropleth();
           if (instance?.boundaryGroup) {
-            let colorIdx = 0;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (instance.boundaryGroup as any).eachLayer((layer: any) => {
-              const featProps = layer.feature?.properties || {};
-              const codeStr = String(featProps.code || featProps.kode || featProps.name || "");
-              const hash = codeStr.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-              const fallbackColor = VIBRANT_PALETTE[(hash + colorIdx) % VIBRANT_PALETTE.length];
-              colorIdx++;
-
-              const hasThematic = Boolean(featProps.thematic?.value != null);
-              const fillColor = hasThematic ? (featProps.color || fallbackColor) : fallbackColor;
-
-              layer.setStyle?.({
-                fillColor,
-                fillOpacity: hasThematic ? 0.72 : 0.55,
-                weight: 1.5,
-                color: "#ffffff",
-                opacity: 0.95,
+            forEachPolygonLayer(instance.boundaryGroup, (layer) => {
+              layer.on?.("mouseover", () => {
+                const base = (layer._mwBaseStyle ||
+                  buildBasePathStyle(
+                    CHOROPLETH_NO_DATA,
+                    false,
+                  )) as ChoroplethPathStyle;
+                if (base.fillOpacity <= 0) return;
+                layer.setStyle?.(buildHoverPathStyle(base));
+                layer.bringToFront?.();
+              });
+              layer.on?.("mouseout", () => {
+                const base = layer._mwBaseStyle as
+                  | ChoroplethPathStyle
+                  | undefined;
+                if (base) layer.setStyle?.(base);
               });
             });
-          }
 
-          // 3. Sembunyikan wilayah di luar boundary yang sedang dipilih (tingkat desa)
-          if (currentLevel === "desa" && villageCode && instance?.boundaryGroup) {
-            try {
-              const cleanVillage = String(villageCode).replace(/\./g, "").trim();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (instance.boundaryGroup as any).eachLayer((layer: any) => {
-                const featProps = layer.feature?.properties;
-                const c = String(featProps?.code || featProps?.kode || "").replace(/\./g, "").trim();
-                if (c === cleanVillage) {
-                  layer.setStyle?.({
-                    weight: 3.5,
-                    color: "#1d4ed8",
-                    fillColor: "#2563eb",
-                    fillOpacity: 0.88,
-                    opacity: 1,
-                  });
+            // Desa highlight: fitBounds ke poligon terpilih
+            if (currentLevel === "desa" && villageCode) {
+              const cleanVillage = String(villageCode).replace(/\D/g, "").trim();
+              forEachPolygonLayer(instance.boundaryGroup, (layer) => {
+                const codeStr = String(
+                  layer.feature?.properties?.code ||
+                    layer.feature?.properties?.kode ||
+                    "",
+                ).replace(/\D/g, "");
+                if (codeStr === cleanVillage) {
                   layer.openPopup?.();
                   if (layer.getBounds && instance.map) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -691,19 +777,8 @@ export function MasterWilayahMap({
                       maxZoom: 15,
                     });
                   }
-                } else {
-                  // Sembunyikan wilayah di luar boundary desa yang dipilih
-                  layer.setStyle?.({
-                    opacity: 0,
-                    fillOpacity: 0,
-                    weight: 0,
-                  });
-                  layer.unbindTooltip?.();
-                  layer.unbindPopup?.();
                 }
               });
-            } catch (focusErr) {
-              console.warn("[MasterWilayahMap] Village focus failed:", focusErr);
             }
           }
         } else {
@@ -734,8 +809,10 @@ export function MasterWilayahMap({
     districtCode,
     villageCode,
     villageName,
-    metric,
-    thematicData,
+    applyClientChoropleth,
+    buildChoroplethTooltipHtml,
+    // metric + thematicData TIDAK di sini — recolor via effect terpisah
+    // agar ganti KPI tidak merusak remount SDK (pane kosong).
   ]);
 
   // Ganti basemap secara instan tanpa reload atau render ulang peta
@@ -743,6 +820,26 @@ export function MasterWilayahMap({
     if (!mapInstanceRef.current?.map) return;
     applyBasemapTiles(mapInstanceRef.current.map, basemap, currentLevel);
   }, [basemap, currentLevel]);
+
+  const legendItems = useMemo(() => {
+    if (metric === "anggota") {
+      const values = (metricRows || [])
+        .map((r) => r.anggota)
+        .filter((v): v is number => v != null && Number.isFinite(v));
+      const breaks = getQuintileBreaks(
+        values.length
+          ? values
+          : (thematicData || []).map((d) => d.value).filter(Number.isFinite),
+      );
+      return getLegendItems(metric, { quintileBreaks: breaks, values });
+    }
+    return getLegendItems(metric);
+  }, [metric, metricRows, thematicData]);
+
+  // Ganti metrik / thematic → recolor saja (jangan destroy Map).
+  useEffect(() => {
+    applyClientChoropleth();
+  }, [metric, thematicData, metricRows, applyClientChoropleth]);
 
   useEffect(() => {
     if (sdkReady) {
@@ -812,43 +909,55 @@ export function MasterWilayahMap({
   const prevLevel = getPreviousLevel();
 
   return (
-    <div className="relative flex flex-col rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+    <div
+      className={
+        embedded
+          ? "relative flex flex-col overflow-hidden bg-white"
+          : "relative flex flex-col rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"
+      }
+    >
       {/* Top Bar: Breadcrumbs & Navigation Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-3 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs">
-        {/* Breadcrumb Links */}
-        <nav
-          aria-label="Navigasi Wilayah"
-          className="flex flex-wrap items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium"
-        >
-          {breadcrumbs.map((crumb, idx) => {
-            const isLast = idx === breadcrumbs.length - 1;
-            return (
-              <div key={crumb.level} className="flex items-center gap-1.5">
-                {idx > 0 && (
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                )}
-                {isLast ? (
-                  <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900 flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {crumb.label}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToLevel(crumb.level)}
-                    className="hover:text-blue-600 dark:hover:text-blue-300 transition-colors underline-offset-2 hover:underline"
-                  >
-                    {crumb.label}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </nav>
+        {embedded ? (
+          <div className="flex items-center gap-1.5 font-semibold text-blue-600">
+            <MapPin className="h-3.5 w-3.5" aria-hidden />
+            <span>{LEVEL_LABELS[currentLevel]}</span>
+          </div>
+        ) : (
+          <nav
+            aria-label="Navigasi Wilayah"
+            className="flex flex-wrap items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium"
+          >
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <div key={crumb.level} className="flex items-center gap-1.5">
+                  {idx > 0 && (
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  )}
+                  {isLast ? (
+                    <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900 flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {crumb.label}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToLevel(crumb.level)}
+                      className="hover:text-blue-600 dark:hover:text-blue-300 transition-colors underline-offset-2 hover:underline"
+                    >
+                      {crumb.label}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Right side controls: Level badge, Back button, Basemap switcher */}
         <div className="flex items-center gap-2">
-          {prevLevel && (
+          {!embedded && prevLevel && (
             <button
               type="button"
               onClick={() => onNavigateToLevel(prevLevel)}
@@ -860,7 +969,7 @@ export function MasterWilayahMap({
             </button>
           )}
 
-          {currentLevel !== "nasional" && (
+          {!embedded && currentLevel !== "nasional" && (
             <button
               type="button"
               onClick={onReset}
@@ -912,14 +1021,20 @@ export function MasterWilayahMap({
       </div>
 
       {/* Main Map Container */}
-      <div className="relative w-full h-[540px] bg-slate-100 dark:bg-slate-950">
+      <div
+        className={`relative w-full bg-slate-100 dark:bg-slate-950 ${
+          embedded ? "h-[420px]" : "h-[540px]"
+        }`}
+      >
         <div
           id={`master-wilayah-map-${containerId}`}
           ref={containerRef}
           className="w-full h-full"
         />
 
-
+        {!loading && !error ? (
+          <MapIndicatorLegend metric={metric} items={legendItems} />
+        ) : null}
 
         {/* Error Overlay */}
         {error && (
@@ -929,14 +1044,41 @@ export function MasterWilayahMap({
               Gagal Memuat Peta Master Wilayah
             </h4>
             <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={() => renderMap()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Coba Muat Ulang
-            </button>
+            {WIDGET_SCRIPT_URL ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (sdkReady) {
+                    void renderMap();
+                    return;
+                  }
+                  setError(null);
+                  setLoading(true);
+                  loadScriptPromise(WIDGET_SCRIPT_URL)
+                    .then(() => {
+                      installMasterWilayahSafeguard();
+                      setSdkReady(true);
+                    })
+                    .catch((err) => {
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Gagal memuat widget Master Wilayah.",
+                      );
+                      setLoading(false);
+                    });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Coba Muat Ulang
+              </button>
+            ) : (
+              <p className="text-[11px] text-slate-400 max-w-sm">
+                Perbaiki env lalu restart server lokal atau rebuild image
+                OpenShift.
+              </p>
+            )}
           </div>
         )}
       </div>

@@ -81,17 +81,23 @@ export type PeringkatProvinsiItem = {
   id: string;
   nama: string;
   tpk: number;
+  /** COUNT dat_AnggotaTPK join TPK aktif per ProvinsiID. */
+  anggota: number;
   /** COUNT dat_PKB Status=1 per ProvinsiID. */
   pkb: number;
   /** COUNT desa binaan aktif join PKB aktif, group by PKB.ProvinsiID. */
   desa: number;
   krs: number;
+  /** SUM(jumlah_keluarga_sasaran) grain RT per id_provinsi. */
+  keluargaSasaran: number;
   /** KRS ÷ TPK (sama getKrsPerTpkRatio). */
   rasio: number;
   /** desa ÷ PKB (sama getDesaPerPkbRatio). */
   rasioPkbDesa: number;
   /** true jika rasioPkbDesa > 2. */
   warningBeban: boolean;
+  /** Kode Kemendagri 2 digit (untuk peta). Opsional. */
+  kode?: string | null;
 };
 
 export type PeringkatProvinsiPayload = {
@@ -104,6 +110,8 @@ export type PeringkatKabupatenItem = {
   id: string;
   nama: string;
   tpk: number;
+  /** COUNT anggota TPK aktif dalam kab. */
+  anggota: number;
   pkb: number;
   desa: number;
   krs: number;
@@ -114,6 +122,8 @@ export type PeringkatKabupatenItem = {
   warningBeban: boolean;
   /** Indikator DWH per kab — RTLH null/0 (kolom tidak ada). */
   indikator: IndikatorRingkasan;
+  /** Kode Kemendagri 4 digit untuk choropleth Master Wilayah. Opsional di mock. */
+  kode?: string | null;
 };
 
 export type PeringkatKabupatenPayload = {
@@ -127,6 +137,7 @@ export type PeringkatKecamatanItem = {
   id: string;
   nama: string;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
   krs: number;
@@ -135,6 +146,8 @@ export type PeringkatKecamatanItem = {
   rasioPkbDesa: number;
   warningBeban: boolean;
   indikator: IndikatorRingkasan;
+  /** Kode Kemendagri 6 digit untuk choropleth Master Wilayah. Opsional di mock. */
+  kode?: string | null;
 };
 
 export type PeringkatKecamatanPayload = {
@@ -148,6 +161,7 @@ export type PeringkatKelurahanItem = {
   id: string;
   nama: string;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
   krs: number;
@@ -156,6 +170,8 @@ export type PeringkatKelurahanItem = {
   rasioPkbDesa: number;
   warningBeban: boolean;
   indikator: IndikatorRingkasan;
+  /** Kode Kemendagri 10 digit untuk choropleth Master Wilayah. Opsional di mock. */
+  kode?: string | null;
 };
 
 export type PeringkatKelurahanPayload = {

@@ -2,6 +2,8 @@ export interface MasterWilayahThematicDataItem {
   code: string;
   value: number;
   label?: string;
+  /** Nama wilayah (untuk join exact-name bila kode poligon beda padding). */
+  name?: string;
 }
 
 export interface MasterWilayahMarkerItem {

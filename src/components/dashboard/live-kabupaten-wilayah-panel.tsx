@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import { AlertTriangle, BriefcaseBusiness, Users, UsersRound } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import {
   EmptyState,
@@ -11,13 +10,16 @@ import {
 import { LiveTpkListPanel } from "@/components/dashboard/live-tpk-list-panel";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { WilayahChildTable } from "@/components/dashboard/wilayah-child-table";
+import { WilayahMapKpiCards } from "@/components/dashboard/wilayah-map-kpi-cards";
+import { WilayahScopeMap } from "@/components/dashboard/wilayah-scope-map";
 import type { DataSource, PeringkatKecamatanItem } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
 import { getKecamatanSlugByApiId } from "@/lib/kecamatan-api-id";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
-import { formatNumber } from "@/lib/map-data";
+import type { MetricRow } from "@/lib/map-choropleth";
+import { formatNumber, provinces, type MetricKey } from "@/lib/map-data";
 import type { SasaranCounts } from "@/lib/sasaran-indikator";
 import { cn } from "@/lib/utils";
 import { isUnresolvedKabName } from "@/lib/wilayah-name-labels";
@@ -31,105 +33,6 @@ function indikatorToSasaran(item: PeringkatKecamatanItem): SasaranCounts {
     sumberAirTidakLayak: item.indikator.airTL,
     rtlh: item.indikator.rtlh ?? 0,
   };
-}
-
-function SummaryKpiCards({
-  jumlahTPK,
-  jumlahAnggota,
-  jumlahPKB,
-  jumlahKRS,
-  scopeLabel,
-  dataSource,
-}: {
-  jumlahTPK: number;
-  jumlahAnggota: number;
-  jumlahPKB: number;
-  jumlahKRS: number;
-  scopeLabel: string;
-  dataSource: DataSource | null;
-}) {
-  const sourceHint =
-    dataSource === "postgres"
-      ? "live"
-      : dataSource === "mock"
-        ? "simulasi"
-        : "agregat";
-
-  const cards = [
-    {
-      id: "tpk",
-      label: "Jumlah Tim TPK",
-      value: jumlahTPK,
-      unit: "tim",
-      hint: `Di ${scopeLabel}`,
-      icon: UsersRound,
-      color: "bg-blue-50 text-primary",
-    },
-    {
-      id: "anggota",
-      label: "Jumlah Anggota TPK",
-      value: jumlahAnggota,
-      unit: "orang",
-      hint: `Personel (${sourceHint})`,
-      icon: Users,
-      color: "bg-cyan-50 text-cyan-700",
-    },
-    {
-      id: "pkb",
-      label: "Jumlah PKB",
-      value: jumlahPKB,
-      unit: "petugas",
-      hint: `PKB/PLKB unik (${sourceHint})`,
-      icon: BriefcaseBusiness,
-      color: "bg-violet-50 text-violet-700",
-    },
-    {
-      id: "krs",
-      label: "KRS di wilayah ini",
-      value: jumlahKRS,
-      unit: "keluarga",
-      hint: `Berisiko stunting (${sourceHint})`,
-      icon: AlertTriangle,
-      color: "bg-amber-50 text-amber-800",
-    },
-  ] as const;
-
-  return (
-    <div
-      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-      aria-label={`Ringkasan ${scopeLabel}`}
-    >
-      {cards.map((card) => {
-        const Icon = card.icon;
-        return (
-          <article
-            key={card.id}
-            className="rounded-2xl border border-line bg-white px-5 py-5 shadow-[var(--shadow-soft)] sm:px-6 sm:py-6"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
-                {card.label}
-              </div>
-              <span
-                className={`grid size-8 shrink-0 place-items-center rounded-xl ${card.color}`}
-              >
-                <Icon className="size-3.5" aria-hidden />
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5">
-              <span className="text-2xl font-extrabold tracking-tight text-navy tabular-nums">
-                {formatNumber(card.value)}
-              </span>
-              <span className="text-[11px] font-medium text-slate-400">
-                {card.unit}
-              </span>
-            </div>
-            <div className="mt-1.5 text-[11px] text-slate-400">{card.hint}</div>
-          </article>
-        );
-      })}
-    </div>
-  );
 }
 
 /**
@@ -170,6 +73,31 @@ export function LiveKabupatenWilayahPanel({
     if (nama && !isUnresolvedKabName(nama, kabupatenApiId)) return nama;
     return kabName;
   }, [needKabName, kabName, peringkatKab.payload, kabupatenApiId]);
+
+  const provinceAdminCode = useMemo(() => {
+    const prov = provinces.find((p) => p.id === provinceSlug);
+    return String(prov?.adminCode ?? "").padStart(2, "0");
+  }, [provinceSlug]);
+
+  const [mapMetric, setMapMetric] = useState<MetricKey>("tpk");
+
+  const mapChildRows: MetricRow[] = useMemo(
+    () =>
+      (peringkat.payload?.items ?? []).map((item) => ({
+        id: item.id,
+        nama: item.nama,
+        tpk: item.tpk,
+        krs: item.krs,
+        pkb: item.pkb,
+        anggota: item.anggota,
+        keluargaSasaran: item.keluargaSasaran,
+        desa: item.desa,
+        rasio: item.rasio,
+        rasioPkbDesa: item.rasioPkbDesa,
+        kode: item.kode,
+      })),
+    [peringkat.payload?.items],
+  );
 
   const dataSource: DataSource | null =
     ringkasan.ringkasan?.meta.source ??
@@ -246,13 +174,15 @@ export function LiveKabupatenWilayahPanel({
 
       {ringkasan.status === "ready" && ringkasan.ringkasan ? (
         <>
-          <SummaryKpiCards
+          <WilayahMapKpiCards
             jumlahTPK={ringkasan.ringkasan.jumlahTPK}
             jumlahAnggota={ringkasan.ringkasan.jumlahAnggota}
             jumlahPKB={ringkasan.ringkasan.jumlahPKB}
             jumlahKRS={ringkasan.ringkasan.jumlahKRS}
             scopeLabel={displayKabName}
             dataSource={ringkasan.ringkasan.meta.source}
+            activeMetric={mapMetric}
+            onMetricChange={setMapMetric}
           />
           {sasaranCounts ? (
             <SasaranIndikatorPanel
@@ -264,6 +194,24 @@ export function LiveKabupatenWilayahPanel({
             />
           ) : null}
         </>
+      ) : null}
+
+      {provinceAdminCode !== "00" ? (
+        <WilayahScopeMap
+          currentLevel="kabupaten"
+          provinceSlug={provinceSlug}
+          provinceAdminCode={provinceAdminCode}
+          provinceName={provinceName}
+          kabSlug={kabSlug}
+          kabName={displayKabName}
+          kabupatenApiId={kabupatenApiId}
+          metric={mapMetric}
+          onMetricChange={setMapMetric}
+          childRows={mapChildRows}
+          childStatus={peringkat.status}
+          childError={peringkat.error}
+          onRetryChildren={peringkat.refetch}
+        />
       ) : null}
 
       {peringkat.status === "loading" ? (

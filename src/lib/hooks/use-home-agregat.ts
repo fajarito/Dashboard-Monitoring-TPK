@@ -33,12 +33,24 @@ let snapshot: Snapshot = {
 let generation = 0;
 let started = false;
 
+/** Frozen server snapshot — never mutate; keeps SSR HTML identical across requests. */
+const SERVER_SNAPSHOT: Snapshot = {
+  status: "loading",
+  ringkasan: null,
+  peringkat: null,
+  error: null,
+};
+
 function emit() {
   for (const listener of listeners) listener();
 }
 
 function getSnapshot() {
   return snapshot;
+}
+
+function getServerSnapshot() {
+  return SERVER_SNAPSHOT;
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -115,7 +127,11 @@ function subscribe(listener: () => void) {
  * Tidak memuat by_name / daftar keluarga.
  */
 export function useHomeAgregat(): HomeAgregatState {
-  const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const current = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
   const refetch = useCallback(() => {
     started = true;

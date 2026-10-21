@@ -9,6 +9,10 @@ RUN npm ci
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* di-inline ke client bundle saat `next build`.
+# Override saat build: --build-arg NEXT_PUBLIC_MASTER_WILAYAH_API_URL=https://...
+ARG NEXT_PUBLIC_MASTER_WILAYAH_API_URL=https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id
+ENV NEXT_PUBLIC_MASTER_WILAYAH_API_URL=$NEXT_PUBLIC_MASTER_WILAYAH_API_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

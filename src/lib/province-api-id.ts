@@ -41,6 +41,11 @@ export const PROVINSI_ID_BY_SLUG: Record<string, number> = {
   papua: 32,
   papbar: 33,
   kalut: 36,
+  /** DOB Papua (UU 29–32/2022) — id_provinsi 37–40; Kemendagri 93–96. */
+  papsel: 37,
+  papteng: 38,
+  pappeg: 39,
+  papbd: 40,
 };
 
 const SLUG_BY_PROVINSI_ID: Record<number, string> = Object.fromEntries(

@@ -1,5 +1,4 @@
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
-import { getRingkasanMock } from "@/lib/data/mock/ringkasan";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import {
   arePostgresPoolsConfigured,
@@ -242,9 +241,11 @@ WHERE r."periode" = $5
 export async function getRingkasanPostgres(
   query: RingkasanQuery,
 ): Promise<RingkasanPayload> {
-  // Fallback mock HANYA jika URL pool kosong.
   if (!arePostgresPoolsConfigured()) {
-    return getRingkasanMock(query);
+    throw new PostgresDataError(
+      "postgres_not_configured",
+      "DATA_SOURCE=postgres tetapi pool SIGA/WILAYAH/DWH belum di-set.",
+    );
   }
 
   const filter = resolveWilayahFilter(query);

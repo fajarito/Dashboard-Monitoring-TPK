@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { ClientOnly } from "@/components/dashboard/client-only";
 import {
   EmptyState,
   ErrorState,
@@ -38,7 +39,14 @@ import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
 import {
+  buildThematicData,
+  choroplethFormulaLabel,
+  type MetricRow,
+} from "@/lib/map-choropleth";
+import {
+  estimateDesaForProvince,
   formatNumber,
+  getDesaPerPkbRatio,
   metricHelp,
   metricLabels,
   metricOptions,
@@ -46,9 +54,11 @@ import {
   type MetricKey,
   type Province,
 } from "@/lib/map-data";
-import { getLegendRanges } from "@/lib/map-style";
-import { mapNoDataColor } from "@/lib/navigation";
-import { getProvinsiApiId } from "@/lib/province-api-id";
+import { getKeluargaSasaranForProvince } from "@/lib/sasaran-indikator";
+import {
+  getProvinsiApiId,
+  resolveProvinceFromPeringkatId,
+} from "@/lib/province-api-id";
 import {
   getPrioritasKomposisi,
   type PrioritasSlice,
@@ -185,7 +195,6 @@ export function MapSebaran() {
     null,
   );
   const homeAgregat = useHomeAgregat();
-  const legend = useMemo(() => getLegendRanges(metric), [metric]);
 
   /** Tingkat hirarki aktif untuk peta dan ringkasan. */
   const currentLevel: WilayahLevelKey = useMemo(() => {
@@ -275,81 +284,103 @@ export function MapSebaran() {
     selected?.name ??
     "Nasional";
 
-  const thematicData = useMemo(() => {
-    const unit = kpiCards.find((c) => c.key === metric)?.unit ?? "";
+  const mapMetricRows = useMemo((): MetricRow[] => {
+    const toRows = (
+      items: Array<{
+        id: string;
+        nama: string;
+        tpk: number;
+        krs: number;
+        pkb?: number;
+        anggota?: number;
+        keluargaSasaran?: number;
+        desa?: number;
+        rasio?: number;
+        rasioPkbDesa?: number;
+        kode?: string | null;
+      }>,
+      resolveCode?: (item: (typeof items)[number]) => string | null,
+    ): MetricRow[] =>
+      items.map((item) => ({
+        id: item.id,
+        nama: item.nama,
+        tpk: item.tpk,
+        krs: item.krs,
+        pkb: item.pkb,
+        anggota: item.anggota,
+        keluargaSasaran: item.keluargaSasaran,
+        desa: item.desa,
+        rasio: item.rasio,
+        rasioPkbDesa: item.rasioPkbDesa,
+        // Jangan fallback ke id internal — itu bukan kode Kemendagri.
+        kode:
+          item.kode?.replace(/\D/g, "") ||
+          resolveCode?.(item) ||
+          null,
+      }));
 
     if (!selected) {
-      // Tingkat Nasional: mapping seluruh provinsi dari dataset mock
+      const live = homeAgregat.peringkat?.items;
+      if (live?.length) {
+        return toRows(live, (item) => {
+          const prov = resolveProvinceFromPeringkatId(item.id, item.nama);
+          return prov ? String(prov.adminCode).padStart(2, "0") : null;
+        });
+      }
+      // Jangan campur mock ke peta saat loading/error, atau saat source postgres kosong.
+      if (
+        homeAgregat.status !== "ready" ||
+        homeAgregat.peringkat?.meta.source === "postgres"
+      ) {
+        return [];
+      }
+      // Mode mock: seed dari provinces hanya jika peringkat mock belum tersedia.
       return provinces.map((p) => {
-        const code = String(p.adminCode).padStart(2, "0");
-        const val = p[metric] ?? 0;
+        const desa = estimateDesaForProvince(p);
         return {
-          code,
-          value: val,
-          label: `${formatNumber(val)} ${unit}`.trim(),
+          id: p.id,
+          nama: p.name,
+          tpk: p.tpk,
+          krs: p.krs,
+          pkb: p.pkb,
+          anggota: p.anggota,
+          keluargaSasaran: getKeluargaSasaranForProvince(p),
+          desa,
+          rasio: p.tpk > 0 ? p.krs / p.tpk : 0,
+          rasioPkbDesa: getDesaPerPkbRatio(p.pkb, desa),
+          kode: String(p.adminCode).padStart(2, "0"),
         };
       });
     }
 
     if (selected && !selectedKab && peringkatKab.payload?.items) {
-      // Tingkat Provinsi: mapping kab/kota dari dataset mock
-      return peringkatKab.payload.items.map((item) => {
-        const val =
-          metric === "tpk"
-            ? item.tpk
-            : metric === "pkb"
-              ? item.pkb
-              : metric === "krs"
-                ? item.krs
-                : item.tpk * 3;
-        return {
-          code: item.id,
-          value: val,
-          label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
-        };
-      });
+      return toRows(peringkatKab.payload.items);
     }
 
     if (selectedKab && !selectedKec && peringkatKec.payload?.items) {
-      // Tingkat Kabupaten: mapping kecamatan dari dataset mock
-      return peringkatKec.payload.items.map((item) => {
-        const val =
-          metric === "tpk"
-            ? item.tpk
-            : metric === "pkb"
-              ? item.pkb
-              : metric === "krs"
-                ? item.krs
-                : item.tpk * 3;
-        return {
-          code: item.id,
-          value: val,
-          label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
-        };
-      });
+      return toRows(peringkatKec.payload.items);
     }
 
     if (selectedKec && peringkatKel.payload?.items) {
-      // Tingkat Kecamatan: mapping desa/kelurahan dari dataset mock
-      return peringkatKel.payload.items.map((item) => {
-        const val =
-          metric === "tpk"
-            ? item.tpk
-            : metric === "pkb"
-              ? item.pkb
-              : metric === "krs"
-                ? item.krs
-                : item.tpk * 3;
-        return {
-          code: item.id,
-          value: val,
-          label: `${item.nama}: ${formatNumber(val)} ${unit}`.trim(),
-        };
-      });
+      return toRows(peringkatKel.payload.items);
     }
 
     return [];
-  }, [selected, selectedKab, selectedKec, metric, peringkatKab.payload, peringkatKec.payload, peringkatKel.payload]);
+  }, [
+    selected,
+    selectedKab,
+    selectedKec,
+    homeAgregat.status,
+    homeAgregat.peringkat,
+    peringkatKab.payload,
+    peringkatKec.payload,
+    peringkatKel.payload,
+  ]);
+
+  const thematicData = useMemo(() => {
+    const emptyCodes = new Map<string, string>();
+    return buildThematicData(mapMetricRows, metric, emptyCodes);
+  }, [mapMetricRows, metric]);
 
   const sasaranScope = useMemo(() => {
     if (!activeRingkasan) {
@@ -816,7 +847,7 @@ export function MapSebaran() {
             </div>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-primary">
-            {metricLabels[metric]}
+            Warna: {choroplethFormulaLabel(metric)}
           </span>
         </div>
 
@@ -824,54 +855,35 @@ export function MapSebaran() {
           {mapDemoState === "loading" ? (
             <MapSkeleton />
           ) : (
-            <MasterWilayahMap
-              metric={metric}
-              currentLevel={currentLevel}
-              provinceCode={provinceCode}
-              provinceName={selected?.name}
-              regencyCode={regencyCode}
-              regencyName={selectedKab?.nama}
-              districtCode={districtCode}
-              districtName={selectedKec?.nama}
-              villageCode={villageCode}
-              villageName={selectedDesa?.nama}
-              thematicData={thematicData}
-              kabupatenList={peringkatKab.payload?.items}
-              kecamatanList={peringkatKec.payload?.items}
-              kelurahanList={peringkatKel.payload?.items}
-              onDrillDown={handleDrillDown}
-              onNavigateToLevel={handleNavigateToLevel}
-              onReset={clearFocus}
-            />
+            <ClientOnly fallback={<MapSkeleton />}>
+              <MasterWilayahMap
+                metric={metric}
+                currentLevel={currentLevel}
+                provinceCode={provinceCode}
+                provinceName={selected?.name}
+                regencyCode={regencyCode}
+                regencyName={selectedKab?.nama}
+                districtCode={districtCode}
+                districtName={selectedKec?.nama}
+                villageCode={villageCode}
+                villageName={selectedDesa?.nama}
+                thematicData={thematicData}
+                metricRows={mapMetricRows}
+                kabupatenList={peringkatKab.payload?.items}
+                kecamatanList={peringkatKec.payload?.items}
+                kelurahanList={peringkatKel.payload?.items}
+                onDrillDown={handleDrillDown}
+                onNavigateToLevel={handleNavigateToLevel}
+                onReset={clearFocus}
+              />
+            </ClientOnly>
           )}
         </div>
 
-        <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-5">
-          <div
-            className="flex flex-wrap items-center gap-2 text-[9px] font-semibold text-muted-foreground"
-            aria-label="Legenda warna peta"
-          >
-            {legend.map((item) => (
-              <span key={item.label} className="flex items-center gap-1">
-                <span
-                  className="h-2.5 w-5 rounded-sm"
-                  style={{ backgroundColor: item.color }}
-                  aria-hidden
-                />
-                <span>{item.label}</span>
-              </span>
-            ))}
-            <span className="ml-1 flex items-center gap-1">
-              <span
-                className="h-2.5 w-5 rounded-sm"
-                style={{ backgroundColor: mapNoDataColor }}
-                aria-hidden
-              />
-              Tanpa data
-            </span>
-          </div>
+        <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
           <div className="text-[9px] text-slate-400">
-            {metricLabels[metric]} • Master Wilayah API BKKBN • Drilldown sampai tingkat Desa/Kelurahan
+            Legenda indikator di kanan bawah peta · {choroplethFormulaLabel(metric)} ·
+            Master Wilayah API BKKBN
             {dataSource === "postgres"
               ? " · KPI live"
               : dataSource === "mock"

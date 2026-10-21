@@ -84,6 +84,28 @@
   --chart-3: #93c5fd;
   --chart-4: #0b4dd8;
   --chart-5: #102a56;
+  /* Choropleth — 5 kelas + noData (Sangat Rendah → Sangat Tinggi) */
+  --map-choro-sangat-rendah: #d92d20;
+  --map-choro-rendah: #f79009;
+  --map-choro-sedang: #fec84b;
+  --map-choro-tinggi: #12b76a;
+  --map-choro-sangat-tinggi: #2e90fa;
+  --map-choro-1: var(--map-choro-sangat-rendah);
+  --map-choro-2: var(--map-choro-rendah);
+  --map-choro-3: var(--map-choro-sedang);
+  --map-choro-4: var(--map-choro-tinggi);
+  --map-choro-5: var(--map-choro-sangat-tinggi);
+  --map-choro-krs-1: var(--map-choro-sangat-rendah);
+  --map-choro-krs-2: var(--map-choro-rendah);
+  --map-choro-krs-3: var(--map-choro-sedang);
+  --map-choro-krs-4: var(--map-choro-tinggi);
+  --map-choro-krs-5: var(--map-choro-sangat-tinggi);
+  --map-choro-rasio-1: var(--map-choro-sangat-rendah);
+  --map-choro-rasio-2: var(--map-choro-rendah);
+  --map-choro-rasio-3: var(--map-choro-sedang);
+  --map-choro-rasio-4: var(--map-choro-tinggi);
+  --map-choro-rasio-5: var(--map-choro-sangat-tinggi);
+  --map-choro-nodata: #d0d5dd;
   --radius: 0.875rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #253858;

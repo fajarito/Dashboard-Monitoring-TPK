@@ -1,5 +1,4 @@
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
-import { getPeringkatKecamatanMock } from "@/lib/data/mock/peringkat-kecamatan";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import {
   arePostgresPoolsConfigured,
@@ -10,6 +9,7 @@ import type {
   PeringkatKecamatanItem,
   PeringkatKecamatanPayload,
 } from "@/lib/data/types";
+import { composeKemendagriCode } from "@/lib/map-choropleth";
 import {
   getDesaPerPkbRatio,
   getKrsPerTpkRatio,
@@ -21,6 +21,7 @@ const MAX_ROWS = 120;
 type SigaKecRow = {
   id_kecamatan: number;
   tpk: number;
+  anggota: number;
   pkb: number;
   desa: number;
 };
@@ -39,6 +40,9 @@ type DwhKecRow = {
 type WilayahKecRow = {
   id_kecamatan: number;
   nama_kecamatan: string;
+  depdagri_kecamatan: string | null;
+  depdagri_kabupaten: string | null;
+  depdagri_provinsi: string | null;
 };
 
 function toInt(value: string | number | null | undefined): number {
@@ -81,6 +85,17 @@ WITH tpk AS (
     AND t."KecamatanID" IS NOT NULL
   GROUP BY t."KecamatanID"
 ),
+anggota AS (
+  SELECT
+    t."KecamatanID" AS id_kecamatan,
+    COUNT(*)::int AS anggota
+  FROM "sigabaru"."dat_AnggotaTPK" a
+  INNER JOIN "sigabaru"."dat_TPK" t
+    ON t."TPKID" = a."TPKID" AND t."Status" = 1
+  WHERE t."KabupatenID" = $1
+    AND t."KecamatanID" IS NOT NULL
+  GROUP BY t."KecamatanID"
+),
 pkb AS (
   SELECT
     p."KecamatanID" AS id_kecamatan,
@@ -95,14 +110,18 @@ ids AS (
   SELECT id_kecamatan FROM tpk
   UNION
   SELECT id_kecamatan FROM pkb
+  UNION
+  SELECT id_kecamatan FROM anggota
 )
 SELECT
   i.id_kecamatan,
   COALESCE(t.tpk, 0)::int AS tpk,
+  COALESCE(a.anggota, 0)::int AS anggota,
   COALESCE(p.pkb, 0)::int AS pkb,
   COALESCE(t.desa, 0)::int AS desa
 FROM ids i
 LEFT JOIN tpk t ON t.id_kecamatan = i.id_kecamatan
+LEFT JOIN anggota a ON a.id_kecamatan = i.id_kecamatan
 LEFT JOIN pkb p ON p.id_kecamatan = i.id_kecamatan
 `;
 
@@ -125,7 +144,10 @@ GROUP BY r."id_kecamatan"
 export const SQL_WILAYAH_NAMA_KEC = `
 SELECT
   k."id_kecamatan",
-  k."nama_kecamatan"
+  k."nama_kecamatan",
+  k."depdagri_kecamatan",
+  k."depdagri_kabupaten",
+  k."depdagri_provinsi"
 FROM "pk2025"."v_kecamatan" k
 WHERE k."id_kecamatan" = ANY($1::int[])
 `;
@@ -134,7 +156,10 @@ export async function getPeringkatKecamatanPostgres(
   kabupatenIdRaw: string,
 ): Promise<PeringkatKecamatanPayload> {
   if (!arePostgresPoolsConfigured()) {
-    return getPeringkatKecamatanMock(kabupatenIdRaw);
+    throw new PostgresDataError(
+      "postgres_not_configured",
+      "DATA_SOURCE=postgres tetapi pool SIGA/WILAYAH/DWH belum di-set.",
+    );
   }
 
   const kabupatenId = parseKabupatenIdParam(kabupatenIdRaw);
@@ -147,11 +172,12 @@ export async function getPeringkatKecamatanPostgres(
 
   const sigaById = new Map<
     number,
-    { tpk: number; pkb: number; desa: number }
+    { tpk: number; anggota: number; pkb: number; desa: number }
   >();
   for (const row of siga.rows) {
     sigaById.set(toInt(row.id_kecamatan), {
       tpk: toInt(row.tpk),
+      anggota: toInt(row.anggota),
       pkb: toInt(row.pkb),
       desa: toInt(row.desa),
     });
@@ -186,6 +212,7 @@ export async function getPeringkatKecamatanPostgres(
   ).filter((id) => id > 0);
 
   const namaById = new Map<number, string>();
+  const kodeById = new Map<number, string>();
   if (ids.length > 0) {
     const wilayah = await queryPool<WilayahKecRow>(
       "wilayah",
@@ -193,10 +220,17 @@ export async function getPeringkatKecamatanPostgres(
       [ids],
     );
     for (const row of wilayah.rows) {
+      const id = toInt(row.id_kecamatan);
       namaById.set(
-        toInt(row.id_kecamatan),
+        id,
         row.nama_kecamatan?.trim() || `Kecamatan ${row.id_kecamatan}`,
       );
+      const kode = composeKemendagriCode({
+        prov: row.depdagri_provinsi,
+        kab: row.depdagri_kabupaten,
+        kec: row.depdagri_kecamatan,
+      });
+      if (kode && kode.length === 6) kodeById.set(id, kode);
     }
   }
 
@@ -205,6 +239,7 @@ export async function getPeringkatKecamatanPostgres(
       const sigaRow = sigaById.get(id);
       const dwhRow = dwhById.get(id);
       const tpk = sigaRow?.tpk ?? 0;
+      const anggota = sigaRow?.anggota ?? 0;
       const pkb = sigaRow?.pkb ?? 0;
       const desa = sigaRow?.desa ?? 0;
       const krs = dwhRow?.krs ?? 0;
@@ -213,6 +248,7 @@ export async function getPeringkatKecamatanPostgres(
         id: String(id),
         nama: namaById.get(id) ?? `Kecamatan ${id}`,
         tpk,
+        anggota,
         pkb,
         desa,
         krs,
@@ -220,6 +256,7 @@ export async function getPeringkatKecamatanPostgres(
         rasio: getKrsPerTpkRatio(tpk, krs),
         rasioPkbDesa,
         warningBeban: rasioPkbDesa > PKB_DESA_IDEAL_MAX,
+        kode: kodeById.get(id) ?? null,
         indikator: {
           bumil: dwhRow?.bumil ?? 0,
           baduta: dwhRow?.baduta ?? 0,

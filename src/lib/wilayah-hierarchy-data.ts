@@ -1,3 +1,4 @@
+import { getKemendagriRegencies } from "@/lib/data/kemendagri-regencies";
 import {
   getKabupatenApiId,
   getKabupatenSlugByApiId,
@@ -22,6 +23,8 @@ export type WilayahChildRow = {
   krs: number;
   sasaran: SasaranCounts;
   tpkCount: number;
+  /** Kode Kemendagri (4/6/10 digit) untuk join choropleth — opsional. */
+  kode?: string;
 };
 
 export type KabupatenUnit = WilayahChildRow & {
@@ -94,26 +97,6 @@ const DEPOK_KECAMATAN = [
   "Tapos",
 ] as const;
 
-/** Kabupaten/Kota inti Jawa Barat untuk demo drill-down. */
-const JABAR_KAB: { id: string; name: string; share: number; kec?: string[] }[] =
-  [
-    {
-      id: "kota-depok",
-      name: "Kota Depok",
-      share: 0.09,
-      kec: [...DEPOK_KECAMATAN],
-    },
-    { id: "kota-bandung", name: "Kota Bandung", share: 0.12 },
-    { id: "kab-bandung", name: "Kabupaten Bandung", share: 0.14 },
-    { id: "kab-bogor", name: "Kabupaten Bogor", share: 0.16 },
-    { id: "kota-bogor", name: "Kota Bogor", share: 0.07 },
-    { id: "kota-bekasi", name: "Kota Bekasi", share: 0.11 },
-    { id: "kab-bekasi", name: "Kabupaten Bekasi", share: 0.13 },
-    { id: "kab-karawang", name: "Kabupaten Karawang", share: 0.1 },
-    { id: "kota-cirebon", name: "Kota Cirebon", share: 0.04 },
-    { id: "kab-garut", name: "Kabupaten Garut", share: 0.04 },
-  ];
-
 const GENERIC_KEC_NAMES = [
   "Sukamaju",
   "Cipayung",
@@ -161,83 +144,23 @@ function buildKecamatan(
   });
 }
 
-function buildJabarKabupaten(province: Province): KabupatenUnit[] {
+/**
+ * Semua kab/kota Kemendagri untuk satu provinsi (dari Master Wilayah snapshot).
+ * Menjamin choropleth mock punya 1 baris + `kode` per poligon — bukan hanya Jabar.
+ */
+function buildKemendagriKabupaten(province: Province): KabupatenUnit[] {
+  const mwList = getKemendagriRegencies(province.adminCode);
+  if (mwList.length === 0) return [];
+
+  const rand = mulberry32(hashSeed(`${province.id}-kab-mw`));
   const provinceSasaran = getProvinceSasaran(province);
-  const totalKrs = province.krs;
-  const shareSum = JABAR_KAB.reduce((s, k) => s + k.share, 0);
+  // Bobot acak ringan agar choropleth tidak flat, tetap jumlah ≈ 1.0
+  const weights = mwList.map(() => 0.55 + rand());
+  const weightSum = weights.reduce((a, b) => a + b, 0);
 
-  return JABAR_KAB.map((kab) => {
-    const rand = mulberry32(hashSeed(`jabar-${kab.id}`));
-    const krs = Math.round((totalKrs * kab.share) / shareSum);
-    const keluargaSasaran = Math.round(krs * (1.4 + rand() * 0.25));
-    const tpkCount = Math.max(
-      8,
-      Math.round((province.tpk * kab.share) / shareSum),
-    );
-    // Scale sasaran roughly to kab share of province
-    const sasaran = Object.fromEntries(
-      sasaranKeys.map((key) => [
-        key,
-        Math.max(
-          20,
-          Math.round((provinceSasaran[key] * kab.share) / shareSum),
-        ),
-      ]),
-    ) as SasaranCounts;
-
-    const uniqueKec =
-      kab.kec ??
-      Array.from({ length: 5 + Math.floor(rand() * 3) }, (_, i) => {
-        return GENERIC_KEC_NAMES[
-          (i + hashSeed(kab.id)) % GENERIC_KEC_NAMES.length
-        ]!;
-      }).filter((name, i, arr) => arr.indexOf(name) === i);
-
-    const kecamatan = buildKecamatan(
-      "jabar",
-      kab.id,
-      kab.name,
-      uniqueKec,
-      krs,
-    );
-
-    return {
-      id: kab.id,
-      name: kab.name,
-      kindLabel: kab.name.startsWith("Kota") ? "Kota" : "Kabupaten",
-      provinceId: "jabar",
-      keluargaSasaran,
-      krs,
-      sasaran,
-      tpkCount,
-      kecamatan,
-    };
-  });
-}
-
-function buildGenericKabupaten(province: Province): KabupatenUnit[] {
-  const rand = mulberry32(hashSeed(`${province.id}-kab-list`));
-  const count = 5 + Math.floor(rand() * 3);
-  const capital = province.capital;
-  const names = [
-    `Kota ${capital}`,
-    `Kabupaten ${capital}`,
-    `Kabupaten Utara`,
-    `Kabupaten Selatan`,
-    `Kabupaten Timur`,
-    `Kabupaten Barat`,
-    `Kota Satelit`,
-    `Kabupaten Tengah`,
-  ].slice(0, count);
-
-  const shares = names.map(() => 0.7 + rand());
-  const shareSum = shares.reduce((a, b) => a + b, 0);
-  const provinceSasaran = getProvinceSasaran(province);
-
-  return names.map((name, index) => {
-    const id = `${province.id}-kab-${String(index + 1).padStart(2, "0")}`;
-    const share = shares[index]! / shareSum;
-    const krs = Math.round(province.krs * share);
+  return mwList.map((mw, index) => {
+    const share = weights[index]! / weightSum;
+    const krs = Math.max(80, Math.round(province.krs * share));
     const keluargaSasaran = Math.round(krs * (1.35 + rand() * 0.3));
     const tpkCount = Math.max(4, Math.round(province.tpk * share));
     const sasaran = Object.fromEntries(
@@ -246,28 +169,37 @@ function buildGenericKabupaten(province: Province): KabupatenUnit[] {
         Math.max(15, Math.round(provinceSasaran[key] * share)),
       ]),
     ) as SasaranCounts;
-    const kecCount = 4 + Math.floor(rand() * 3);
-    const kecNames = Array.from({ length: kecCount }, (_, i) => {
-      const base =
-        GENERIC_KEC_NAMES[(i + index * 3) % GENERIC_KEC_NAMES.length]!;
-      return `${base}`;
-    });
-    // dedupe
-    const unique = [...new Set(kecNames)];
-    while (unique.length < kecCount) {
-      unique.push(`Wilayah ${unique.length + 1}`);
-    }
+
+    const slugBase = mw.name
+      .toLowerCase()
+      .replace(/\b(kabupaten|kota)\b/g, "")
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    const idPrefix = mw.name.toLowerCase().startsWith("kota") ? "kota" : "kab";
+    const id = `${idPrefix}-${slugBase || mw.code}`;
+
+    // Depok (Jabar) — kecamatan realistis untuk drill demo
+    const kecNames =
+      mw.code === "3276"
+        ? [...DEPOK_KECAMATAN]
+        : Array.from({ length: 5 + Math.floor(rand() * 3) }, (_, i) => {
+            return GENERIC_KEC_NAMES[
+              (i + hashSeed(mw.code)) % GENERIC_KEC_NAMES.length
+            ]!;
+          }).filter((name, i, arr) => arr.indexOf(name) === i);
 
     return {
       id,
-      name,
-      kindLabel: name.startsWith("Kota") ? "Kota" : "Kabupaten",
+      name: mw.name,
+      kindLabel: mw.name.startsWith("Kota") ? "Kota" : "Kabupaten",
       provinceId: province.id,
       keluargaSasaran,
       krs,
       sasaran,
       tpkCount,
-      kecamatan: buildKecamatan(province.id, id, name, unique, krs),
+      kode: mw.code,
+      kecamatan: buildKecamatan(province.id, id, mw.name, kecNames, krs),
     };
   });
 }
@@ -278,10 +210,8 @@ export function getKabupatenByProvince(provinceId: string): KabupatenUnit[] {
   if (cache.has(provinceId)) return cache.get(provinceId)!;
   const province = provinces.find((p) => p.id === provinceId);
   if (!province) return [];
-  const list =
-    provinceId === "jabar"
-      ? buildJabarKabupaten(province)
-      : buildGenericKabupaten(province);
+  // Semua provinsi (termasuk Jabar) memakai daftar Kemendagri lengkap + kode.
+  const list = buildKemendagriKabupaten(province);
   cache.set(provinceId, list);
   return list;
 }
@@ -295,6 +225,13 @@ export function getKabupatenById(provinceId: string, kabId: string) {
   if (mappedSlug) {
     const byMapped = list.find((item) => item.id === mappedSlug);
     if (byMapped) return byMapped;
+  }
+
+  // Cocokkan kode Kemendagri 4 digit
+  const kode = String(kabId).replace(/\D/g, "");
+  if (kode.length === 4) {
+    const byKode = list.find((item) => item.kode === kode);
+    if (byKode) return byKode;
   }
 
   // Stub untuk id_kabupaten live tanpa hierarki mock (kecamatan tetap kosong).
@@ -319,6 +256,30 @@ export function getKabupatenById(provinceId: string, kabId: string) {
     tpkCount: 0,
     kecamatan: [],
   } satisfies KabupatenUnit;
+}
+
+/** Cari kab di semua provinsi mock (slug, id_kabupaten, atau kode Kemendagri). */
+export function findKabupatenAcrossProvinces(
+  kabId: string,
+): KabupatenUnit | null {
+  const trimmed = kabId.trim();
+  if (!trimmed) return null;
+  for (const province of provinces) {
+    const hit = getKabupatenById(province.id, trimmed);
+    if (hit && hit.kode) return hit;
+    if (hit && hit.tpkCount > 0) return hit;
+  }
+  // Kode Kemendagri langsung
+  const kode = trimmed.replace(/\D/g, "");
+  if (kode.length === 4) {
+    for (const province of provinces) {
+      const hit = getKabupatenByProvince(province.id).find(
+        (k) => k.kode === kode,
+      );
+      if (hit) return hit;
+    }
+  }
+  return null;
 }
 
 export function getKecamatanById(

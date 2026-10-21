@@ -26,6 +26,7 @@ Default **mock** (tanpa database). Ganti via env:
 | `DATABASE_URL_SIGA` | URL Postgres | TPK / anggota / PKB (`sigabaru`) |
 | `DATABASE_URL_WILAYAH` | URL Postgres | Label wilayah (`pk2025`) |
 | `DATABASE_URL_DWH` | URL Postgres | Rekap KRS (`dwh_pk2025`) |
+| `NEXT_PUBLIC_MASTER_WILAYAH_API_URL` | URL HTTPS | Base API/SDK peta Master Wilayah (BKKBN). Browser memuat `{URL}/map/widget.js`. **Wajib** agar peta sebaran tidak 404 `/undefined/map/widget.js`. |
 
 Contoh `.env.local`:
 
@@ -35,7 +36,12 @@ DATA_SOURCE=mock
 # DATABASE_URL_SIGA=postgres://...
 # DATABASE_URL_WILAYAH=postgres://...
 # DATABASE_URL_DWH=postgres://...
+
+# Peta Master Wilayah (UAT). Restart `next dev` setelah mengubah NEXT_PUBLIC_*.
+NEXT_PUBLIC_MASTER_WILAYAH_API_URL=https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id
 ```
+
+**Catatan Next.js:** `NEXT_PUBLIC_*` di-inline saat **build**. Mengubah env di pod OpenShift tanpa rebuild image **tidak** memperbaiki client bundle. Dockerfile sudah menerima build-arg dengan default UAT di atas. URL **production** belum ada di repo — tanya kolaborator / tim Master Wilayah.
 
 Jika `DATA_SOURCE=postgres` tetapi **salah satu URL pool kosong**, API **fallback ke mock** (agar lokal tanpa DB tetap hidup).  
 Jika ketiga URL terisi tetapi query gagal → **HTTP 503** JSON jelas (`meta.source=postgres-error`), **bukan** mock diam-diam.
@@ -80,8 +86,12 @@ Manifest di [`deploy/openshift/`](./deploy/openshift/):
 # 1) Namespace / project
 oc project YOUR_PROJECT
 
-# 2) ConfigMap (non-secret)
+# 2) ConfigMap (non-secret) — termasuk NEXT_PUBLIC_MASTER_WILAYAH_API_URL (UAT)
 oc apply -f deploy/openshift/configmap.yaml
+
+# Atau set/patch env tanpa re-apply file:
+oc set env configmap/dashboard-tpk-config \
+  NEXT_PUBLIC_MASTER_WILAYAH_API_URL='https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id'
 
 # 3) Secret — buat dari literal, JANGAN commit file berisi URL nyata
 oc create secret generic dashboard-tpk-db \
@@ -90,10 +100,20 @@ oc create secret generic dashboard-tpk-db \
   --from-literal=DATABASE_URL_DWH='postgres://USER:PASS@HOST:5432/dwh_pk2025' \
   --dry-run=client -o yaml | oc apply -f -
 
-# 4) Build & push image ke registry cluster (contoh)
-# oc new-build --name=dashboard-monitoring-tpk --strategy=docker --binary
-# oc start-build dashboard-monitoring-tpk --from-dir=. --follow
+# 4) Build & push image — WAJIB build-arg map SDK (NEXT_PUBLIC_* di-bake saat build)
+# Docker lokal:
+# docker build -t dashboard-monitoring-tpk:latest \
+#   --build-arg NEXT_PUBLIC_MASTER_WILAYAH_API_URL='https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id' \
+#   .
+# OpenShift binary build (sesuaikan nama BuildConfig):
+# oc new-build --name=dashboard-monitoring-tpk --strategy=docker --binary \
+#   --build-arg NEXT_PUBLIC_MASTER_WILAYAH_API_URL='https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id'
+# oc start-build dashboard-monitoring-tpk --from-dir=. --follow \
+#   --build-arg NEXT_PUBLIC_MASTER_WILAYAH_API_URL='https://master-wilayah-api-git-master-wilayah-api.apps.ocp-uat.bkkbn.go.id'
 # Lalu sesuaikan `image:` di deployment.yaml
+#
+# Setelah image lama tanpa env: rebuild wajib. `oc set env deployment/...` saja
+# tidak memperbaiki bundle client yang sudah di-compile.
 
 # 5) App + Service + Route
 oc apply -f deploy/openshift/deployment.yaml
