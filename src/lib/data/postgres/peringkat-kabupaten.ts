@@ -76,7 +76,7 @@ export const SQL_SIGA_PERINGKAT_KAB = `
 WITH tpk AS (
   SELECT
     t."KabupatenID" AS id_kabupaten,
-    COUNT(*)::int AS tpk
+    COUNT(DISTINCT t."TPKID")::int AS tpk
   FROM "sigabaru"."dat_TPK" t
   WHERE t."Status" = 1
     AND t."ProvinsiID" = $1

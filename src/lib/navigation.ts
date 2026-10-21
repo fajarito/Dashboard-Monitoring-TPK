@@ -76,22 +76,26 @@ export const navItems: NavItem[] = [
 
 export const brandIcon = LayoutDashboard;
 
-/** Palette choropleth — 5 kelas + noData (Sangat Rendah → Sangat Tinggi). */
+/**
+ * Palette choropleth spek Fajar (docs/map-indicator-spec.md).
+ * Urutan visual: merah (berat/sedikit) → biru (baik/banyak).
+ * Klasifikasi aktual via `getLegendItems` / threshold tetap — bukan equal quintile.
+ */
 export const mapPalette = [
-  "#D92D20", // sangatRendah
-  "#F79009", // rendah
-  "#FEC84B", // sedang
-  "#12B76A", // tinggi
-  "#2E90FA", // sangatTinggi
+  "#D92D20",
+  "#F79009",
+  "#FEC84B",
+  "#12B76A",
+  "#2E90FA",
 ] as const;
 
 export const mapNoDataColor = "#D0D5DD";
 
 export const mapLegendItems = [
-  { label: "Sangat Rendah", color: mapPalette[0] },
-  { label: "Rendah", color: mapPalette[1] },
-  { label: "Sedang", color: mapPalette[2] },
-  { label: "Tinggi", color: mapPalette[3] },
-  { label: "Sangat Tinggi", color: mapPalette[4] },
-  { label: "Tanpa data", color: mapNoDataColor },
+  { label: "Sangat Berat / Sangat Sedikit", color: mapPalette[0] },
+  { label: "Berat / Sedikit", color: mapPalette[1] },
+  { label: "Waspada / Sedang", color: mapPalette[2] },
+  { label: "Ideal / Banyak", color: mapPalette[3] },
+  { label: "Sangat Baik / Sangat Banyak", color: mapPalette[4] },
+  { label: "Tidak Ada Data", color: mapNoDataColor },
 ];

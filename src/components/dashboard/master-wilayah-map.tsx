@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useId } from "react";
+import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
 import { ChevronRight, RotateCcw, ArrowLeft, MapPin, AlertCircle, RefreshCw } from "lucide-react";
+import { MapIndicatorLegend } from "@/components/dashboard/map-indicator-legend";
 import {
   buildBasePathStyle,
   buildHoverPathStyle,
   buildSelectedPathStyle,
-  choroplethFormulaLabel,
-  colorForValue,
   forEachPolygonLayer,
   formatChoroplethHover,
   formatHoverPrimary,
@@ -15,13 +14,20 @@ import {
   indexThematicLookups,
   lookupMetricRow,
   lookupThematicValue,
-  normalizeWilayahNama,
   sdkPaletteForMetric,
   type ChoroplethPathStyle,
   type MetricRow,
   CHOROPLETH_NO_DATA,
 } from "@/lib/map-choropleth";
-import { formatNumber, type MetricKey } from "@/lib/map-data";
+import {
+  classifyMetricRow,
+  getIndicatorCategory,
+  getLegendItems,
+  getQuintileBreaks,
+  indicatorTitle,
+  type IndicatorClassification,
+} from "@/lib/map-indicator";
+import { type MetricKey } from "@/lib/map-data";
 import type {
   MasterWilayahFeatureProps,
   MasterWilayahInstance,
@@ -337,97 +343,6 @@ function injectTooltipStyles() {
   document.head.appendChild(style);
 }
 
-// Helper untuk mengambil metrik wilayah (Jumlah TPK dan Jumlah KRS)
-function findStatsByCodeOrExactName<
-  T extends { tpk: number; krs: number },
->(
-  items: T[],
-  cleanCode: string,
-  nameKey: string,
-  getCode: (item: T) => string,
-  getName: (item: T) => string,
-): T | undefined {
-  const byCode = items.find((item) => {
-    const c = getCode(item).replace(/\D/g, "");
-    return Boolean(c) && (c === cleanCode || c.padStart(2, "0") === cleanCode);
-  });
-  if (byCode) return byCode;
-  if (!nameKey) return undefined;
-  // Exact normalized name only — jangan pakai includes():
-  // "papua tengah".includes("papua") sempat menempelkan metrik Papua (91)
-  // ke poligon DOB 93–96 yang seharusnya punya baris sendiri.
-  return items.find((item) => normalizeWilayahNama(getName(item)) === nameKey);
-}
-
-function getWilayahStats(
-  code: string,
-  name: string,
-  metricRows?: MetricRow[],
-  kabupatenList?: { id: string; nama: string; tpk: number; krs: number }[],
-  kecamatanList?: { id: string; nama: string; tpk: number; krs: number }[],
-  kelurahanList?: { id: string; nama: string; tpk: number; krs: number }[],
-): { tpk: number; krs: number; anggota?: number; pkb?: number; desa?: number } | null {
-  const cleanCode = String(code || "").replace(/\D/g, "").trim();
-  const nameKey = normalizeWilayahNama(name || "");
-
-  // 1. Baris live `/api/peringkat*` — sumber kebenaran hover
-  const live = lookupMetricRow(metricRows, cleanCode, name);
-  if (live) {
-    return {
-      tpk: live.tpk,
-      krs: live.krs,
-      anggota: live.anggota,
-      pkb: live.pkb,
-      desa: live.desa,
-    };
-  }
-
-  // 2. Kabupaten aktif (subset fields)
-  if (kabupatenList && kabupatenList.length > 0) {
-    const kab = findStatsByCodeOrExactName(
-      kabupatenList,
-      cleanCode,
-      nameKey,
-      (k) => k.id,
-      (k) => k.nama,
-    );
-    if (kab) {
-      return { tpk: kab.tpk, krs: kab.krs };
-    }
-  }
-
-  // 3. Kecamatan aktif
-  if (kecamatanList && kecamatanList.length > 0) {
-    const kec = findStatsByCodeOrExactName(
-      kecamatanList,
-      cleanCode,
-      nameKey,
-      (k) => k.id,
-      (k) => k.nama,
-    );
-    if (kec) {
-      return { tpk: kec.tpk, krs: kec.krs };
-    }
-  }
-
-  // 4. Desa/kelurahan aktif
-  if (kelurahanList && kelurahanList.length > 0) {
-    const kel = findStatsByCodeOrExactName(
-      kelurahanList,
-      cleanCode,
-      nameKey,
-      (k) => k.id,
-      (k) => k.nama,
-    );
-    if (kel) {
-      return { tpk: kel.tpk, krs: kel.krs };
-    }
-  }
-
-  // Tanpa data live — jangan isi hash palsu (menyesatkan saat KPI live).
-  return null;
-}
-
 export function MasterWilayahMap({
   metric,
   currentLevel,
@@ -481,95 +396,103 @@ export function MasterWilayahMap({
   const thematicDataRef = useRef(thematicData);
   thematicDataRef.current = thematicData;
 
+  const quintileBreaksFor = useCallback((metric: MetricKey): number[] => {
+    if (metric !== "anggota") return [];
+    const rows = metricRowsRef.current || [];
+    const fromRows = rows
+      .map((r) => r.anggota)
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    if (fromRows.length > 0) return getQuintileBreaks(fromRows);
+    const fromThematic = (thematicDataRef.current || [])
+      .map((d) => d.value)
+      .filter((v) => Number.isFinite(v));
+    return getQuintileBreaks(fromThematic);
+  }, []);
+
+  const classifyFeature = useCallback(
+    (code: string, name: string, metric: MetricKey): IndicatorClassification => {
+      const breaks = quintileBreaksFor(metric);
+      const liveRow = lookupMetricRow(metricRowsRef.current, code, name);
+      if (liveRow) return classifyMetricRow(liveRow, metric, breaks);
+
+      const lookups = indexThematicLookups(thematicDataRef.current);
+      const choroVal = lookupThematicValue(lookups, code, name);
+      if (metric === "anggota") {
+        return getIndicatorCategory(metric, choroVal, { quintileBreaks: breaks });
+      }
+      return getIndicatorCategory(metric, choroVal, {});
+    },
+    [quintileBreaksFor],
+  );
+
   const buildChoroplethTooltipHtml = useCallback(
     (props: MasterWilayahFeatureProps, pointerNone: boolean) => {
       const name = escapeHtml(props.name || "-");
       const rawCode = String(props.code || props.kode || "")
         .replace(/\./g, "")
         .trim();
-      const codeEsc = escapeHtml(rawCode);
       const liveRow = lookupMetricRow(
         metricRowsRef.current,
         rawCode,
         props.name || "",
       );
-      const stats = getWilayahStats(
-        rawCode,
-        props.name || "",
-        metricRowsRef.current,
-        kabupatenListRef.current,
-        kecamatanListRef.current,
-        kelurahanListRef.current,
-      );
       const metric = metricRef.current;
-      const lookups = indexThematicLookups(thematicDataRef.current);
-      const choroVal = lookupThematicValue(
-        lookups,
-        rawCode,
-        props.name || "",
-      );
-      const formula = choroplethFormulaLabel(metric);
-      const primaryFromRow = liveRow
-        ? formatHoverPrimary(liveRow, metric)
-        : null;
-      const primaryDisplay =
-        primaryFromRow ??
-        (choroVal != null && Number.isFinite(choroVal)
-          ? formatChoroplethHover(choroVal, metric)
-          : "—");
+      const classification = classifyFeature(rawCode, props.name || "", metric);
+      const title = indicatorTitle(metric);
 
-      const tpkDisplay = stats ? formatNumber(stats.tpk) : "—";
-      const krsDisplay = stats ? formatNumber(stats.krs) : "—";
-      const anggotaDisplay =
-        stats?.anggota != null ? formatNumber(stats.anggota) : null;
-      const pkbDisplay =
-        stats?.pkb != null ? formatNumber(stats.pkb) : null;
+      let valueLines: string;
+      if (metric === "anggota") {
+        const primary = liveRow
+          ? formatHoverPrimary(liveRow, metric)
+          : classification.value != null
+            ? formatChoroplethHover(classification.value, metric)
+            : "Data tidak tersedia";
+        const parts = (primary || "Data tidak tersedia").split("\n");
+        valueLines = parts
+          .map(
+            (line) =>
+              `<div style="font-size: 12px; font-weight: 700; color: #0a2540; line-height: 1.35;">${escapeHtml(line)}</div>`,
+          )
+          .join("");
+      } else if (classification.status === "attention") {
+        valueLines = `<div style="font-size: 12px; font-weight: 800; color: #b42318;">${escapeHtml(classification.category)}</div>`;
+      } else {
+        const primary =
+          (liveRow ? formatHoverPrimary(liveRow, metric) : null) ??
+          (classification.value != null
+            ? formatChoroplethHover(classification.value, metric)
+            : "—");
+        valueLines = `<div style="font-size: 13px; font-weight: 800; color: #0a2540;">${escapeHtml(primary)}</div>`;
+      }
 
-      const supportRows: string[] = [
-        `<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${tpkDisplay}</span>
-                </div>`,
-        `<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${krsDisplay}</span>
-                </div>`,
-      ];
-      if (metric === "anggota" && anggotaDisplay) {
-        supportRows.unshift(`<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Anggota TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${anggotaDisplay}</span>
-                </div>`);
-      }
-      if (metric === "pkb" && pkbDisplay) {
-        supportRows.push(`<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah PKB</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${pkbDisplay}</span>
-                </div>`);
-      }
+      const kategoriLabel =
+        metric === "anggota" ? "Kategori Sebaran" : "Kategori";
+      const showKeterangan =
+        metric !== "anggota" &&
+        classification.status !== "noData" &&
+        Boolean(classification.keterangan);
 
       return `
-            <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;${pointerNone ? " pointer-events: none;" : ""}">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px;">
-                <span style="font-size: 12.5px; font-weight: 800; color: #0a2540; line-height: 1.2;">${name}</span>
-                <span style="background: #eff6ff; color: #2563eb; font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap;">
-                  KODE ${codeEsc}
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 12px 14px; width: max-content; min-width: 240px; max-width: 320px; box-sizing: border-box; box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.16); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;${pointerNone ? " pointer-events: none;" : ""}">
+              <div style="font-size: 13px; font-weight: 800; color: #0a2540; margin-bottom: 6px;">${name}</div>
+              <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;">${escapeHtml(title)}</div>
+              ${valueLines}
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                <span style="font-size: 10px; color: #64748b; font-weight: 600;">${escapeHtml(kategoriLabel)}:</span>
+                <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; color: #0a2540;">
+                  <span style="width: 8px; height: 8px; border-radius: 999px; background: ${escapeHtml(classification.color)}; flex-shrink: 0;"></span>
+                  ${escapeHtml(classification.category)}
                 </span>
               </div>
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">${escapeHtml(formula)}</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #2563eb;">${escapeHtml(primaryDisplay)}</span>
-                </div>
-                ${supportRows.join("")}
-              </div>
-              <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
-                Klik untuk membuka ringkasan
-              </div>
+              ${
+                showKeterangan
+                  ? `<div style="margin-top: 6px; font-size: 10px; font-weight: 500; color: #64748b; line-height: 1.35;">Keterangan: ${escapeHtml(classification.keterangan)}</div>`
+                  : ""
+              }
             </div>
           `;
     },
-    [],
+    [classifyFeature],
   );
 
   /**
@@ -582,13 +505,8 @@ export function MasterWilayahMap({
 
     const currentMetric = metricRef.current;
     const data = thematicDataRef.current || [];
+    const rows = metricRowsRef.current || [];
     const steps = hexStepsForMetric(currentMetric);
-    const thematicValues = data
-      .map((d) => d.value)
-      .filter((v) => Number.isFinite(v));
-    const tMin = thematicValues.length ? Math.min(...thematicValues) : 0;
-    const tMax = thematicValues.length ? Math.max(...thematicValues) : 1;
-    const thematicLookups = indexThematicLookups(data);
 
     const cleanVillage =
       currentLevel === "desa" && villageCode
@@ -626,24 +544,22 @@ export function MasterWilayahMap({
         return;
       }
 
-      const fromData = lookupThematicValue(thematicLookups, codeStr, featName);
-      const thematicVal =
-        fromData ??
-        (featProps.thematic?.value != null
-          ? Number(featProps.thematic.value)
-          : null);
-      const hasThematic = thematicVal != null && Number.isFinite(thematicVal);
-      if (!hasThematic && data.length > 0) {
+      const classification = classifyFeature(codeStr, featName, currentMetric);
+      const hasData =
+        classification.status === "ok" || classification.status === "attention";
+      if (
+        !hasData &&
+        (data.length > 0 || rows.length > 0) &&
+        !lookupMetricRow(rows, codeStr, featName)
+      ) {
         unmatchedDev.push({ code: codeStr, name: featName });
       }
-      const fillColor = hasThematic
-        ? colorForValue(thematicVal, tMin, tMax, steps)
-        : CHOROPLETH_NO_DATA;
-      const base = buildBasePathStyle(fillColor, hasThematic);
+      const fillColor = classification.color;
+      const base = buildBasePathStyle(fillColor, hasData);
       layer._mwBaseStyle = base;
       layer.setStyle?.(base);
 
-      // SDK menyimpan HTML tooltip saat bind awal — refresh saat ganti metrik.
+      // Refresh tooltip saat ganti metrik (hindari HTML cache SDK / flicker).
       const tipHtml = buildChoroplethTooltipHtml(
         featProps as MasterWilayahFeatureProps,
         true,
@@ -657,6 +573,7 @@ export function MasterWilayahMap({
           opacity: 1,
           className: "mw-tooltip",
           direction: "top",
+          permanent: false,
         });
       }
       if (typeof layer.setPopupContent === "function" && layer.getPopup?.()) {
@@ -679,7 +596,7 @@ export function MasterWilayahMap({
         unmatchedDev.slice(0, 20),
       );
     }
-  }, [currentLevel, villageCode, buildChoroplethTooltipHtml]);
+  }, [currentLevel, villageCode, buildChoroplethTooltipHtml, classifyFeature]);
 
   // Pastikan style override tooltip terinjeksi
   useEffect(() => {
@@ -919,10 +836,25 @@ export function MasterWilayahMap({
     applyBasemapTiles(mapInstanceRef.current.map, basemap, currentLevel);
   }, [basemap, currentLevel]);
 
+  const legendItems = useMemo(() => {
+    if (metric === "anggota") {
+      const values = (metricRows || [])
+        .map((r) => r.anggota)
+        .filter((v): v is number => v != null && Number.isFinite(v));
+      const breaks = getQuintileBreaks(
+        values.length
+          ? values
+          : (thematicData || []).map((d) => d.value).filter(Number.isFinite),
+      );
+      return getLegendItems(metric, { quintileBreaks: breaks, values });
+    }
+    return getLegendItems(metric);
+  }, [metric, metricRows, thematicData]);
+
   // Ganti metrik / thematic → recolor saja (jangan destroy Map).
   useEffect(() => {
     applyClientChoropleth();
-  }, [metric, thematicData, applyClientChoropleth]);
+  }, [metric, thematicData, metricRows, applyClientChoropleth]);
 
   useEffect(() => {
     if (sdkReady) {
@@ -1115,7 +1047,9 @@ export function MasterWilayahMap({
           className="w-full h-full"
         />
 
-
+        {!loading && !error ? (
+          <MapIndicatorLegend metric={metric} items={legendItems} />
+        ) : null}
 
         {/* Error Overlay */}
         {error && (

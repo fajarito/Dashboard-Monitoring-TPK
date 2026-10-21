@@ -41,9 +41,6 @@ import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
 import {
   buildThematicData,
   choroplethFormulaLabel,
-  CHOROPLETH_CLASS_LABELS,
-  CHOROPLETH_NO_DATA,
-  hexStepsForMetric,
   type MetricRow,
 } from "@/lib/map-choropleth";
 import {
@@ -198,14 +195,6 @@ export function MapSebaran() {
     null,
   );
   const homeAgregat = useHomeAgregat();
-  const legend = useMemo(
-    () =>
-      hexStepsForMetric(metric).map((color, index) => ({
-        color,
-        label: CHOROPLETH_CLASS_LABELS[index] ?? "",
-      })),
-    [metric],
-  );
 
   /** Tingkat hirarki aktif untuk peta dan ringkasan. */
   const currentLevel: WilayahLevelKey = useMemo(() => {
@@ -891,32 +880,10 @@ export function MapSebaran() {
           )}
         </div>
 
-        <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-5">
-          <div
-            className="flex flex-wrap items-center gap-2 text-[9px] font-semibold text-muted-foreground"
-            aria-label="Legenda warna peta"
-          >
-            {legend.map((item, index) => (
-              <span key={`${item.color}-${index}`} className="flex items-center gap-1">
-                <span
-                  className="h-2.5 w-5 rounded-sm"
-                  style={{ backgroundColor: item.color }}
-                  aria-hidden
-                />
-                <span>{item.label}</span>
-              </span>
-            ))}
-            <span className="ml-1 flex items-center gap-1">
-              <span
-                className="h-2.5 w-5 rounded-sm"
-                style={{ backgroundColor: CHOROPLETH_NO_DATA }}
-                aria-hidden
-              />
-              Tanpa data
-            </span>
-          </div>
+        <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
           <div className="text-[9px] text-slate-400">
-            {choroplethFormulaLabel(metric)} • Master Wilayah API BKKBN • Drilldown sampai tingkat Desa/Kelurahan
+            Legenda indikator di kanan bawah peta · {choroplethFormulaLabel(metric)} ·
+            Master Wilayah API BKKBN
             {dataSource === "postgres"
               ? " · KPI live"
               : dataSource === "mock"

@@ -14,10 +14,7 @@ import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map"
 import {
   buildThematicData,
   choroplethFormulaLabel,
-  CHOROPLETH_CLASS_LABELS,
-  CHOROPLETH_NO_DATA,
   DEFAULT_MAP_METRIC,
-  hexStepsForMetric,
   metricDisplayLabel,
   type ChoroplethMetric,
   type MetricRow,
@@ -239,8 +236,6 @@ export function WilayahScopeMap({
     () => buildThematicData(childRows, metric, codeById),
     [childRows, metric, codeById],
   );
-
-  const legendSteps = hexStepsForMetric(metric);
 
   const handleDrillDown = useCallback(
     (level: WilayahLevelKey, code: string, name: string) => {
@@ -501,30 +496,8 @@ export function WilayahScopeMap({
       </div>
 
       <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
-        <div
-          className="flex flex-wrap items-center gap-2 text-[9px] font-semibold text-muted-foreground"
-          aria-label="Legenda warna peta"
-        >
-          {legendSteps.map((color, index) => (
-            <span key={color} className="flex items-center gap-1">
-              <span
-                className="h-2.5 w-5 rounded-sm"
-                style={{ backgroundColor: color }}
-                aria-hidden
-              />
-              <span>{CHOROPLETH_CLASS_LABELS[index] ?? ""}</span>
-            </span>
-          ))}
-          <span className="ml-1 flex items-center gap-1">
-            <span
-              className="h-2.5 w-5 rounded-sm"
-              style={{ backgroundColor: CHOROPLETH_NO_DATA }}
-              aria-hidden
-            />
-            Tanpa data
-          </span>
-        </div>
         <div className="text-[9px] text-slate-400">
+          Legenda indikator di kanan bawah peta ·{" "}
           {thematicData.length > 0
             ? `${thematicData.length} wilayah terwarna`
             : "Batas tampil · cocokkan kode Kemendagri sedang kosong"}

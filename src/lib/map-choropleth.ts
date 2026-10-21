@@ -180,10 +180,11 @@ export function metricValueFromRow(
   switch (metric) {
     case "tpk": {
       // Rasio TPK terhadap KRS → KRS / TPK (beban per tim)
+      // denom 0 → null (attention ditangani classifyMetricRow, bukan Sangat Baik)
+      if (row.tpk <= 0) return null;
       if (row.rasio != null && Number.isFinite(row.rasio) && row.rasio > 0) {
         return row.rasio;
       }
-      if (row.tpk <= 0) return null;
       return row.krs / row.tpk;
     }
     case "anggota": {
@@ -253,9 +254,9 @@ export function choroplethFormulaLabel(metric: ChoroplethMetric): string {
     case "tpk":
       return "Rasio TPK terhadap KRS";
     case "anggota":
-      return "Jumlah personil (anggota TPK)";
+      return "Sebaran Anggota TPK";
     case "pkb":
-      return "Rasio PKB terhadap Desa";
+      return "Rasio PKB terhadap Desa Binaan";
     case "krs":
       return "Persentase KRS terhadap Keluarga Sasaran";
     case "rasio":
@@ -287,7 +288,7 @@ export function formatChoroplethValue(
   }
 }
 
-/** Teks hover utama dari nilai numerik choropleth (tanpa baris penuh). */
+/** Teks hover utama dari nilai numerik — format spek `1 TPK : N KRS`. */
 export function formatChoroplethHover(
   value: number,
   metric: ChoroplethMetric,
@@ -295,21 +296,21 @@ export function formatChoroplethHover(
   switch (metric) {
     case "tpk":
     case "rasio":
-      return `1 TPK pegang ${formatNumber(Math.round(value))} KRS`;
+      return `1 TPK : ${formatNumber(Math.round(value))} KRS`;
     case "pkb":
-      return `1 PKB ${formatRatioValue(value, 1)} Desa`;
+      return `1 PKB : ${formatRatioValue(value, 1)} Desa`;
     case "krs":
-      return `${formatRatioValue(value, 1)}%`;
+      return `${formatRatioValue(value, 1)}% dari Keluarga Sasaran`;
     case "anggota":
-      return `${formatNumber(value)} orang`;
+      return `Jumlah Anggota TPK: ${formatNumber(value)} Orang`;
     default:
       return formatChoroplethValue(value, metric);
   }
 }
 
 /**
- * Teks hover utama dari baris metrik live (lebih akurat untuk counts).
- * null bila denominator kosong.
+ * Teks hover utama dari baris metrik live (format spek map-indicator).
+ * null bila denominator kosong / data absen.
  */
 export function formatHoverPrimary(
   row: MetricRow,
@@ -320,22 +321,21 @@ export function formatHoverPrimary(
     case "rasio": {
       if (row.tpk <= 0) return null;
       const n = Math.round(row.krs / row.tpk);
-      return `1 TPK pegang ${formatNumber(n)} KRS`;
+      return `1 TPK : ${formatNumber(n)} KRS`;
     }
     case "pkb": {
       const value = metricValueFromRow(row, "pkb");
       if (value == null) return null;
-      return `1 PKB ${formatRatioValue(value, 1)} Desa`;
+      return `1 PKB : ${formatRatioValue(value, 1)} Desa`;
     }
     case "krs": {
       const value = metricValueFromRow(row, "krs");
       if (value == null) return null;
-      return `${formatRatioValue(value, 1)}%`;
+      return `${formatRatioValue(value, 1)}% dari Keluarga Sasaran`;
     }
     case "anggota": {
-      const value = metricValueFromRow(row, "anggota");
-      if (value == null) return null;
-      return `${formatNumber(value)} orang`;
+      if (row.anggota == null || !Number.isFinite(row.anggota)) return null;
+      return `Jumlah TPK: ${formatNumber(row.tpk)} Kelompok\nJumlah Anggota TPK: ${formatNumber(row.anggota)} Orang`;
     }
     default:
       return null;
@@ -541,6 +541,7 @@ export type ChoroplethPathStyle = {
   opacity: number;
 };
 
+/** Hover: border tebal (spek); base: garis putih. */
 const HOVER_BORDER = "#0f172a";
 const BASE_BORDER = "#ffffff";
 const SELECTED_BORDER = "#1d4ed8";
@@ -588,9 +589,9 @@ export function buildHoverPathStyle(
 ): ChoroplethPathStyle {
   return {
     ...base,
-    weight: base.weight + 1.6,
+    weight: Math.max(3.25, base.weight + 2.2),
     color: HOVER_BORDER,
-    fillOpacity: Math.min(1, base.fillOpacity + 0.12),
+    fillOpacity: Math.min(1, base.fillOpacity + 0.1),
     opacity: 1,
   };
 }
