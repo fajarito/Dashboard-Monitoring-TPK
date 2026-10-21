@@ -991,9 +991,10 @@ export function MasterWilayahMap({
   }, [metric, metricRows, thematicData]);
 
   // Ganti metrik / thematic → recolor saja (jangan destroy Map).
+  // Juga saat indikator baru ready — cat segera agar veil hilang cepat.
   useEffect(() => {
     applyClientChoropleth();
-  }, [metric, thematicData, metricRows, applyClientChoropleth]);
+  }, [metric, thematicData, metricRows, indicatorStatus, applyClientChoropleth]);
 
   useEffect(() => {
     if (sdkReady) {
@@ -1190,17 +1191,20 @@ export function MasterWilayahMap({
           const indicatorBusy =
             indicatorStatus === "loading" || indicatorStatus === "idle";
           const waitingChoropleth =
-            indicatorStatus === "ready" && !choroplethReady && !loading;
-          const showBusyOverlay =
+            indicatorStatus === "ready" && !choroplethReady;
+          // Jangan blokir basemap: chip tipis saat geometry load; veil ringan saat tunggu warna.
+          const showGeometryChip = !error && loading;
+          const showIndicatorVeil =
             !error &&
+            !loading &&
             indicatorStatus !== "error" &&
-            (loading || indicatorBusy || waitingChoropleth);
+            (indicatorBusy || waitingChoropleth);
           const showIndicatorError =
             !error && indicatorStatus === "error";
           const showLegend =
             !loading &&
             !error &&
-            !showBusyOverlay &&
+            !showIndicatorVeil &&
             !showIndicatorError &&
             choroplethReady;
 
@@ -1210,33 +1214,50 @@ export function MasterWilayahMap({
                 <MapIndicatorLegend metric={metric} items={legendItems} />
               ) : null}
 
-              {/* Tunggu batas MW + data peringkat — jangan biarkan abu-abu tanpa penjelasan */}
-              {showBusyOverlay ? (
+              {/* Geometry MW — chip pojok, peta/basemap tetap terlihat */}
+              {showGeometryChip ? (
                 <div
-                  className="absolute inset-0 z-[1400] flex flex-col items-center justify-center gap-2 bg-white/85 dark:bg-slate-900/85 backdrop-blur-[2px] text-center px-4"
+                  className="pointer-events-none absolute bottom-3 left-1/2 z-[1400] -translate-x-1/2"
                   role="status"
                   aria-live="polite"
                   aria-busy="true"
                 >
-                  <Loader2
-                    className="h-8 w-8 animate-spin text-blue-600"
-                    aria-hidden
-                  />
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    {loading && !indicatorBusy
-                      ? "Memuat peta wilayah…"
-                      : "Memuat indikator…"}
-                  </p>
-                  <p className="text-[11px] text-slate-500 max-w-xs">
-                    Menyiapkan warna choropleth dari data peringkat. Poligon abu-abu
-                    sementara bukan kesalahan tampilan.
-                  </p>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-200">
+                    <Loader2
+                      className="h-3.5 w-3.5 animate-spin text-blue-600"
+                      aria-hidden
+                    />
+                    Memuat peta wilayah…
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Indikator — veil transparan + pill; pointer-events-none agar pan/drill tidak terasa terkunci */}
+              {showIndicatorVeil ? (
+                <div
+                  className="pointer-events-none absolute inset-0 z-[1400] flex items-end justify-center bg-gradient-to-t from-white/55 via-white/10 to-transparent pb-4 dark:from-slate-950/55 dark:via-slate-950/10"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <div className="inline-flex max-w-[min(100%,20rem)] flex-col items-center gap-0.5 rounded-full border border-slate-200/80 bg-white/95 px-3.5 py-2 text-center shadow-md dark:border-slate-700 dark:bg-slate-900/95">
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      <Loader2
+                        className="h-3.5 w-3.5 animate-spin text-blue-600"
+                        aria-hidden
+                      />
+                      Memuat indikator…
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500">
+                      Basemap sudah siap · warna menyusul
+                    </span>
+                  </div>
                 </div>
               ) : null}
 
               {/* Peringkat gagal — retry; breadcrumb di atas tetap bisa navigasi */}
               {showIndicatorError ? (
-                <div className="absolute inset-0 z-[1450] flex flex-col items-center justify-center p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs text-center">
+                <div className="absolute inset-0 z-[1450] flex flex-col items-center justify-center p-6 bg-white/70 dark:bg-slate-900/70 backdrop-blur-[1px] text-center">
                   <AlertCircle className="h-10 w-10 text-amber-500 mb-2" />
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     Gagal Memuat Indikator Peta

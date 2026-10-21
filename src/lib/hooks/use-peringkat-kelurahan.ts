@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  fetchClientJson,
+  peekClientJsonCache,
+  peringkatKelurahanUrl,
+} from "@/lib/client-api-cache";
 import type { PeringkatKelurahanPayload } from "@/lib/data/types";
 
 export type PeringkatKelurahanState = {
@@ -13,12 +18,13 @@ export type PeringkatKelurahanState = {
 
 /**
  * Ranking desa/kelurahan dalam kecamatan terpilih.
- * `kecamatanApiId` null → idle.
+ * `kecamatanApiId` null → idle. Memory cache 60s + dedupe in-flight.
  */
 export function usePeringkatKelurahan(
   kecamatanApiId: string | null,
 ): PeringkatKelurahanState {
   const [tick, setTick] = useState(0);
+  const forceNext = useRef(false);
   const [state, setState] = useState<
     Omit<PeringkatKelurahanState, "refetch">
   >({
@@ -28,6 +34,7 @@ export function usePeringkatKelurahan(
   });
 
   const refetch = useCallback(() => {
+    forceNext.current = true;
     setTick((n) => n + 1);
   }, []);
 
@@ -37,29 +44,24 @@ export function usePeringkatKelurahan(
       return;
     }
 
+    const url = peringkatKelurahanUrl(kecamatanApiId);
+    const force = forceNext.current;
+    forceNext.current = false;
+    const cached = !force
+      ? peekClientJsonCache<PeringkatKelurahanPayload>(url)
+      : null;
+    if (cached) {
+      setState({ status: "ready", payload: cached, error: null });
+      return;
+    }
+
     const controller = new AbortController();
     setState({ status: "loading", payload: null, error: null });
 
-    const url = `/api/peringkat/kelurahan?kecamatanId=${encodeURIComponent(kecamatanApiId)}`;
-    void fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      cache: "no-store",
+    void fetchClientJson<PeringkatKelurahanPayload>(url, {
       signal: controller.signal,
+      force,
     })
-      .then(async (response) => {
-        if (!response.ok) {
-          let detail = `HTTP ${response.status}`;
-          try {
-            const body = (await response.json()) as { message?: string };
-            if (body?.message) detail = body.message;
-          } catch {
-            /* ignore */
-          }
-          throw new Error(detail);
-        }
-        return (await response.json()) as PeringkatKelurahanPayload;
-      })
       .then((payload) => {
         if (controller.signal.aborted) return;
         setState({ status: "ready", payload, error: null });

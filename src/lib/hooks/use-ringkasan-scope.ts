@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  fetchClientJson,
+  peekClientJsonCache,
+  ringkasanScopeUrl,
+} from "@/lib/client-api-cache";
 import type { RingkasanPayload, RingkasanTingkat } from "@/lib/data/types";
 
 export type RingkasanScopeInput = {
@@ -25,29 +30,6 @@ export type RingkasanScopeState = {
   refetch: () => void;
 };
 
-async function fetchRingkasan(
-  url: string,
-  signal: AbortSignal,
-): Promise<RingkasanPayload> {
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const body = (await response.json()) as { message?: string };
-      if (body?.message) detail = body.message;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail);
-  }
-  return (await response.json()) as RingkasanPayload;
-}
-
 /**
  * Ringkasan aktif untuk filter home.
  * - tingkat/id null → idle
@@ -56,6 +38,7 @@ async function fetchRingkasan(
  * - kecamatan / kelurahan → tingkat yang sama
  *
  * Overload: `useRingkasanScope(provinsiId: string | null)` tetap didukung.
+ * Memory cache 60s + dedupe (selaras Cache-Control API).
  */
 export function useRingkasanScope(
   scopeOrProvinsiId: RingkasanScopeInput | string | null,
@@ -69,6 +52,7 @@ export function useRingkasanScope(
       : scopeOrProvinsiId;
 
   const [tick, setTick] = useState(0);
+  const forceNext = useRef(false);
   const [state, setState] = useState<Omit<RingkasanScopeState, "refetch">>({
     status: "idle",
     ringkasan: null,
@@ -79,6 +63,7 @@ export function useRingkasanScope(
   });
 
   const refetch = useCallback(() => {
+    forceNext.current = true;
     setTick((n) => n + 1);
   }, []);
 
@@ -95,9 +80,27 @@ export function useRingkasanScope(
       return;
     }
 
-    const controller = new AbortController();
     const tingkat = scope.tingkat;
     const id = scope.id;
+    const url = ringkasanScopeUrl(tingkat, id);
+    const force = forceNext.current;
+    forceNext.current = false;
+    const cached = !force
+      ? peekClientJsonCache<RingkasanPayload>(url)
+      : null;
+    if (cached) {
+      setState({
+        status: "ready",
+        ringkasan: cached,
+        error: null,
+        tingkat,
+        id,
+        provinsiId: tingkat === "provinsi" ? id : null,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
     setState({
       status: "loading",
       ringkasan: null,
@@ -107,8 +110,10 @@ export function useRingkasanScope(
       provinsiId: tingkat === "provinsi" ? id : null,
     });
 
-    const url = `/api/ringkasan?tingkat=${encodeURIComponent(tingkat)}&id=${encodeURIComponent(id)}`;
-    void fetchRingkasan(url, controller.signal)
+    void fetchClientJson<RingkasanPayload>(url, {
+      signal: controller.signal,
+      force,
+    })
       .then((payload) => {
         if (controller.signal.aborted) return;
         setState({

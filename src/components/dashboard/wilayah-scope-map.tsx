@@ -28,6 +28,7 @@ const MAP_INDICATOR_OPTIONS: { key: MetricKey; short: string }[] = [
   { key: "pkb", short: "PKB : Desa" },
   { key: "krs", short: "% KRS" },
 ];
+import { prefetchMasterWilayahWidget } from "@/lib/client-api-cache";
 import {
   listMwDistricts,
   listMwRegencies,
@@ -117,6 +118,11 @@ export function WilayahScopeMap({
     if (metricProp) setMetric(metricProp);
   }, [metricProp]);
 
+  // Widget MW paralel dengan fetch peringkat parent (jangan waterfall setelah resolve).
+  useEffect(() => {
+    prefetchMasterWilayahWidget();
+  }, []);
+
   const provinceCode = useMemo(
     () => provinceAdminCode.replace(/\D/g, "").padStart(2, "0").slice(-2),
     [provinceAdminCode],
@@ -137,7 +143,6 @@ export function WilayahScopeMap({
     let active = true;
 
     async function resolve() {
-      setResolveStatus("loading");
       setResolveError(null);
       try {
         // Seed dari field kode postgres bila ada
@@ -152,10 +157,24 @@ export function WilayahScopeMap({
         let nextVillage: string | null = null;
 
         if (currentLevel === "provinsi") {
+          // Unblock kamera peta segera (provinceCode cukup); lengkapi join MW di background.
+          if (active) {
+            setCodeById(new Map(seeded));
+            setRegencyCode(null);
+            setDistrictCode(null);
+            setVillageCode(null);
+            setResolveStatus("ready");
+          }
           const mw = await listMwRegencies(provinceCode);
+          if (!active) return;
           const matched = matchCodesByName(childRows, mw);
           for (const [id, code] of matched) seeded.set(id, code);
-        } else if (currentLevel === "kabupaten") {
+          setCodeById(new Map(seeded));
+          return;
+        }
+
+        if (currentLevel === "kabupaten") {
+          setResolveStatus((s) => (s === "ready" ? s : "loading"));
           nextRegency = await resolveMwCodeByName(
             "regency",
             provinceCode,
@@ -166,10 +185,24 @@ export function WilayahScopeMap({
               `Kode Kemendagri kab/kota tidak ditemukan untuk "${kabName}".`,
             );
           }
+          // Kamera kab siap → mount map; join kecamatan menyusul.
+          if (active) {
+            setRegencyCode(nextRegency);
+            setDistrictCode(null);
+            setVillageCode(null);
+            setCodeById(new Map(seeded));
+            setResolveStatus("ready");
+          }
           const mw = await listMwDistricts(nextRegency);
+          if (!active) return;
           const matched = matchCodesByName(childRows, mw);
           for (const [id, code] of matched) seeded.set(id, code);
-        } else if (currentLevel === "kecamatan") {
+          setCodeById(new Map(seeded));
+          return;
+        }
+
+        if (currentLevel === "kecamatan") {
+          setResolveStatus((s) => (s === "ready" ? s : "loading"));
           nextRegency = await resolveMwCodeByName(
             "regency",
             provinceCode,
@@ -190,10 +223,23 @@ export function WilayahScopeMap({
               `Kode Kemendagri kecamatan tidak ditemukan untuk "${kecName}".`,
             );
           }
+          if (active) {
+            setRegencyCode(nextRegency);
+            setDistrictCode(nextDistrict);
+            setVillageCode(null);
+            setCodeById(new Map(seeded));
+            setResolveStatus("ready");
+          }
           const mw = await listMwVillages(nextDistrict);
+          if (!active) return;
           const matched = matchCodesByName(childRows, mw);
           for (const [id, code] of matched) seeded.set(id, code);
-        } else if (currentLevel === "desa") {
+          setCodeById(new Map(seeded));
+          return;
+        }
+
+        if (currentLevel === "desa") {
+          setResolveStatus((s) => (s === "ready" ? s : "loading"));
           nextRegency = await resolveMwCodeByName(
             "regency",
             provinceCode,
@@ -219,10 +265,17 @@ export function WilayahScopeMap({
             nextDistrict,
             desaName || "",
           );
+          if (!active) return;
+          setCodeById(new Map(seeded));
+          setRegencyCode(nextRegency);
+          setDistrictCode(nextDistrict);
+          setVillageCode(nextVillage);
+          setResolveStatus("ready");
+          return;
         }
 
         if (!active) return;
-        setCodeById(seeded);
+        setCodeById(new Map(seeded));
         setRegencyCode(nextRegency);
         setDistrictCode(nextDistrict);
         setVillageCode(nextVillage);

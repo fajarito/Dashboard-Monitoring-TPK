@@ -31,8 +31,17 @@ import { QuickProvincePicks } from "@/components/dashboard/quick-province-picks"
 import { RasioInsightPanels } from "@/components/dashboard/rasio-insight-panels";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { Button } from "@/components/ui/button";
+import {
+  prefetchHomeAgregat,
+  prefetchMasterWilayahWidget,
+  prefetchPeringkatKabupaten,
+  prefetchPeringkatKecamatan,
+} from "@/lib/client-api-cache";
 import type { PeringkatKabupatenItem } from "@/lib/data/types";
-import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
+import {
+  prefetchHomeAgregatEarly,
+  useHomeAgregat,
+} from "@/lib/hooks/use-home-agregat";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
@@ -204,6 +213,13 @@ export function MapSebaran() {
     null,
   );
   const homeAgregat = useHomeAgregat();
+
+  // Prefetch paralel: agregat home + script MW — jangan tunggu map mount.
+  useEffect(() => {
+    prefetchHomeAgregatEarly();
+    prefetchHomeAgregat();
+    prefetchMasterWilayahWidget();
+  }, []);
 
   /** Tingkat hirarki aktif untuk peta dan ringkasan. */
   const currentLevel: WilayahLevelKey = useMemo(() => {
@@ -644,6 +660,8 @@ export function MapSebaran() {
     setSelectedKec(null);
     setSelectedDesa(null);
     setSelected(province);
+    const apiId = getProvinsiApiId(province);
+    if (apiId) prefetchPeringkatKabupaten(apiId);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
     }
@@ -658,6 +676,7 @@ export function MapSebaran() {
     setSelectedKec(null);
     setSelectedDesa(null);
     setFocusedWilayah(null);
+    prefetchPeringkatKecamatan(item.id);
   };
 
   const handleDrillDown = (
