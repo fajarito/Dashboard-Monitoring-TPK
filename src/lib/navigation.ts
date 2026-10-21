@@ -76,20 +76,22 @@ export const navItems: NavItem[] = [
 
 export const brandIcon = LayoutDashboard;
 
-/** Palette choropleth — 4 kelas: merah → orange → biru muda → biru. */
+/** Palette choropleth — 5 kelas + noData (Sangat Rendah → Sangat Tinggi). */
 export const mapPalette = [
-  "#f43f5e",
-  "#fb923c",
-  "#38bdf8",
-  "#2563eb",
+  "#D92D20", // sangatRendah
+  "#F79009", // rendah
+  "#FEC84B", // sedang
+  "#12B76A", // tinggi
+  "#2E90FA", // sangatTinggi
 ] as const;
 
-export const mapNoDataColor = "#e8edf2";
+export const mapNoDataColor = "#D0D5DD";
 
 export const mapLegendItems = [
-  { label: "Rendah", color: mapPalette[0] },
-  { label: "Sedang-rendah", color: mapPalette[1] },
-  { label: "Sedang-tinggi", color: mapPalette[2] },
+  { label: "Sangat Rendah", color: mapPalette[0] },
+  { label: "Rendah", color: mapPalette[1] },
+  { label: "Sedang", color: mapPalette[2] },
   { label: "Tinggi", color: mapPalette[3] },
+  { label: "Sangat Tinggi", color: mapPalette[4] },
   { label: "Tanpa data", color: mapNoDataColor },
 ];

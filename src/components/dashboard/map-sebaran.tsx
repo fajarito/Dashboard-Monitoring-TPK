@@ -41,6 +41,7 @@ import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
 import {
   buildThematicData,
   choroplethFormulaLabel,
+  CHOROPLETH_CLASS_LABELS,
   CHOROPLETH_NO_DATA,
   hexStepsForMetric,
   type MetricRow,
@@ -199,14 +200,9 @@ export function MapSebaran() {
   const homeAgregat = useHomeAgregat();
   const legend = useMemo(
     () =>
-      hexStepsForMetric(metric).map((color, index, arr) => ({
+      hexStepsForMetric(metric).map((color, index) => ({
         color,
-        label:
-          index === 0
-            ? "Rendah"
-            : index === arr.length - 1
-              ? "Tinggi"
-              : "",
+        label: CHOROPLETH_CLASS_LABELS[index] ?? "",
       })),
     [metric],
   );
@@ -299,9 +295,7 @@ export function MapSebaran() {
     selected?.name ??
     "Nasional";
 
-  const thematicData = useMemo(() => {
-    const emptyCodes = new Map<string, string>();
-
+  const mapMetricRows = useMemo((): MetricRow[] => {
     const toRows = (
       items: Array<{
         id: string;
@@ -339,58 +333,47 @@ export function MapSebaran() {
     if (!selected) {
       const live = homeAgregat.peringkat?.items;
       if (live?.length) {
-        return buildThematicData(
-          toRows(live, (item) => {
-            const prov = resolveProvinceFromPeringkatId(item.id, item.nama);
-            return prov ? String(prov.adminCode).padStart(2, "0") : null;
-          }),
-          metric,
-          emptyCodes,
-        );
+        return toRows(live, (item) => {
+          const prov = resolveProvinceFromPeringkatId(item.id, item.nama);
+          return prov ? String(prov.adminCode).padStart(2, "0") : null;
+        });
       }
-      return buildThematicData(
-        provinces.map((p) => {
-          const desa = estimateDesaForProvince(p);
-          return {
-            id: p.id,
-            nama: p.name,
-            tpk: p.tpk,
-            krs: p.krs,
-            pkb: p.pkb,
-            anggota: p.anggota,
-            keluargaSasaran: getKeluargaSasaranForProvince(p),
-            desa,
-            rasioPkbDesa: getDesaPerPkbRatio(p.pkb, desa),
-            kode: String(p.adminCode).padStart(2, "0"),
-          };
-        }),
-        metric,
-        emptyCodes,
-      );
+      // Jangan campur mock ke peta saat loading/error, atau saat source postgres kosong.
+      if (
+        homeAgregat.status !== "ready" ||
+        homeAgregat.peringkat?.meta.source === "postgres"
+      ) {
+        return [];
+      }
+      // Mode mock: seed dari provinces hanya jika peringkat mock belum tersedia.
+      return provinces.map((p) => {
+        const desa = estimateDesaForProvince(p);
+        return {
+          id: p.id,
+          nama: p.name,
+          tpk: p.tpk,
+          krs: p.krs,
+          pkb: p.pkb,
+          anggota: p.anggota,
+          keluargaSasaran: getKeluargaSasaranForProvince(p),
+          desa,
+          rasio: p.tpk > 0 ? p.krs / p.tpk : 0,
+          rasioPkbDesa: getDesaPerPkbRatio(p.pkb, desa),
+          kode: String(p.adminCode).padStart(2, "0"),
+        };
+      });
     }
 
     if (selected && !selectedKab && peringkatKab.payload?.items) {
-      return buildThematicData(
-        toRows(peringkatKab.payload.items),
-        metric,
-        emptyCodes,
-      );
+      return toRows(peringkatKab.payload.items);
     }
 
     if (selectedKab && !selectedKec && peringkatKec.payload?.items) {
-      return buildThematicData(
-        toRows(peringkatKec.payload.items),
-        metric,
-        emptyCodes,
-      );
+      return toRows(peringkatKec.payload.items);
     }
 
     if (selectedKec && peringkatKel.payload?.items) {
-      return buildThematicData(
-        toRows(peringkatKel.payload.items),
-        metric,
-        emptyCodes,
-      );
+      return toRows(peringkatKel.payload.items);
     }
 
     return [];
@@ -398,12 +381,17 @@ export function MapSebaran() {
     selected,
     selectedKab,
     selectedKec,
-    metric,
+    homeAgregat.status,
     homeAgregat.peringkat,
     peringkatKab.payload,
     peringkatKec.payload,
     peringkatKel.payload,
   ]);
+
+  const thematicData = useMemo(() => {
+    const emptyCodes = new Map<string, string>();
+    return buildThematicData(mapMetricRows, metric, emptyCodes);
+  }, [mapMetricRows, metric]);
 
   const sasaranScope = useMemo(() => {
     if (!activeRingkasan) {
@@ -891,6 +879,7 @@ export function MapSebaran() {
                 villageCode={villageCode}
                 villageName={selectedDesa?.nama}
                 thematicData={thematicData}
+                metricRows={mapMetricRows}
                 kabupatenList={peringkatKab.payload?.items}
                 kecamatanList={peringkatKec.payload?.items}
                 kelurahanList={peringkatKel.payload?.items}

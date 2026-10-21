@@ -1,5 +1,4 @@
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
-import { getPeringkatKelurahanMock } from "@/lib/data/mock/peringkat-kelurahan";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import {
   arePostgresPoolsConfigured,
@@ -158,7 +157,10 @@ export async function getPeringkatKelurahanPostgres(
   kecamatanIdRaw: string,
 ): Promise<PeringkatKelurahanPayload> {
   if (!arePostgresPoolsConfigured()) {
-    return await getPeringkatKelurahanMock(kecamatanIdRaw);
+    throw new PostgresDataError(
+      "postgres_not_configured",
+      "DATA_SOURCE=postgres tetapi pool SIGA/WILAYAH/DWH belum di-set.",
+    );
   }
 
   const kecamatanId = parseKecamatanIdParam(kecamatanIdRaw);

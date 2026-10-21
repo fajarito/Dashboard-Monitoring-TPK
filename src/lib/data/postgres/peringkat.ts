@@ -1,5 +1,5 @@
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
-import { getPeringkatProvinsiMock } from "@/lib/data/mock/peringkat";
+import { PostgresDataError } from "@/lib/data/postgres/errors";
 import {
   arePostgresPoolsConfigured,
   getDwhPeriode,
@@ -134,11 +134,15 @@ WHERE p."id_provinsi" = ANY($1::int[])
 
 /**
  * Adapter Postgres untuk peringkat provinsi (max 40 baris).
- * Fallback mock HANYA jika URL pool kosong; gagal query → throw (503).
+ * Pool kosong → throw (index assertPostgresReady); gagal query → throw (503).
+ * Jangan fallback diam-diam ke mock.
  */
 export async function getPeringkatProvinsiPostgres(): Promise<PeringkatProvinsiPayload> {
   if (!arePostgresPoolsConfigured()) {
-    return getPeringkatProvinsiMock();
+    throw new PostgresDataError(
+      "postgres_not_configured",
+      "DATA_SOURCE=postgres tetapi pool SIGA/WILAYAH/DWH belum di-set.",
+    );
   }
 
   const periode = getDwhPeriode();

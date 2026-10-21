@@ -2,35 +2,66 @@
  * Skala warna choropleth untuk Dashboard Monitoring TPK.
  *
  * Metrik UI (KPI switcher) → nilai pewarnaan peta:
- * - Jumlah TPK      → rasio TPK / keluarga sasaran
+ * - Jumlah TPK      → rasio KRS / TPK (beban: "1 TPK pegang N KRS")
  * - Jumlah Anggota  → jumlah personil (anggota)
  * - Jumlah PKB      → rasioPkbDesa (desa ÷ PKB)
  * - Jumlah KRS      → % KRS terhadap keluarga sasaran
  *
- * Palette: tepat 4 kelas — merah → orange → biru muda → biru (tanpa navy pekat).
+ * Palette: 5 kelas + noData (Sangat Rendah → Sangat Tinggi).
  */
 
 import type { MetricKey } from "@/lib/map-data";
 import { formatNumber, formatRatioValue } from "@/lib/map-data";
 import type { MasterWilayahThematicDataItem } from "@/types/master-wilayah";
 
-/**
- * 4 kelas choropleth (elegant, readable di basemap Terang):
- * merah lembut → orange → sky → biru royal. Tanpa navy `#0c2340`.
- */
-export const CHOROPLETH_TPK = [
-  "#f43f5e",
-  "#fb923c",
-  "#38bdf8",
-  "#2563eb",
+/** Urutan kelas choropleth (rendah → tinggi). */
+export const CHOROPLETH_CLASS_KEYS = [
+  "sangatRendah",
+  "rendah",
+  "sedang",
+  "tinggi",
+  "sangatTinggi",
 ] as const;
 
-/** Alias historis — semua mode memakai palette 4 kelas yang sama. */
+export type ChoroplethClassKey = (typeof CHOROPLETH_CLASS_KEYS)[number];
+
+/** Label legenda — Sangat Rendah → Sangat Tinggi. */
+export const CHOROPLETH_CLASS_LABELS = [
+  "Sangat Rendah",
+  "Rendah",
+  "Sedang",
+  "Tinggi",
+  "Sangat Tinggi",
+] as const;
+
+/**
+ * 5 kelas choropleth (Fajar):
+ * sangatRendah → rendah → sedang → tinggi → sangatTinggi.
+ */
+export const CHOROPLETH_COLORS = {
+  sangatRendah: "#D92D20",
+  rendah: "#F79009",
+  sedang: "#FEC84B",
+  tinggi: "#12B76A",
+  sangatTinggi: "#2E90FA",
+  noData: "#D0D5DD",
+} as const;
+
+/** Hex steps dalam urutan kelas (sumber kebenaran pewarnaan client). */
+export const CHOROPLETH_TPK = [
+  CHOROPLETH_COLORS.sangatRendah,
+  CHOROPLETH_COLORS.rendah,
+  CHOROPLETH_COLORS.sedang,
+  CHOROPLETH_COLORS.tinggi,
+  CHOROPLETH_COLORS.sangatTinggi,
+] as const;
+
+/** Alias historis — semua mode memakai palette 5 kelas yang sama. */
 export const CHOROPLETH_KRS = CHOROPLETH_TPK;
 export const CHOROPLETH_RASIO = CHOROPLETH_TPK;
 
 /** Netral — hanya untuk wilayah benar-benar tanpa metrik. */
-export const CHOROPLETH_NO_DATA = "#e8edf2";
+export const CHOROPLETH_NO_DATA = CHOROPLETH_COLORS.noData;
 
 /** Nama palette bawaan SDK Master Wilayah (mendekati arah warna kita). */
 export type SdkPaletteName =
@@ -148,10 +179,12 @@ export function metricValueFromRow(
 ): number | null {
   switch (metric) {
     case "tpk": {
-      // Rasio Tim TPK / Keluarga Sasaran
-      const denom = row.keluargaSasaran ?? 0;
-      if (denom <= 0) return null;
-      return row.tpk / denom;
+      // Rasio TPK terhadap KRS → KRS / TPK (beban per tim)
+      if (row.rasio != null && Number.isFinite(row.rasio) && row.rasio > 0) {
+        return row.rasio;
+      }
+      if (row.tpk <= 0) return null;
+      return row.krs / row.tpk;
     }
     case "anggota": {
       if (row.anggota != null && Number.isFinite(row.anggota)) {
@@ -189,11 +222,10 @@ export function metricUnitLabel(metric: ChoroplethMetric): string {
     case "pkb":
       return "desa/PKB";
     case "rasio":
+    case "tpk":
       return "KRS/TPK";
     case "anggota":
       return "orang";
-    case "tpk":
-      return "TPK/sasaran";
     default:
       return "";
   }
@@ -219,29 +251,34 @@ export function metricDisplayLabel(metric: ChoroplethMetric): string {
 export function choroplethFormulaLabel(metric: ChoroplethMetric): string {
   switch (metric) {
     case "tpk":
-      return "Rasio TPK / Keluarga Sasaran";
+      return "Rasio TPK terhadap KRS";
     case "anggota":
       return "Jumlah personil (anggota TPK)";
     case "pkb":
-      return "Rasio desa binaan / PKB";
+      return "Rasio PKB terhadap Desa";
     case "krs":
-      return "% KRS terhadap Keluarga Sasaran";
+      return "Persentase KRS terhadap Keluarga Sasaran";
     case "rasio":
-      return "Rasio KRS / TPK";
+      return "Rasio TPK terhadap KRS";
     default:
       return metricDisplayLabel(metric);
   }
 }
 
+/**
+ * Format nilai choropleth untuk display singkat (legenda SDK / fallback).
+ * Hover manusiawi memakai formatHoverPrimary / formatChoroplethHover.
+ */
 export function formatChoroplethValue(
   value: number,
   metric: ChoroplethMetric,
 ): string {
   switch (metric) {
     case "tpk":
-    case "pkb":
     case "rasio":
-      return formatRatioValue(value, 3);
+      return formatNumber(Math.round(value));
+    case "pkb":
+      return formatRatioValue(value, 1);
     case "krs":
       return `${formatRatioValue(value, 1)}%`;
     case "anggota":
@@ -250,9 +287,64 @@ export function formatChoroplethValue(
   }
 }
 
+/** Teks hover utama dari nilai numerik choropleth (tanpa baris penuh). */
+export function formatChoroplethHover(
+  value: number,
+  metric: ChoroplethMetric,
+): string {
+  switch (metric) {
+    case "tpk":
+    case "rasio":
+      return `1 TPK pegang ${formatNumber(Math.round(value))} KRS`;
+    case "pkb":
+      return `1 PKB ${formatRatioValue(value, 1)} Desa`;
+    case "krs":
+      return `${formatRatioValue(value, 1)}%`;
+    case "anggota":
+      return `${formatNumber(value)} orang`;
+    default:
+      return formatChoroplethValue(value, metric);
+  }
+}
+
+/**
+ * Teks hover utama dari baris metrik live (lebih akurat untuk counts).
+ * null bila denominator kosong.
+ */
+export function formatHoverPrimary(
+  row: MetricRow,
+  metric: ChoroplethMetric,
+): string | null {
+  switch (metric) {
+    case "tpk":
+    case "rasio": {
+      if (row.tpk <= 0) return null;
+      const n = Math.round(row.krs / row.tpk);
+      return `1 TPK pegang ${formatNumber(n)} KRS`;
+    }
+    case "pkb": {
+      const value = metricValueFromRow(row, "pkb");
+      if (value == null) return null;
+      return `1 PKB ${formatRatioValue(value, 1)} Desa`;
+    }
+    case "krs": {
+      const value = metricValueFromRow(row, "krs");
+      if (value == null) return null;
+      return `${formatRatioValue(value, 1)}%`;
+    }
+    case "anggota": {
+      const value = metricValueFromRow(row, "anggota");
+      if (value == null) return null;
+      return `${formatNumber(value)} orang`;
+    }
+    default:
+      return null;
+  }
+}
+
 /**
  * Default metrik peta = Jumlah TPK (sama default home / Peta Sebaran).
- * Pewarnaan memakai rasio TPK/sasaran — bukan raw count.
+ * Pewarnaan memakai rasio KRS/TPK — selaras copy hover.
  */
 export const DEFAULT_MAP_METRIC: ChoroplethMetric = "tpk";
 
@@ -261,7 +353,6 @@ export function buildThematicData(
   metric: ChoroplethMetric,
   codeById: Map<string, string>,
 ): MasterWilayahThematicDataItem[] {
-  const unit = metricUnitLabel(metric);
   const out: MasterWilayahThematicDataItem[] = [];
   for (const row of rows) {
     const code =
@@ -274,11 +365,12 @@ export function buildThematicData(
     // value null (denom 0) tidak di-index sebagai angka → nodata gray setelah join.
     if (!code && !row.nama) continue;
     if (value == null || !Number.isFinite(value)) continue;
+    const hover = formatHoverPrimary(row, metric) ?? formatChoroplethHover(value, metric);
     out.push({
       code: code || `name:${normalizeWilayahNama(row.nama)}`,
       value,
       name: row.nama,
-      label: `${row.nama}: ${formatChoroplethValue(value, metric)} ${unit}`.trim(),
+      label: `${row.nama}: ${hover}`,
     });
   }
   return out;
@@ -349,6 +441,39 @@ export function lookupThematicValue(
   if (key) {
     const fromName = lookups.byName.get(key);
     if (fromName != null && Number.isFinite(fromName)) return fromName;
+  }
+  return null;
+}
+
+/** Cari baris metrik live by kode Kemendagri atau nama exact. */
+export function lookupMetricRow(
+  rows: MetricRow[] | undefined | null,
+  code: string,
+  name: string,
+): MetricRow | null {
+  if (!rows?.length) return null;
+  const cleanCode = String(code || "").replace(/\D/g, "").trim();
+  const nameKey = normalizeWilayahNama(name || "");
+
+  if (cleanCode) {
+    const byCode = rows.find((row) => {
+      const kode = String(row.kode || "").replace(/\D/g, "");
+      if (!kode) return false;
+      return (
+        kode === cleanCode ||
+        kode === cleanCode.padStart(kode.length, "0") ||
+        cleanCode === kode.padStart(cleanCode.length, "0") ||
+        kode.replace(/^0+/, "") === cleanCode.replace(/^0+/, "")
+      );
+    });
+    if (byCode) return byCode;
+  }
+
+  if (nameKey) {
+    const byName = rows.find(
+      (row) => normalizeWilayahNama(row.nama) === nameKey,
+    );
+    if (byName) return byName;
   }
   return null;
 }

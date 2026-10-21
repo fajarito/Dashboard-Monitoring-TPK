@@ -9,17 +9,19 @@ import {
   choroplethFormulaLabel,
   colorForValue,
   forEachPolygonLayer,
-  formatChoroplethValue,
+  formatChoroplethHover,
+  formatHoverPrimary,
   hexStepsForMetric,
   indexThematicLookups,
+  lookupMetricRow,
   lookupThematicValue,
-  metricUnitLabel,
   normalizeWilayahNama,
   sdkPaletteForMetric,
   type ChoroplethPathStyle,
+  type MetricRow,
   CHOROPLETH_NO_DATA,
 } from "@/lib/map-choropleth";
-import { formatNumber, provinces, type MetricKey } from "@/lib/map-data";
+import { formatNumber, type MetricKey } from "@/lib/map-data";
 import type {
   MasterWilayahFeatureProps,
   MasterWilayahInstance,
@@ -74,6 +76,11 @@ export type MasterWilayahMapProps = {
   villageCode: string | null;
   villageName?: string | null;
   thematicData?: MasterWilayahThematicDataItem[];
+  /**
+   * Baris metrik live (`/api/peringkat*`) untuk hover + join stats.
+   * Prioritas di atas list kab/kec/kel stub dan mock hash.
+   */
+  metricRows?: MetricRow[];
   kabupatenList?: { id: string; nama: string; tpk: number; krs: number }[];
   kecamatanList?: { id: string; nama: string; tpk: number; krs: number }[];
   kelurahanList?: { id: string; nama: string; tpk: number; krs: number }[];
@@ -355,29 +362,27 @@ function findStatsByCodeOrExactName<
 function getWilayahStats(
   code: string,
   name: string,
+  metricRows?: MetricRow[],
   kabupatenList?: { id: string; nama: string; tpk: number; krs: number }[],
   kecamatanList?: { id: string; nama: string; tpk: number; krs: number }[],
   kelurahanList?: { id: string; nama: string; tpk: number; krs: number }[],
-): { tpk: number; krs: number } {
+): { tpk: number; krs: number; anggota?: number; pkb?: number; desa?: number } | null {
   const cleanCode = String(code || "").replace(/\D/g, "").trim();
   const nameKey = normalizeWilayahNama(name || "");
 
-  // 1. Provinsi — kode Kemendagri (91–96) atau nama exact
-  const prov = findStatsByCodeOrExactName(
-    provinces,
-    cleanCode,
-    nameKey,
-    (p) => String(p.adminCode),
-    (p) => p.name,
-  );
-  if (prov) {
+  // 1. Baris live `/api/peringkat*` — sumber kebenaran hover
+  const live = lookupMetricRow(metricRows, cleanCode, name);
+  if (live) {
     return {
-      tpk: prov.tpk,
-      krs: prov.krs,
+      tpk: live.tpk,
+      krs: live.krs,
+      anggota: live.anggota,
+      pkb: live.pkb,
+      desa: live.desa,
     };
   }
 
-  // 2. Kabupaten aktif
+  // 2. Kabupaten aktif (subset fields)
   if (kabupatenList && kabupatenList.length > 0) {
     const kab = findStatsByCodeOrExactName(
       kabupatenList,
@@ -387,10 +392,7 @@ function getWilayahStats(
       (k) => k.nama,
     );
     if (kab) {
-      return {
-        tpk: kab.tpk,
-        krs: kab.krs,
-      };
+      return { tpk: kab.tpk, krs: kab.krs };
     }
   }
 
@@ -404,10 +406,7 @@ function getWilayahStats(
       (k) => k.nama,
     );
     if (kec) {
-      return {
-        tpk: kec.tpk,
-        krs: kec.krs,
-      };
+      return { tpk: kec.tpk, krs: kec.krs };
     }
   }
 
@@ -421,23 +420,12 @@ function getWilayahStats(
       (k) => k.nama,
     );
     if (kel) {
-      return {
-        tpk: kel.tpk,
-        krs: kel.krs,
-      };
+      return { tpk: kel.tpk, krs: kel.krs };
     }
   }
 
-  // 5. Fallback deterministik berbasis hash nama atau kode wilayah
-  const hashKey = cleanCode || nameKey;
-  const hash = hashKey.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const fallbackTpk = Math.max(12, ((hash * 17) % 240) + 30);
-  const fallbackKrs = fallbackTpk * (((hash % 20) + 35));
-
-  return {
-    tpk: fallbackTpk,
-    krs: fallbackKrs,
-  };
+  // Tanpa data live — jangan isi hash palsu (menyesatkan saat KPI live).
+  return null;
 }
 
 export function MasterWilayahMap({
@@ -452,6 +440,7 @@ export function MasterWilayahMap({
   villageCode,
   villageName,
   thematicData = [],
+  metricRows,
   kabupatenList,
   kecamatanList,
   kelurahanList,
@@ -475,6 +464,9 @@ export function MasterWilayahMap({
   const basemapRef = useRef(basemap);
   basemapRef.current = basemap;
 
+  const metricRowsRef = useRef(metricRows);
+  metricRowsRef.current = metricRows;
+
   const kabupatenListRef = useRef(kabupatenList);
   kabupatenListRef.current = kabupatenList;
 
@@ -496,9 +488,15 @@ export function MasterWilayahMap({
         .replace(/\./g, "")
         .trim();
       const codeEsc = escapeHtml(rawCode);
+      const liveRow = lookupMetricRow(
+        metricRowsRef.current,
+        rawCode,
+        props.name || "",
+      );
       const stats = getWilayahStats(
         rawCode,
         props.name || "",
+        metricRowsRef.current,
         kabupatenListRef.current,
         kecamatanListRef.current,
         kelurahanListRef.current,
@@ -511,11 +509,44 @@ export function MasterWilayahMap({
         props.name || "",
       );
       const formula = choroplethFormulaLabel(metric);
-      const unit = metricUnitLabel(metric);
-      const choroDisplay =
-        choroVal != null && Number.isFinite(choroVal)
-          ? `${formatChoroplethValue(choroVal, metric)}${unit ? ` ${unit}` : ""}`
-          : "—";
+      const primaryFromRow = liveRow
+        ? formatHoverPrimary(liveRow, metric)
+        : null;
+      const primaryDisplay =
+        primaryFromRow ??
+        (choroVal != null && Number.isFinite(choroVal)
+          ? formatChoroplethHover(choroVal, metric)
+          : "—");
+
+      const tpkDisplay = stats ? formatNumber(stats.tpk) : "—";
+      const krsDisplay = stats ? formatNumber(stats.krs) : "—";
+      const anggotaDisplay =
+        stats?.anggota != null ? formatNumber(stats.anggota) : null;
+      const pkbDisplay =
+        stats?.pkb != null ? formatNumber(stats.pkb) : null;
+
+      const supportRows: string[] = [
+        `<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${tpkDisplay}</span>
+                </div>`,
+        `<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${krsDisplay}</span>
+                </div>`,
+      ];
+      if (metric === "anggota" && anggotaDisplay) {
+        supportRows.unshift(`<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Anggota TPK</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${anggotaDisplay}</span>
+                </div>`);
+      }
+      if (metric === "pkb" && pkbDisplay) {
+        supportRows.push(`<div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
+                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah PKB</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${pkbDisplay}</span>
+                </div>`);
+      }
 
       return `
             <div style="background: #ffffff; border-radius: 14px; border: 1px solid #dbeafe; padding: 12px 18px; width: max-content; min-width: 285px; max-width: 360px; box-sizing: border-box; box-shadow: 0 10px 25px -5px rgba(18, 59, 122, 0.12), 0 4px 6px -2px rgba(18, 59, 122, 0.05); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;${pointerNone ? " pointer-events: none;" : ""}">
@@ -528,16 +559,9 @@ export function MasterWilayahMap({
               <div style="display: flex; flex-direction: column; gap: 5px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
                   <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">${escapeHtml(formula)}</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #2563eb;">${escapeHtml(choroDisplay)}</span>
+                  <span style="font-size: 11px; font-weight: 800; color: #2563eb;">${escapeHtml(primaryDisplay)}</span>
                 </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah TPK</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.tpk)}</span>
-                </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap;">
-                  <span style="font-size: 9.5px; color: #64748b; font-weight: 500;">Jumlah Keluarga Berisiko Stunting (KRS)</span>
-                  <span style="font-size: 11px; font-weight: 800; color: #0a2540;">${formatNumber(stats.krs)}</span>
-                </div>
+                ${supportRows.join("")}
               </div>
               <div style="margin-top: 8px; font-size: 9px; font-weight: 600; color: #94a3b8;">
                 Klik untuk membuka ringkasan
@@ -618,6 +642,31 @@ export function MasterWilayahMap({
       const base = buildBasePathStyle(fillColor, hasThematic);
       layer._mwBaseStyle = base;
       layer.setStyle?.(base);
+
+      // SDK menyimpan HTML tooltip saat bind awal — refresh saat ganti metrik.
+      const tipHtml = buildChoroplethTooltipHtml(
+        featProps as MasterWilayahFeatureProps,
+        true,
+      );
+      if (typeof layer.setTooltipContent === "function" && layer.getTooltip?.()) {
+        layer.setTooltipContent(tipHtml);
+      } else if (typeof layer.bindTooltip === "function") {
+        layer.unbindTooltip?.();
+        layer.bindTooltip(tipHtml, {
+          sticky: true,
+          opacity: 1,
+          className: "mw-tooltip",
+          direction: "top",
+        });
+      }
+      if (typeof layer.setPopupContent === "function" && layer.getPopup?.()) {
+        layer.setPopupContent(
+          buildChoroplethTooltipHtml(
+            featProps as MasterWilayahFeatureProps,
+            false,
+          ),
+        );
+      }
     });
 
     if (
@@ -630,7 +679,7 @@ export function MasterWilayahMap({
         unmatchedDev.slice(0, 20),
       );
     }
-  }, [currentLevel, villageCode]);
+  }, [currentLevel, villageCode, buildChoroplethTooltipHtml]);
 
   // Pastikan style override tooltip terinjeksi
   useEffect(() => {

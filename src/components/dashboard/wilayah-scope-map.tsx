@@ -14,6 +14,7 @@ import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map"
 import {
   buildThematicData,
   choroplethFormulaLabel,
+  CHOROPLETH_CLASS_LABELS,
   CHOROPLETH_NO_DATA,
   DEFAULT_MAP_METRIC,
   hexStepsForMetric,
@@ -460,6 +461,7 @@ export function WilayahScopeMap({
             villageCode={villageCode}
             villageName={desaName}
             thematicData={thematicData}
+            metricRows={childRows}
             kabupatenList={
               currentLevel === "provinsi"
                 ? childRows.map((r) => ({
@@ -510,13 +512,7 @@ export function WilayahScopeMap({
                 style={{ backgroundColor: color }}
                 aria-hidden
               />
-              <span>
-                {index === 0
-                  ? "Rendah"
-                  : index === legendSteps.length - 1
-                    ? "Tinggi"
-                    : ""}
-              </span>
+              <span>{CHOROPLETH_CLASS_LABELS[index] ?? ""}</span>
             </span>
           ))}
           <span className="ml-1 flex items-center gap-1">
