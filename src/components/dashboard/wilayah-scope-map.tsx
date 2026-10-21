@@ -19,6 +19,16 @@ import {
   type ChoroplethMetric,
   type MetricRow,
 } from "@/lib/map-choropleth";
+import { indicatorTitle } from "@/lib/map-indicator";
+import type { MetricKey } from "@/lib/map-data";
+import { cn } from "@/lib/utils";
+
+const MAP_INDICATOR_OPTIONS: { key: MetricKey; short: string }[] = [
+  { key: "tpk", short: "TPK : KRS" },
+  { key: "anggota", short: "Anggota" },
+  { key: "pkb", short: "PKB : Desa" },
+  { key: "krs", short: "% KRS" },
+];
 import {
   listMwDistricts,
   listMwRegencies,
@@ -61,7 +71,9 @@ export type WilayahScopeMapProps = {
   childStatus: "idle" | "loading" | "ready" | "error";
   childError?: string | null;
   onRetryChildren?: () => void;
+  /** Indikator aktif (dikontrol parent KPI bila ada). */
   metric?: ChoroplethMetric;
+  onMetricChange?: (metric: MetricKey) => void;
 };
 
 /**
@@ -86,7 +98,8 @@ export function WilayahScopeMap({
   childStatus,
   childError,
   onRetryChildren,
-  metric = DEFAULT_MAP_METRIC,
+  metric: metricProp,
+  onMetricChange,
 }: WilayahScopeMapProps) {
   const router = useRouter();
   const [codeById, setCodeById] = useState<Map<string, string>>(new Map());
@@ -97,6 +110,13 @@ export function WilayahScopeMap({
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [resolveError, setResolveError] = useState<string | null>(null);
+  /** Indikator peta lokal — sama spek home (4 KPI). */
+  const [metric, setMetric] = useState<ChoroplethMetric>(
+    metricProp ?? DEFAULT_MAP_METRIC,
+  );
+  useEffect(() => {
+    if (metricProp) setMetric(metricProp);
+  }, [metricProp]);
 
   const provinceCode = useMemo(
     () => provinceAdminCode.replace(/\D/g, "").padStart(2, "0").slice(-2),
@@ -415,13 +435,19 @@ export function WilayahScopeMap({
     );
   }
 
-  const mapMetric =
-    metric === "rasio" ? "tpk" : metric === "anggota" ? "anggota" : metric;
+  const mapMetric: MetricKey =
+    metric === "rasio" || metric === "tpk"
+      ? "tpk"
+      : metric === "anggota"
+        ? "anggota"
+        : metric === "pkb"
+          ? "pkb"
+          : "krs";
 
   return (
     <div className="design-card overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-5">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="section-title">
             Peta sebaran ·{" "}
             {currentLevel === "desa"
@@ -433,19 +459,48 @@ export function WilayahScopeMap({
                   : provinceName}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Kamera fokus wilayah aktif. Warna = {choroplethFormulaLabel(metric)}{" "}
+            Kamera fokus wilayah aktif. Warna = {choroplethFormulaLabel(mapMetric)}{" "}
             pada batas {childLabel} (API peringkat + Master Wilayah).
           </p>
+          <div
+            className="mt-3 flex flex-wrap gap-1.5"
+            role="group"
+            aria-label="Pilih indikator peta"
+          >
+            {MAP_INDICATOR_OPTIONS.map((opt) => {
+              const active = mapMetric === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    setMetric(opt.key);
+                    onMetricChange?.(opt.key);
+                  }}
+                  title={indicatorTitle(opt.key)}
+                  aria-pressed={active}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[10px] font-bold transition",
+                    active
+                      ? "border-blue-400 bg-blue-50 text-primary ring-2 ring-blue-100"
+                      : "border-line bg-white text-slate-600 hover:border-blue-200 hover:text-primary",
+                  )}
+                >
+                  {opt.short}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-primary">
-          {choroplethFormulaLabel(metric)}
+          {indicatorTitle(mapMetric)}
         </span>
       </div>
 
       <div className="relative mt-2">
         <ClientOnly fallback={<MapSkeleton />}>
           <MasterWilayahMap
-            metric={mapMetric === "pkb" ? "pkb" : mapMetric === "krs" ? "krs" : mapMetric === "anggota" ? "anggota" : "tpk"}
+            metric={mapMetric}
             currentLevel={currentLevel}
             provinceCode={provinceCode}
             provinceName={provinceName}

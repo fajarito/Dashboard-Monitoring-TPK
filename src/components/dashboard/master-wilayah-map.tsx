@@ -10,7 +10,6 @@ import {
   forEachPolygonLayer,
   formatChoroplethHover,
   formatHoverPrimary,
-  hexStepsForMetric,
   indexThematicLookups,
   lookupMetricRow,
   lookupThematicValue,
@@ -506,7 +505,6 @@ export function MasterWilayahMap({
     const currentMetric = metricRef.current;
     const data = thematicDataRef.current || [];
     const rows = metricRowsRef.current || [];
-    const steps = hexStepsForMetric(currentMetric);
 
     const cleanVillage =
       currentLevel === "desa" && villageCode
@@ -523,27 +521,6 @@ export function MasterWilayahMap({
       );
       const featName = String(featProps.name || "");
 
-      if (cleanVillage) {
-        if (codeStr === cleanVillage) {
-          const selected = buildSelectedPathStyle(
-            steps[steps.length - 1] ?? "#1d4ed8",
-          );
-          layer._mwBaseStyle = selected;
-          layer.setStyle?.(selected);
-        } else {
-          const hidden: ChoroplethPathStyle = {
-            fillColor: CHOROPLETH_NO_DATA,
-            fillOpacity: 0,
-            weight: 0,
-            color: "#ffffff",
-            opacity: 0,
-          };
-          layer._mwBaseStyle = hidden;
-          layer.setStyle?.(hidden);
-        }
-        return;
-      }
-
       const classification = classifyFeature(codeStr, featName, currentMetric);
       const hasData =
         classification.status === "ok" || classification.status === "attention";
@@ -554,10 +531,18 @@ export function MasterWilayahMap({
       ) {
         unmatchedDev.push({ code: codeStr, name: featName });
       }
-      const fillColor = classification.color;
-      const base = buildBasePathStyle(fillColor, hasData);
-      layer._mwBaseStyle = base;
-      layer.setStyle?.(base);
+
+      // Desa aktif: choropleth spek + border selected (bukan warna biru tetap).
+      // Sibling desa tetap terwarna agar legenda/indikator konsisten.
+      if (cleanVillage && codeStr === cleanVillage) {
+        const selected = buildSelectedPathStyle(classification.color);
+        layer._mwBaseStyle = selected;
+        layer.setStyle?.(selected);
+      } else {
+        const base = buildBasePathStyle(classification.color, hasData);
+        layer._mwBaseStyle = base;
+        layer.setStyle?.(base);
+      }
 
       // Refresh tooltip saat ganti metrik (hindari HTML cache SDK / flicker).
       const tipHtml = buildChoroplethTooltipHtml(
