@@ -10,6 +10,7 @@ import { getPeringkatKelurahanMock } from "@/lib/data/mock/peringkat-kelurahan";
 import { getPeringkatProvinsiMock } from "@/lib/data/mock/peringkat";
 import { getRingkasanMock } from "@/lib/data/mock/ringkasan";
 import { getTpkDetailMock } from "@/lib/data/mock/tpk-detail";
+import { getTpkKeluargaMock } from "@/lib/data/mock/tpk-keluarga";
 import { getTpkListMock } from "@/lib/data/mock/tpk-list";
 import { getPeringkatKabupatenPostgres } from "@/lib/data/postgres/peringkat-kabupaten";
 import { getPeringkatKecamatanPostgres } from "@/lib/data/postgres/peringkat-kecamatan";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/data/postgres/pools";
 import { getRingkasanPostgres } from "@/lib/data/postgres/ringkasan";
 import { getTpkDetailPostgres } from "@/lib/data/postgres/tpk-detail";
+import { getTpkKeluargaPostgres } from "@/lib/data/postgres/tpk-keluarga";
 import { getTpkListPostgres } from "@/lib/data/postgres/tpk-list";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import type {
@@ -33,6 +35,10 @@ import type {
   RingkasanQuery,
   RingkasanTingkat,
   TpkDetailPayload,
+  TpkKeluargaIndikatorFilter,
+  TpkKeluargaPayload,
+  TpkKeluargaPrioritas,
+  TpkKeluargaQuery,
   TpkListPayload,
   TpkListQuery,
   TpkListSort,
@@ -58,6 +64,11 @@ export type {
   TpkDetailAnggota,
   TpkDetailKomposisiPrioritas,
   TpkDetailPayload,
+  TpkKeluargaIndikatorFilter,
+  TpkKeluargaItem,
+  TpkKeluargaPayload,
+  TpkKeluargaPrioritas,
+  TpkKeluargaQuery,
   TpkListIndikator,
   TpkListItem,
   TpkListPayload,
@@ -358,6 +369,112 @@ export async function fetchTpkDetail(
     payload = await getTpkDetailPostgres(id);
   } else {
     payload = getTpkDetailMock(id);
+  }
+
+  if (!payload) {
+    setCached(key, { __missing: true }, DEFAULT_CACHE_TTL_SEC);
+    return null;
+  }
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
+const PRIORITAS_VALUES: readonly TpkKeluargaPrioritas[] = [
+  "p1",
+  "p2",
+  "p3",
+  "p4",
+  "bukan",
+  "tidakRisiko",
+] as const;
+
+const INDIKATOR_FILTER_VALUES: readonly TpkKeluargaIndikatorFilter[] = [
+  "ibuHamil",
+  "baduta",
+  "balita",
+  "jambanTidakLayak",
+  "sumberAirTidakLayak",
+  "krs",
+] as const;
+
+function parseCsvParam<T extends string>(
+  raw: string | null,
+  allowed: readonly T[],
+): T[] {
+  if (!raw?.trim()) return [];
+  const allowedSet = new Set<string>(allowed);
+  const out: T[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(",")) {
+    const value = part.trim();
+    if (!value || seen.has(value) || !allowedSet.has(value)) continue;
+    seen.add(value);
+    out.push(value as T);
+  }
+  return out;
+}
+
+/** Query daftar keluarga TPK — page 1..n, pageSize 5–50 (default 10). */
+export function parseTpkKeluargaQuery(
+  searchParams: URLSearchParams,
+): TpkKeluargaQuery {
+  const pageRaw = searchParams.get("page");
+  const pageSizeRaw = searchParams.get("pageSize");
+  let page = pageRaw ? Number.parseInt(pageRaw, 10) : 1;
+  let pageSize = pageSizeRaw ? Number.parseInt(pageSizeRaw, 10) : 10;
+  if (!Number.isFinite(page) || page < 1) page = 1;
+  if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 10;
+  pageSize = Math.min(50, Math.max(5, pageSize));
+
+  return {
+    page,
+    pageSize,
+    prioritas: parseCsvParam(searchParams.get("prioritas"), PRIORITAS_VALUES),
+    indikator: parseCsvParam(
+      searchParams.get("indikator"),
+      INDIKATOR_FILTER_VALUES,
+    ),
+  };
+}
+
+/**
+ * Daftar keluarga sasaran se-kelurahan TPK — by_name paging, cache 60 dtk.
+ * Scope kelurahan (+ id_provinsi prune); bukan dump nasional.
+ * null → TPK tidak ditemukan.
+ */
+export async function fetchTpkKeluarga(
+  tpkId: string,
+  query: TpkKeluargaQuery,
+): Promise<TpkKeluargaPayload | null> {
+  const id = tpkId.trim();
+  if (!id) {
+    throw new PostgresDataError("invalid_tpk_id", "TPKID tidak valid.", {
+      status: 400,
+    });
+  }
+
+  const source = resolveDataSource();
+  const key = cacheKey([
+    "tpk-keluarga",
+    source,
+    id,
+    query.page,
+    query.pageSize,
+    query.prioritas.join("|"),
+    query.indikator.join("|"),
+  ]);
+  const hit = getCached<TpkKeluargaPayload | { __missing: true }>(key);
+  if (hit) {
+    if ("__missing" in hit) return null;
+    return hit;
+  }
+
+  let payload: TpkKeluargaPayload | null;
+  if (source === "postgres") {
+    assertPostgresReady();
+    payload = await getTpkKeluargaPostgres(id, query);
+  } else {
+    payload = getTpkKeluargaMock(id, query);
   }
 
   if (!payload) {

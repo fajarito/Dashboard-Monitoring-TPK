@@ -326,7 +326,7 @@ export type TpkDetailKomposisiPrioritas = {
 
 /**
  * Detail satu TPK — identitas + anggota + PKB desa + agregat kelurahan.
- * Tidak memuat daftar keluarga by_name (deferred).
+ * Daftar keluarga by_name di endpoint terpisah `/api/tpk/[tpkId]/keluarga`.
  */
 export type TpkDetailPayload = {
   tpkId: string;
@@ -362,9 +362,89 @@ export type TpkDetailPayload = {
   tpkSeDesa: number;
   komposisiPrioritas: TpkDetailKomposisiPrioritas | null;
   /**
-   * Stub daftar keluarga — selalu [] di fase ini (by_name deferred).
-   * UI menampilkan empty jujur, bukan mock keluarga.
+   * Stub — selalu []. Pakai GET /api/tpk/[tpkId]/keluarga untuk daftar paging.
    */
   keluarga: [];
+  meta: RingkasanMeta;
+};
+
+/** Prioritas keluarga di daftar by_name (selaras slice donut). */
+export type TpkKeluargaPrioritas =
+  | "p1"
+  | "p2"
+  | "p3"
+  | "p4"
+  | "bukan"
+  | "tidakRisiko";
+
+/** Filter indikator server-side (AND). RTLH tidak ada di DWH. */
+export type TpkKeluargaIndikatorFilter =
+  | "ibuHamil"
+  | "baduta"
+  | "balita"
+  | "jambanTidakLayak"
+  | "sumberAirTidakLayak"
+  | "krs";
+
+export type TpkKeluargaQuery = {
+  page: number;
+  pageSize: number;
+  /** Filter prioritas (OR antar nilai; kosong = semua). */
+  prioritas: TpkKeluargaPrioritas[];
+  /** Filter flag indikator (AND). */
+  indikator: TpkKeluargaIndikatorFilter[];
+};
+
+/**
+ * Satu baris keluarga sasaran — grain kelurahan (bukan TPKID).
+ * PII minimal: tanpa NIK di payload list.
+ */
+export type TpkKeluargaItem = {
+  id: string;
+  kodeKeluarga: string;
+  namaKepalaKeluarga: string;
+  prioritas: TpkKeluargaPrioritas;
+  indikator: {
+    baduta: boolean;
+    balita: boolean;
+    pus: boolean;
+    ibuHamil: boolean;
+    krs: boolean;
+    jambanTidakLayak: boolean;
+    sumberAirTidakLayak: boolean;
+    /** Selalu false — kolom RTLH tidak ada di DWH. */
+    rtlh: false;
+  };
+  /** Titik peta bila ada; null → UI tanpa Maps. */
+  latitude: number | null;
+  longitude: number | null;
+  /** Nama desa/kelurahan denorm dari by_name bila ada. */
+  namaKelurahan: string | null;
+};
+
+export type TpkKeluargaPayload = {
+  tpkId: string;
+  items: TpkKeluargaItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  filters: {
+    prioritas: TpkKeluargaPrioritas[];
+    indikator: TpkKeluargaIndikatorFilter[];
+  };
+  /**
+   * Grain daftar = seluruh keluarga di kelurahan TPK.
+   * Bila tpkSeDesa > 1, beberapa TPK berbagi agregat desa yang sama.
+   */
+  grain: {
+    level: "kelurahan";
+    kelurahanId: number | null;
+    namaKelurahan: string | null;
+    tpkSeDesa: number;
+    /** Ringkasan sasaran/KRS from by_rekap (bila ada) — bandingkan dengan total. */
+    keluargaSasaranRekap: number | null;
+    krsRekap: number | null;
+  };
   meta: RingkasanMeta;
 };
