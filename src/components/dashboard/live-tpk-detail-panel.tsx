@@ -9,6 +9,7 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/dashboard/data-state";
+import { LiveTpkKeluargaPanel } from "@/components/dashboard/live-tpk-keluarga-panel";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import {
   PhoneStatusHint,
@@ -155,29 +156,6 @@ function PkbPembinaCard({ pkb }: { pkb: TpkListPkb | null }) {
   );
 }
 
-function KeluargaDeferredStub({ tpkName }: { tpkName: string }) {
-  return (
-    <section
-      className="design-card p-6 sm:p-7"
-      aria-label={`Daftar keluarga ${tpkName}`}
-    >
-      <div className="mb-3">
-        <div className="text-[10px] font-extrabold tracking-[0.14em] text-primary uppercase">
-          Daftar keluarga
-        </div>
-        <h2 className="mt-1 text-base font-extrabold tracking-tight text-navy">
-          Keluarga binaan
-        </h2>
-      </div>
-      <EmptyState
-        title="Daftar keluarga belum tersedia"
-        description="Detail keluarga (by_name) ditunda agar performa tetap aman. Agregat sasaran/KRS di atas memakai rollup desa dari by_rekap."
-        className="py-10"
-      />
-    </section>
-  );
-}
-
 function DetailReady({
   provinceSlug,
   payload,
@@ -306,7 +284,7 @@ function DetailReady({
         />
       ) : null}
 
-      <KeluargaDeferredStub tpkName={payload.nama} />
+      <LiveTpkKeluargaPanel tpkId={payload.tpkId} tpkName={payload.nama} />
 
       <p className="text-[11px] text-slate-400">
         Jejak:{" "}
