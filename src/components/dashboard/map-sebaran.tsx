@@ -807,12 +807,13 @@ export function MapSebaran() {
   return (
     <section className="animate-content-enter space-y-5">
       {/*
-        Foto = background halaman untuk blok atas (judul + KPI + card sekunder),
-        soft fade ke bawah menuju shell peta — bukan card hero berwash.
+        Foto = true page background (edge-to-edge main pane, NO hero card).
+        Judul / KPI / sasaran / rasio = children di atas plane foto.
+        Soft fade → #F8FBFF; zona peta solid di bawah.
       */}
       <NusantaraFreshHero background={heroBackground}>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="nusantara-fresh-hero__title max-w-2xl">
+          <div className="max-w-2xl">
             <div className="eyebrow" style={{ color: "#2563EB" }}>
               Fase 1 · Fondasi visual
             </div>

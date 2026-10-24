@@ -202,43 +202,56 @@
   }
 
   /*
-   * Page-background zone (bukan card hero berwash):
-   * foto full-bleed di belakang judul+KPI+card sekunder; soft fade ke #F8FBFF.
+   * True page background — BUKAN hero card.
+   * Negative margin = kompensasi padding <main> (px-5/md:px-8, py-6)
+   * agar foto edge-to-edge di pane konten. Zero border/radius/shadow.
    */
-  .nusantara-fresh-hero--page-bg {
-    border: none;
-    box-shadow: none;
-    border-radius: 1.25rem;
+  .nusantara-page-bg {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     background: transparent;
-    margin-bottom: -0.25rem;
+    /* break out of main padding */
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+    margin-top: -1.5rem;
+    margin-bottom: 0;
   }
 
-  .nusantara-fresh-hero--page-bg[data-bg-mode="photo"] {
-    background: transparent;
+  @media (min-width: 768px) {
+    .nusantara-page-bg {
+      margin-left: -2rem;
+      margin-right: -2rem;
+    }
   }
 
-  .nusantara-fresh-hero--page-bg[data-bg-mode="gradient"] {
-    background: transparent;
+  .nusantara-page-bg__media,
+  .nusantara-page-bg__photo,
+  .nusantara-page-bg__fade {
+    border-radius: 0 !important;
   }
 
-  .nusantara-fresh-hero__photo {
-    object-fit: cover;
-    object-position: center 20%;
-  }
-
-  .nusantara-fresh-hero__overlay {
+  .nusantara-page-bg__fade {
     pointer-events: none;
   }
 
-  /* Card sekunder (sasaran / rasio) di atas zona foto → glass */
-  .nusantara-fresh-hero--page-bg[data-bg-mode="photo"] article.rounded-2xl,
-  .nusantara-fresh-hero--page-bg[data-bg-mode="photo"]
+  /* Card sekunder di atas zona foto → glass */
+  .nusantara-page-bg[data-bg-mode="photo"] article.rounded-2xl,
+  .nusantara-page-bg[data-bg-mode="photo"]
     .relative.overflow-hidden.rounded-2xl.border {
     border-color: rgba(255, 255, 255, 0.55) !important;
-    background: rgba(255, 255, 255, 0.52) !important;
+    background: rgba(255, 255, 255, 0.55) !important;
     box-shadow: 0 8px 24px rgba(22, 57, 100, 0.08) !important;
     -webkit-backdrop-filter: blur(12px) saturate(1.15);
     backdrop-filter: blur(12px) saturate(1.15);
+  }
+
+  /* Legacy class names — pastikan tidak ada radius tersisa */
+  .nusantara-fresh-hero,
+  .nusantara-fresh-hero--page-bg {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   @media (prefers-reduced-motion: reduce) {

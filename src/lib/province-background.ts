@@ -146,12 +146,11 @@ export const FRESH_BLUE_GRADIENT =
   "linear-gradient(145deg, #E8F1FF 0%, #F5F9FF 42%, #DCE9FB 100%)";
 
 /**
- * Overlay page-background (ikuti referensi Fajar):
- * - Atas/tengah foto CLEAR & saturated (tanpa wash 70–90%)
- * - Soft fade putih ke bawah menyatu ke #F8FBFF (zona peta)
+ * Soft fade bawah saja → #F8FBFF (zona peta).
+ * Atas foto clear/saturated — bukan wash merata di tengah.
  */
 export const FRESH_BLUE_HERO_OVERLAY_PHOTO =
-  "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(248,251,255,0.08) 64%, rgba(248,251,255,0.28) 76%, rgba(248,251,255,0.7) 88%, #f8fbff 100%)";
+  "linear-gradient(180deg, transparent 0%, transparent 52%, rgba(248,251,255,0.1) 68%, rgba(248,251,255,0.45) 82%, #f8fbff 100%)";
 
 /** Mode tanpa foto: overlay tidak perlu — surface sudah gradient. */
 export const FRESH_BLUE_HERO_OVERLAY_GRADIENT = "none";
