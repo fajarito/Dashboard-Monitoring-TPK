@@ -120,10 +120,6 @@ export function getProvinceBackground(
   const missing = isMissingStatus(entry.status) || !entry.image;
   const ai = !missing && isAiPlaceholderStatus(entry.status);
   const verified = !missing && isVerifiedStatus(entry.status, entry);
-
-  // Hanya tampilkan image jika path ada dan status bukan MISSING.
-  // AI placeholder diizinkan untuk prototyping (nasional / Sumut) — caller wajib badge.
-  // Jangan pernah fallback ke demo-landscape atau foto kode lain.
   const imageUrl = missing ? null : entry.image;
 
   return {
@@ -150,14 +146,12 @@ export const FRESH_BLUE_GRADIENT =
   "linear-gradient(145deg, #E8F1FF 0%, #F5F9FF 42%, #DCE9FB 100%)";
 
 /**
- * Overlay photo-first: foto = plane penuh.
- * - Strip atas-kiri sangat ringan agar judul #15315D terbaca
- * - Tengah/kanan hampir clear (landscape terlihat)
- * - Bawah tipis saja (KPI glass punya background sendiri)
- * JANGAN wash full-bleed 0.7–0.97.
+ * Overlay page-background (ikuti referensi Fajar):
+ * - Atas/tengah foto CLEAR & saturated (tanpa wash 70–90%)
+ * - Soft fade putih ke bawah menyatu ke #F8FBFF (zona peta)
  */
 export const FRESH_BLUE_HERO_OVERLAY_PHOTO =
-  "linear-gradient(115deg, rgba(248,251,255,0.22) 0%, rgba(248,251,255,0.08) 18%, transparent 40%), linear-gradient(180deg, transparent 0%, transparent 85%, rgba(248,251,255,0.06) 100%)";
+  "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(248,251,255,0.08) 64%, rgba(248,251,255,0.28) 76%, rgba(248,251,255,0.7) 88%, #f8fbff 100%)";
 
 /** Mode tanpa foto: overlay tidak perlu — surface sudah gradient. */
 export const FRESH_BLUE_HERO_OVERLAY_GRADIENT = "none";

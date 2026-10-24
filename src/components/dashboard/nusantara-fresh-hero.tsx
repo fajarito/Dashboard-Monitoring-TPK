@@ -16,9 +16,9 @@ type NusantaraFreshHeroProps = {
 };
 
 /**
- * Hero photo-first: foto = plane background penuh (object-cover),
- * konten (judul / tombol / KPI glass) di atasnya.
- * Overlay sangat ringan; tanpa wave/ornamen.
+ * Zona atas halaman: foto = background penuh (object-cover),
+ * konten di atasnya, soft fade ke bawah menuju area peta.
+ * Bukan card hero dengan wash putih merata.
  */
 export function NusantaraFreshHero({
   background,
@@ -37,11 +37,10 @@ export function NusantaraFreshHero({
 
   return (
     <div
-      className={`nusantara-fresh-hero relative isolate overflow-hidden ${className}`}
+      className={`nusantara-fresh-hero nusantara-fresh-hero--page-bg relative isolate overflow-hidden ${className}`}
       data-region-code={background.code}
       data-bg-mode={showPhoto ? "photo" : "gradient"}
     >
-      {/* Plane background penuh — edge-to-edge, bukan inset card */}
       {showPhoto && background.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -49,7 +48,7 @@ export function NusantaraFreshHero({
           alt=""
           loading="lazy"
           decoding="async"
-          className="nusantara-fresh-hero__photo pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-center"
+          className="nusantara-fresh-hero__photo pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-[center_20%]"
           onError={() => setFailedUrl(background.imageUrl)}
         />
       ) : (
@@ -60,6 +59,7 @@ export function NusantaraFreshHero({
         />
       )}
 
+      {/* Soft bottom fade saja — bukan wash full-bleed */}
       <div
         className="nusantara-fresh-hero__overlay absolute inset-0 z-[1]"
         style={{
@@ -70,23 +70,23 @@ export function NusantaraFreshHero({
         aria-hidden
       />
 
-      <div className="relative z-[2] flex min-h-[min(100%,420px)] flex-col justify-between gap-5 px-4 py-6 sm:min-h-[480px] sm:px-6 sm:py-8 lg:min-h-[540px] lg:px-8">
+      <div className="relative z-[2] flex flex-col gap-5 px-4 pb-10 pt-6 sm:gap-6 sm:px-6 sm:pb-12 sm:pt-8 lg:px-8 lg:pb-14">
         {(background.isAiMockup || !background.isVerified) && showPhoto ? (
           <div className="pointer-events-none absolute top-4 right-4 z-[3] sm:top-6 sm:right-6">
-            <span className="inline-flex items-center rounded-full border border-white/50 bg-white/75 px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#607C9D] shadow-sm backdrop-blur-sm">
+            <span className="inline-flex items-center rounded-full border border-white/55 bg-white/70 px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#607C9D] shadow-sm backdrop-blur-sm">
               Placeholder visual - bukan foto dokumenter
             </span>
           </div>
         ) : null}
 
-        <div className="nusantara-fresh-hero__content flex min-h-0 flex-1 flex-col justify-between gap-6">
+        <div className="nusantara-fresh-hero__content flex flex-col gap-5 sm:gap-6">
           {children}
         </div>
 
         {showPhoto && (creditLine || background.isAiMockup) ? (
           <p
-            className="shrink-0 text-[10px] font-medium text-[#15315D]"
-            style={{ textShadow: "0 1px 0 rgba(255,255,255,0.9)" }}
+            className="shrink-0 text-[10px] font-medium text-[#607C9D]"
+            style={{ textShadow: "0 1px 0 rgba(255,255,255,0.85)" }}
           >
             {background.isAiMockup
               ? "Visual AI untuk prototyping - belum diverifikasi sebagai lokasi nyata. "

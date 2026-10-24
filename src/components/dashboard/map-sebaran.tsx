@@ -806,18 +806,22 @@ export function MapSebaran() {
 
   return (
     <section className="animate-content-enter space-y-5">
+      {/*
+        Foto = background halaman untuk blok atas (judul + KPI + card sekunder),
+        soft fade ke bawah menuju shell peta — bukan card hero berwash.
+      */}
       <NusantaraFreshHero background={heroBackground}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="nusantara-fresh-hero__title max-w-2xl">
             <div className="eyebrow" style={{ color: "#2563EB" }}>
-              Nusantara Fresh Blue · Photo First
+              Fase 1 · Fondasi visual
             </div>
             <h1
               className="page-title"
               style={{
                 color: "#15315D",
                 textShadow:
-                  "0 1px 0 rgba(255,255,255,0.95), 0 2px 8px rgba(255,255,255,0.85), 0 0 24px rgba(248,251,255,0.9)",
+                  "0 1px 0 rgba(255,255,255,0.9), 0 2px 10px rgba(255,255,255,0.55)",
               }}
             >
               Peta Sebaran TPK
@@ -826,8 +830,7 @@ export function MapSebaran() {
               className="mt-1 max-w-2xl text-sm"
               style={{
                 color: "#607C9D",
-                textShadow:
-                  "0 1px 0 rgba(255,255,255,0.9), 0 0 12px rgba(248,251,255,0.85)",
+                textShadow: "0 1px 0 rgba(255,255,255,0.75)",
               }}
             >
               Gambaran cepat sebaran Tim Pendamping Keluarga di seluruh Indonesia
@@ -836,7 +839,10 @@ export function MapSebaran() {
               {selected ? (
                 <>
                   {" "}
-                  Fokus foto: <strong style={{ color: "#15315D" }}>{heroBackground.province}</strong>
+                  Fokus foto:{" "}
+                  <strong style={{ color: "#15315D" }}>
+                    {heroBackground.province}
+                  </strong>
                   {currentLevel !== "provinsi" && currentLevel !== "nasional"
                     ? " (provinsi induk)"
                     : null}
@@ -849,7 +855,7 @@ export function MapSebaran() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 gap-2 rounded-xl border-white/60 bg-white/70 text-[#15315D] shadow-sm backdrop-blur-md hover:border-blue-300 hover:bg-white/85"
+              className="h-11 gap-2 rounded-xl border-white/65 bg-white/55 text-[#15315D] shadow-sm backdrop-blur-md hover:border-blue-300 hover:bg-white/75"
               onClick={() => setPickerOpen((open) => !open)}
               aria-expanded={pickerOpen}
               aria-haspopup="listbox"
@@ -859,7 +865,7 @@ export function MapSebaran() {
             </Button>
             {pickerOpen ? (
               <div
-                className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-[rgba(217,230,247,0.95)] bg-white/95 p-2 shadow-[0_12px_36px_rgba(22,57,100,0.12)] backdrop-blur-md"
+                className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-[0_12px_36px_rgba(22,57,100,0.12)] backdrop-blur-md"
                 role="listbox"
                 aria-label="Pilih data peta"
               >
@@ -968,7 +974,7 @@ export function MapSebaran() {
                     <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
                       {ringkasanState === "loading" || !kpiTotals ? (
                         <span
-                          className="mt-1 h-9 w-28 animate-pulse rounded-lg bg-slate-100"
+                          className="mt-1 h-9 w-28 animate-pulse rounded-lg bg-slate-100/80"
                           aria-hidden
                         />
                       ) : (
@@ -997,8 +1003,8 @@ export function MapSebaran() {
                       <span
                         className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase ${
                           active
-                            ? "bg-blue-50 text-[#2563EB]"
-                            : "bg-slate-50 text-slate-400"
+                            ? "bg-blue-50/90 text-[#2563EB]"
+                            : "bg-white/50 text-slate-500"
                         }`}
                       >
                         {active ? "Aktif" : "Pilih"}
@@ -1010,32 +1016,33 @@ export function MapSebaran() {
             </div>
           ) : null}
         </div>
+
+        {/* Card sekunder masih di zona foto (fade bawah) — seperti referensi */}
+        <div className="space-y-2.5">
+          {activeRingkasan ? (
+            <SasaranIndikatorPanel
+              scopeLabel={sasaranScope.scopeLabel}
+              counts={sasaranScope.counts}
+              dataSource={dataSource}
+            />
+          ) : null}
+
+          {activeRingkasan ? (
+            <RasioInsightPanels
+              values={{
+                jumlahTPK: activeRingkasan.jumlahTPK,
+                jumlahKRS: activeRingkasan.jumlahKRS,
+                jumlahPKB: activeRingkasan.jumlahPKB,
+                rasioTPK_KRS: activeRingkasan.rasioTPK_KRS,
+                rasioPKB_desa: activeRingkasan.rasioPKB_desa,
+                warningBeban: activeRingkasan.warningBeban,
+                sourceLabel:
+                  activeRingkasan.meta.source === "mock" ? "simulasi" : "live",
+              }}
+            />
+          ) : null}
+        </div>
       </NusantaraFreshHero>
-
-      <div className="space-y-2.5">
-        {activeRingkasan ? (
-          <SasaranIndikatorPanel
-            scopeLabel={sasaranScope.scopeLabel}
-            counts={sasaranScope.counts}
-            dataSource={dataSource}
-          />
-        ) : null}
-
-        {activeRingkasan ? (
-          <RasioInsightPanels
-            values={{
-              jumlahTPK: activeRingkasan.jumlahTPK,
-              jumlahKRS: activeRingkasan.jumlahKRS,
-              jumlahPKB: activeRingkasan.jumlahPKB,
-              rasioTPK_KRS: activeRingkasan.rasioTPK_KRS,
-              rasioPKB_desa: activeRingkasan.rasioPKB_desa,
-              warningBeban: activeRingkasan.warningBeban,
-              sourceLabel:
-                activeRingkasan.meta.source === "mock" ? "simulasi" : "live",
-            }}
-          />
-        ) : null}
-      </div>
 
       <div className="fresh-blue-map-shell overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">

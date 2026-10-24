@@ -168,12 +168,12 @@
 
   /* Glass KPI di atas foto — transparan agar landscape tetap kelihatan */
   .fresh-blue-card {
-    border: 1px solid rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 24px;
-    background: rgba(255, 255, 255, 0.45);
-    box-shadow: 0 10px 28px rgba(22, 57, 100, 0.12);
-    -webkit-backdrop-filter: blur(12px) saturate(1.15);
-    backdrop-filter: blur(12px) saturate(1.15);
+    background: rgba(255, 255, 255, 0.48);
+    box-shadow: 0 10px 28px rgba(22, 57, 100, 0.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease,
@@ -182,16 +182,16 @@
 
   .fresh-blue-card:hover {
     border-color: rgba(37, 99, 235, 0.4);
-    background: rgba(255, 255, 255, 0.55);
-    box-shadow: 0 12px 32px rgba(22, 57, 100, 0.14);
+    background: rgba(255, 255, 255, 0.58);
+    box-shadow: 0 12px 32px rgba(22, 57, 100, 0.12);
   }
 
   .fresh-blue-card.is-active {
     border-color: rgba(37, 99, 235, 0.55);
-    background: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.62);
     box-shadow:
       0 0 0 2px rgba(37, 99, 235, 0.18),
-      0 12px 32px rgba(22, 57, 100, 0.12);
+      0 12px 32px rgba(22, 57, 100, 0.1);
   }
 
   .fresh-blue-map-shell {
@@ -201,25 +201,44 @@
     box-shadow: 0 12px 36px rgba(22, 57, 100, 0.06);
   }
 
-  /* Hero = blok foto penuh (bukan panel inset berisi foto kecil) */
-  .nusantara-fresh-hero {
-    border-radius: 24px;
-    border: 1px solid rgba(217, 230, 247, 0.55);
-    box-shadow: 0 12px 36px rgba(22, 57, 100, 0.1);
+  /*
+   * Page-background zone (bukan card hero berwash):
+   * foto full-bleed di belakang judul+KPI+card sekunder; soft fade ke #F8FBFF.
+   */
+  .nusantara-fresh-hero--page-bg {
+    border: none;
+    box-shadow: none;
+    border-radius: 1.25rem;
+    background: transparent;
+    margin-bottom: -0.25rem;
+  }
+
+  .nusantara-fresh-hero--page-bg[data-bg-mode="photo"] {
     background: transparent;
   }
 
-  .nusantara-fresh-hero[data-bg-mode="photo"] {
-    background: #0f2744;
+  .nusantara-fresh-hero--page-bg[data-bg-mode="gradient"] {
+    background: transparent;
   }
 
   .nusantara-fresh-hero__photo {
     object-fit: cover;
-    object-position: center;
+    object-position: center 20%;
   }
 
   .nusantara-fresh-hero__overlay {
     pointer-events: none;
+  }
+
+  /* Card sekunder (sasaran / rasio) di atas zona foto → glass */
+  .nusantara-fresh-hero--page-bg[data-bg-mode="photo"] article.rounded-2xl,
+  .nusantara-fresh-hero--page-bg[data-bg-mode="photo"]
+    .relative.overflow-hidden.rounded-2xl.border {
+    border-color: rgba(255, 255, 255, 0.55) !important;
+    background: rgba(255, 255, 255, 0.52) !important;
+    box-shadow: 0 8px 24px rgba(22, 57, 100, 0.08) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    backdrop-filter: blur(12px) saturate(1.15);
   }
 
   @media (prefers-reduced-motion: reduce) {
