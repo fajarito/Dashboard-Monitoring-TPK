@@ -146,11 +146,11 @@ export const FRESH_BLUE_GRADIENT =
   "linear-gradient(145deg, #E8F1FF 0%, #F5F9FF 42%, #DCE9FB 100%)";
 
 /**
- * Soft fade bawah saja → #F8FBFF (zona peta).
- * Atas foto clear/saturated — bukan wash merata di tengah.
+ * Soft fade → #F8FBFF di ujung bawah blok foto (judul+KPI saja).
+ * Atas clear/saturated; bawah menyatu ke solid shell — bukan wash merata.
  */
 export const FRESH_BLUE_HERO_OVERLAY_PHOTO =
-  "linear-gradient(180deg, transparent 0%, transparent 52%, rgba(248,251,255,0.1) 68%, rgba(248,251,255,0.45) 82%, #f8fbff 100%)";
+  "linear-gradient(180deg, transparent 0%, transparent 40%, rgba(248,251,255,0.12) 58%, rgba(248,251,255,0.45) 72%, rgba(248,251,255,0.82) 88%, #f8fbff 100%)";
 
 /** Mode tanpa foto: overlay tidak perlu — surface sudah gradient. */
 export const FRESH_BLUE_HERO_OVERLAY_GRADIENT = "none";

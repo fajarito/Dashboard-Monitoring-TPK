@@ -202,51 +202,57 @@
   }
 
   /*
-   * True page background — BUKAN hero card.
-   * Negative margin = kompensasi padding <main> (px-5/md:px-8, py-6)
-   * agar foto edge-to-edge di pane konten. Zero border/radius/shadow.
+   * True page background shell — BUKAN hero card / panel foto.
+   * Satu wrapper continuous: foto absolute edge-to-edge di main pane,
+   * soft fade → #F8FBFF, mapZone sibling tanpa gap yang membingkai foto.
+   * Zero border / radius / shadow pada plane foto.
    */
-  .nusantara-page-bg {
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background: transparent;
-    /* break out of main padding */
-    margin-left: -1.25rem;
-    margin-right: -1.25rem;
-    margin-top: -1.5rem;
-    margin-bottom: 0;
+  /* Main pane: pad tokens + tanpa overflow clip yang memotong full-bleed foto */
+  .nusantara-main-pane {
+    overflow: visible;
+    --nusantara-main-pad-x: 1.25rem; /* px-5 */
+    --nusantara-main-pad-y: 1.5rem; /* py-6 */
   }
 
   @media (min-width: 768px) {
-    .nusantara-page-bg {
-      margin-left: -2rem;
-      margin-right: -2rem;
+    .nusantara-main-pane {
+      --nusantara-main-pad-x: 2rem; /* md:px-8 */
     }
   }
 
-  .nusantara-page-bg__media,
-  .nusantara-page-bg__photo,
-  .nusantara-page-bg__fade {
+  .nusantara-page-shell {
+    border: none !important;
     border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background: #f8fbff;
+    /* break out of <main> padding via tokens di .nusantara-main-pane */
+    margin-left: calc(-1 * var(--nusantara-main-pad-x, 2rem));
+    margin-right: calc(-1 * var(--nusantara-main-pad-x, 2rem));
+    margin-top: calc(-1 * var(--nusantara-main-pad-y, 1.5rem));
+    margin-bottom: 0;
+    width: calc(100% + 2 * var(--nusantara-main-pad-x, 2rem));
+    max-width: none;
+    overflow: visible;
   }
 
-  .nusantara-page-bg__fade {
+  .nusantara-page-shell__top,
+  .nusantara-page-shell__media,
+  .nusantara-page-shell__photo,
+  .nusantara-page-shell__fade {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .nusantara-page-shell__fade {
     pointer-events: none;
   }
 
-  /* Card sekunder di atas zona foto → glass */
-  .nusantara-page-bg[data-bg-mode="photo"] article.rounded-2xl,
-  .nusantara-page-bg[data-bg-mode="photo"]
-    .relative.overflow-hidden.rounded-2xl.border {
-    border-color: rgba(255, 255, 255, 0.55) !important;
-    background: rgba(255, 255, 255, 0.55) !important;
-    box-shadow: 0 8px 24px rgba(22, 57, 100, 0.08) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(1.15);
-    backdrop-filter: blur(12px) saturate(1.15);
-  }
+  /* KPI glass tetap; card sekunder di belowPhoto = solid di #F8FBFF (bukan glass wajib) */
 
-  /* Legacy class names — pastikan tidak ada radius tersisa */
+  /* Legacy — pastikan kelas lama tidak meninggalkan bingkai */
+  .nusantara-page-bg,
   .nusantara-fresh-hero,
   .nusantara-fresh-hero--page-bg {
     border: none !important;

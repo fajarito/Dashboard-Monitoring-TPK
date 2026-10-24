@@ -805,13 +805,110 @@ export function MapSebaran() {
       : "Agregat nasional belum tersedia. Muat ulang atau periksa sumber data.";
 
   return (
-    <section className="animate-content-enter space-y-5">
+    <section className="animate-content-enter">
       {/*
-        Foto = true page background (edge-to-edge main pane, NO hero card).
-        Judul / KPI / sasaran / rasio = children di atas plane foto.
-        Soft fade → #F8FBFF; zona peta solid di bawah.
+        Foto = true page background (edge-to-edge main pane, NO hero frame).
+        Satu shell continuous: judul+KPI mengambang di atas foto;
+        mapZone sibling tanpa space-y agar tidak terbaca “kartu hero”.
+        Soft fade → #F8FBFF menyatu ke zona peta.
       */}
-      <NusantaraFreshHero background={heroBackground}>
+      <NusantaraFreshHero
+        background={heroBackground}
+        belowPhoto={
+          <>
+            {activeRingkasan ? (
+              <SasaranIndikatorPanel
+                scopeLabel={sasaranScope.scopeLabel}
+                counts={sasaranScope.counts}
+                dataSource={dataSource}
+              />
+            ) : null}
+            {activeRingkasan ? (
+              <RasioInsightPanels
+                values={{
+                  jumlahTPK: activeRingkasan.jumlahTPK,
+                  jumlahKRS: activeRingkasan.jumlahKRS,
+                  jumlahPKB: activeRingkasan.jumlahPKB,
+                  rasioTPK_KRS: activeRingkasan.rasioTPK_KRS,
+                  rasioPKB_desa: activeRingkasan.rasioPKB_desa,
+                  warningBeban: activeRingkasan.warningBeban,
+                  sourceLabel:
+                    activeRingkasan.meta.source === "mock" ? "simulasi" : "live",
+                }}
+              />
+            ) : null}
+          </>
+        }
+        mapZone={
+          <div className="fresh-blue-map-shell overflow-hidden">
+            <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">
+              <div>
+                <div className="section-title" style={{ color: "#15315D" }}>
+                  {selectedKab
+                    ? `Sebaran · ${selectedKab.nama}`
+                    : selected
+                      ? `Sebaran · ${selected.name}`
+                      : "Sebaran Nasional"}
+                </div>
+                <div className="mt-1 text-xs" style={{ color: "#607C9D" }}>
+                  {selectedKab
+                    ? "KPI mengikuti agregat kabupaten/kota — hapus filter kab untuk kembali ke provinsi"
+                    : selected
+                      ? "KPI mengikuti agregat provinsi — pilih kab/kota di tabel bawah, atau tutup untuk nasional"
+                      : "Klik provinsi untuk memfilter ringkasan KPI"}
+                </div>
+              </div>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-[#2563EB]">
+                Warna: {choroplethFormulaLabel(metric)}
+              </span>
+            </div>
+
+            <div className="relative mt-2">
+              {mapDemoState === "loading" ? (
+                <MapSkeleton />
+              ) : (
+                <ClientOnly fallback={<MapSkeleton />}>
+                  <MasterWilayahMap
+                    metric={metric}
+                    currentLevel={currentLevel}
+                    provinceCode={provinceCode}
+                    provinceName={selected?.name}
+                    regencyCode={regencyCode}
+                    regencyName={selectedKab?.nama}
+                    districtCode={districtCode}
+                    districtName={selectedKec?.nama}
+                    villageCode={villageCode}
+                    villageName={selectedDesa?.nama}
+                    thematicData={thematicData}
+                    metricRows={mapMetricRows}
+                    kabupatenList={peringkatKab.payload?.items}
+                    kecamatanList={peringkatKec.payload?.items}
+                    kelurahanList={peringkatKel.payload?.items}
+                    onDrillDown={handleDrillDown}
+                    onNavigateToLevel={handleNavigateToLevel}
+                    onReset={clearFocus}
+                    indicatorStatus={mapIndicatorStatus}
+                    indicatorError={mapIndicatorError}
+                    onRetryIndicator={retryMapIndicator}
+                  />
+                </ClientOnly>
+              )}
+            </div>
+
+            <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
+              <div className="text-[9px] text-slate-400">
+                Legenda indikator di kanan bawah peta ·{" "}
+                {choroplethFormulaLabel(metric)} · Master Wilayah API BKKBN
+                {dataSource === "postgres"
+                  ? " · KPI live"
+                  : dataSource === "mock"
+                    ? " · KPI simulasi"
+                    : ""}
+              </div>
+            </div>
+          </div>
+        }
+      >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-2xl">
             <div className="eyebrow" style={{ color: "#2563EB" }}>
@@ -1017,102 +1114,9 @@ export function MapSebaran() {
             </div>
           ) : null}
         </div>
-
-        {/* Card sekunder masih di zona foto (fade bawah) — seperti referensi */}
-        <div className="space-y-2.5">
-          {activeRingkasan ? (
-            <SasaranIndikatorPanel
-              scopeLabel={sasaranScope.scopeLabel}
-              counts={sasaranScope.counts}
-              dataSource={dataSource}
-            />
-          ) : null}
-
-          {activeRingkasan ? (
-            <RasioInsightPanels
-              values={{
-                jumlahTPK: activeRingkasan.jumlahTPK,
-                jumlahKRS: activeRingkasan.jumlahKRS,
-                jumlahPKB: activeRingkasan.jumlahPKB,
-                rasioTPK_KRS: activeRingkasan.rasioTPK_KRS,
-                rasioPKB_desa: activeRingkasan.rasioPKB_desa,
-                warningBeban: activeRingkasan.warningBeban,
-                sourceLabel:
-                  activeRingkasan.meta.source === "mock" ? "simulasi" : "live",
-              }}
-            />
-          ) : null}
-        </div>
       </NusantaraFreshHero>
 
-      <div className="fresh-blue-map-shell overflow-hidden">
-        <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">
-          <div>
-            <div className="section-title" style={{ color: "#15315D" }}>
-              {selectedKab
-                ? `Sebaran · ${selectedKab.nama}`
-                : selected
-                  ? `Sebaran · ${selected.name}`
-                  : "Sebaran Nasional"}
-            </div>
-            <div className="mt-1 text-xs" style={{ color: "#607C9D" }}>
-              {selectedKab
-                ? "KPI mengikuti agregat kabupaten/kota — hapus filter kab untuk kembali ke provinsi"
-                : selected
-                  ? "KPI mengikuti agregat provinsi — pilih kab/kota di tabel bawah, atau tutup untuk nasional"
-                  : "Klik provinsi untuk memfilter ringkasan KPI"}
-            </div>
-          </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-[#2563EB]">
-            Warna: {choroplethFormulaLabel(metric)}
-          </span>
-        </div>
-
-        <div className="relative mt-2">
-          {mapDemoState === "loading" ? (
-            <MapSkeleton />
-          ) : (
-            <ClientOnly fallback={<MapSkeleton />}>
-              <MasterWilayahMap
-                metric={metric}
-                currentLevel={currentLevel}
-                provinceCode={provinceCode}
-                provinceName={selected?.name}
-                regencyCode={regencyCode}
-                regencyName={selectedKab?.nama}
-                districtCode={districtCode}
-                districtName={selectedKec?.nama}
-                villageCode={villageCode}
-                villageName={selectedDesa?.nama}
-                thematicData={thematicData}
-                metricRows={mapMetricRows}
-                kabupatenList={peringkatKab.payload?.items}
-                kecamatanList={peringkatKec.payload?.items}
-                kelurahanList={peringkatKel.payload?.items}
-                onDrillDown={handleDrillDown}
-                onNavigateToLevel={handleNavigateToLevel}
-                onReset={clearFocus}
-                indicatorStatus={mapIndicatorStatus}
-                indicatorError={mapIndicatorError}
-                onRetryIndicator={retryMapIndicator}
-              />
-            </ClientOnly>
-          )}
-        </div>
-
-        <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
-          <div className="text-[9px] text-slate-400">
-            Legenda indikator di kanan bawah peta · {choroplethFormulaLabel(metric)} ·
-            Master Wilayah API BKKBN
-            {dataSource === "postgres"
-              ? " · KPI live"
-              : dataSource === "mock"
-                ? " · KPI simulasi"
-                : ""}
-          </div>
-        </div>
-      </div>
-
+      <div className="mt-5 space-y-5">
       {/* Pill cepat: di bawah peta, di atas tabel + kartu */}
       <QuickProvincePicks
         selectedId={selected?.id ?? null}
@@ -1336,6 +1340,7 @@ export function MapSebaran() {
           </p>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }
