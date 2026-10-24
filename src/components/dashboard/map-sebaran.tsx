@@ -808,14 +808,28 @@ export function MapSebaran() {
     <section className="animate-content-enter space-y-5">
       <NusantaraFreshHero background={heroBackground}>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+          <div className="nusantara-fresh-hero__title max-w-2xl">
             <div className="eyebrow" style={{ color: "#2563EB" }}>
               Nusantara Fresh Blue · Photo First
             </div>
-            <h1 className="page-title" style={{ color: "#15315D" }}>
+            <h1
+              className="page-title"
+              style={{
+                color: "#15315D",
+                textShadow:
+                  "0 1px 0 rgba(255,255,255,0.95), 0 2px 8px rgba(255,255,255,0.85), 0 0 24px rgba(248,251,255,0.9)",
+              }}
+            >
               Peta Sebaran TPK
             </h1>
-            <p className="mt-1 max-w-2xl text-sm" style={{ color: "#607C9D" }}>
+            <p
+              className="mt-1 max-w-2xl text-sm"
+              style={{
+                color: "#607C9D",
+                textShadow:
+                  "0 1px 0 rgba(255,255,255,0.9), 0 0 12px rgba(248,251,255,0.85)",
+              }}
+            >
               Gambaran cepat sebaran Tim Pendamping Keluarga di seluruh Indonesia
               — siap dibaca pimpinan tanpa istilah rumit. Gunakan kolom cari di
               atas untuk menemukan wilayah hingga desa.
@@ -835,7 +849,7 @@ export function MapSebaran() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 gap-2 rounded-xl border-[rgba(217,230,247,0.95)] bg-white/95 text-[#15315D] hover:border-blue-300 hover:bg-white"
+              className="h-11 gap-2 rounded-xl border-white/60 bg-white/70 text-[#15315D] shadow-sm backdrop-blur-md hover:border-blue-300 hover:bg-white/85"
               onClick={() => setPickerOpen((open) => !open)}
               aria-expanded={pickerOpen}
               aria-haspopup="listbox"

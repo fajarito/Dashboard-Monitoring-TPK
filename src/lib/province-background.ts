@@ -149,5 +149,18 @@ export function listBackgroundManifest(): BackgroundManifestEntry[] {
 export const FRESH_BLUE_GRADIENT =
   "linear-gradient(145deg, #E8F1FF 0%, #F5F9FF 42%, #DCE9FB 100%)";
 
-export const FRESH_BLUE_HERO_OVERLAY =
-  "linear-gradient(180deg, rgba(248,251,255,0.72) 0%, rgba(248,251,255,0.88) 55%, rgba(248,251,255,0.97) 100%)";
+/**
+ * Overlay photo-first: foto = plane penuh.
+ * - Strip atas-kiri sangat ringan agar judul #15315D terbaca
+ * - Tengah/kanan hampir clear (landscape terlihat)
+ * - Bawah tipis saja (KPI glass punya background sendiri)
+ * JANGAN wash full-bleed 0.7–0.97.
+ */
+export const FRESH_BLUE_HERO_OVERLAY_PHOTO =
+  "linear-gradient(115deg, rgba(248,251,255,0.22) 0%, rgba(248,251,255,0.08) 18%, transparent 40%), linear-gradient(180deg, transparent 0%, transparent 85%, rgba(248,251,255,0.06) 100%)";
+
+/** Mode tanpa foto: overlay tidak perlu — surface sudah gradient. */
+export const FRESH_BLUE_HERO_OVERLAY_GRADIENT = "none";
+
+/** @deprecated pakai FRESH_BLUE_HERO_OVERLAY_PHOTO */
+export const FRESH_BLUE_HERO_OVERLAY = FRESH_BLUE_HERO_OVERLAY_PHOTO;
