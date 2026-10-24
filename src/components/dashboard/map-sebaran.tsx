@@ -31,13 +31,27 @@ import { QuickProvincePicks } from "@/components/dashboard/quick-province-picks"
 import { RasioInsightPanels } from "@/components/dashboard/rasio-insight-panels";
 import { SasaranIndikatorPanel } from "@/components/dashboard/sasaran-indikator-panel";
 import { Button } from "@/components/ui/button";
+import {
+  prefetchHomeAgregat,
+  prefetchMasterWilayahWidget,
+  prefetchPeringkatKabupaten,
+  prefetchPeringkatKecamatan,
+} from "@/lib/client-api-cache";
 import type { PeringkatKabupatenItem } from "@/lib/data/types";
-import { useHomeAgregat } from "@/lib/hooks/use-home-agregat";
+import {
+  prefetchHomeAgregatEarly,
+  useHomeAgregat,
+} from "@/lib/hooks/use-home-agregat";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
 import { useRingkasanScope } from "@/lib/hooks/use-ringkasan-scope";
 import { getKabupatenApiId } from "@/lib/kabupaten-api-id";
+import {
+  isValidKemendagriCode,
+  normalizeKemendagriDigits,
+  sanitizeKemendagriCode,
+} from "@/lib/kemendagri-code";
 import {
   buildThematicData,
   choroplethFormulaLabel,
@@ -179,22 +193,33 @@ export function MapSebaran() {
   const [metric, setMetric] = useState<MetricKey>("tpk");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selected, setSelected] = useState<Province | null>(null);
+  /** id = API/postgres; kode = Kemendagri untuk Master Wilayah map (jangan campur). */
   const [selectedKab, setSelectedKab] = useState<{
     id: string;
     nama: string;
+    kode?: string | null;
   } | null>(null);
   const [selectedKec, setSelectedKec] = useState<{
     id: string;
     nama: string;
+    kode?: string | null;
   } | null>(null);
   const [selectedDesa, setSelectedDesa] = useState<{
     id: string;
     nama: string;
+    kode?: string | null;
   } | null>(null);
   const [focusedWilayah, setFocusedWilayah] = useState<WilayahSearchItem | null>(
     null,
   );
   const homeAgregat = useHomeAgregat();
+
+  // Prefetch paralel: agregat home + script MW — jangan tunggu map mount.
+  useEffect(() => {
+    prefetchHomeAgregatEarly();
+    prefetchHomeAgregat();
+    prefetchMasterWilayahWidget();
+  }, []);
 
   /** Tingkat hirarki aktif untuk peta dan ringkasan. */
   const currentLevel: WilayahLevelKey = useMemo(() => {
@@ -207,22 +232,32 @@ export function MapSebaran() {
 
   const provinceCode = useMemo(() => {
     if (!selected) return null;
-    return String(selected.adminCode).padStart(2, "0");
+    return sanitizeKemendagriCode(
+      "provinsi",
+      String(selected.adminCode).padStart(2, "0"),
+    );
   }, [selected]);
 
+  /** Kode Kemendagri untuk SDK map — bukan id internal peringkat. */
   const regencyCode = useMemo(() => {
     if (!selectedKab) return null;
-    return selectedKab.id;
+    const fromKode = sanitizeKemendagriCode("kabupaten", selectedKab.kode);
+    if (fromKode) return fromKode;
+    return sanitizeKemendagriCode("kabupaten", selectedKab.id);
   }, [selectedKab]);
 
   const districtCode = useMemo(() => {
     if (!selectedKec) return null;
-    return selectedKec.id;
+    const fromKode = sanitizeKemendagriCode("kecamatan", selectedKec.kode);
+    if (fromKode) return fromKode;
+    return sanitizeKemendagriCode("kecamatan", selectedKec.id);
   }, [selectedKec]);
 
   const villageCode = useMemo(() => {
     if (!selectedDesa) return null;
-    return selectedDesa.id;
+    const fromKode = sanitizeKemendagriCode("desa", selectedDesa.kode);
+    if (fromKode) return fromKode;
+    return sanitizeKemendagriCode("desa", selectedDesa.id);
   }, [selectedDesa]);
 
   /** id_provinsi untuk API — bukan slug UI / adminCode BPS. */
@@ -493,6 +528,83 @@ export function MapSebaran() {
     return "ready";
   }, [demoParam]);
 
+  /**
+   * Status data choropleth untuk overlay "Memuat indikator…".
+   * Nasional → home peringkat; drill → peringkat kab/kec/kel sesuai level.
+   */
+  const mapIndicatorStatus = useMemo(():
+    | "idle"
+    | "loading"
+    | "ready"
+    | "error" => {
+    if (mapDemoState === "loading") return "loading";
+    if (mapDemoState === "error") return "error";
+    if (!selected) {
+      if (homeAgregat.status === "loading") return "loading";
+      if (homeAgregat.status === "error") return "error";
+      return "ready";
+    }
+    if (!selectedKab) {
+      if (peringkatKab.status === "loading" || peringkatKab.status === "idle") {
+        return "loading";
+      }
+      if (peringkatKab.status === "error") return "error";
+      return "ready";
+    }
+    if (!selectedKec) {
+      if (peringkatKec.status === "loading" || peringkatKec.status === "idle") {
+        return "loading";
+      }
+      if (peringkatKec.status === "error") return "error";
+      return "ready";
+    }
+    if (peringkatKel.status === "loading" || peringkatKel.status === "idle") {
+      return "loading";
+    }
+    if (peringkatKel.status === "error") return "error";
+    return "ready";
+  }, [
+    mapDemoState,
+    selected,
+    selectedKab,
+    selectedKec,
+    homeAgregat.status,
+    peringkatKab.status,
+    peringkatKec.status,
+    peringkatKel.status,
+  ]);
+
+  const mapIndicatorError = useMemo(() => {
+    if (!selected) return homeAgregat.error;
+    if (!selectedKab) return peringkatKab.error;
+    if (!selectedKec) return peringkatKec.error;
+    return peringkatKel.error;
+  }, [
+    selected,
+    selectedKab,
+    selectedKec,
+    homeAgregat.error,
+    peringkatKab.error,
+    peringkatKec.error,
+    peringkatKel.error,
+  ]);
+
+  const retryMapIndicator = () => {
+    if (!selected) {
+      homeAgregat.refetch();
+      return;
+    }
+    if (!selectedKab) {
+      peringkatKab.refetch();
+      return;
+    }
+    if (!selectedKec) {
+      peringkatKec.refetch();
+      return;
+    }
+    peringkatKel.refetch();
+  };
+
   useEffect(() => {
     if (!wilayahParam) {
       setFocusedWilayah(null);
@@ -510,7 +622,10 @@ export function MapSebaran() {
       if (item.level === "kabupaten_kota") {
         const kabApi = getKabupatenApiId(item.id);
         if (kabApi) {
-          setSelectedKab({ id: kabApi, nama: item.name });
+          const kodeHint =
+            sanitizeKemendagriCode("kabupaten", item.id) ||
+            sanitizeKemendagriCode("kabupaten", kabApi);
+          setSelectedKab({ id: kabApi, nama: item.name, kode: kodeHint });
         }
       } else {
         setSelectedKab(null);
@@ -545,16 +660,23 @@ export function MapSebaran() {
     setSelectedKec(null);
     setSelectedDesa(null);
     setSelected(province);
+    const apiId = getProvinsiApiId(province);
+    if (apiId) prefetchPeringkatKabupaten(apiId);
     if (wilayahParam) {
       router.replace("/", { scroll: false });
     }
   };
 
   const selectKabupaten = (item: PeringkatKabupatenItem) => {
-    setSelectedKab({ id: item.id, nama: item.nama });
+    setSelectedKab({
+      id: item.id,
+      nama: item.nama,
+      kode: item.kode ?? null,
+    });
     setSelectedKec(null);
     setSelectedDesa(null);
     setFocusedWilayah(null);
+    prefetchPeringkatKecamatan(item.id);
   };
 
   const handleDrillDown = (
@@ -562,12 +684,14 @@ export function MapSebaran() {
     code: string,
     name: string,
   ) => {
+    const clean = normalizeKemendagriDigits(code);
     if (level === "provinsi") {
+      if (!isValidKemendagriCode("provinsi", clean)) return;
       const prov =
         provinces.find(
           (p) =>
-            String(p.adminCode).padStart(2, "0") === code ||
-            p.adminCode === Number(code),
+            String(p.adminCode).padStart(2, "0") === clean ||
+            p.adminCode === Number(clean),
         ) ||
         provinces.find(
           (p) =>
@@ -578,8 +702,8 @@ export function MapSebaran() {
         selectProvince(prov);
       } else {
         const newProv: Province = {
-          id: `prov-${code}`,
-          adminCode: Number(code) || 0,
+          id: `prov-${clean}`,
+          adminCode: Number(clean) || 0,
           name,
           capital: name,
           tpk: 0,
@@ -594,14 +718,42 @@ export function MapSebaran() {
         selectProvince(newProv);
       }
     } else if (level === "kabupaten") {
-      setSelectedKab({ id: code, nama: name });
+      if (!isValidKemendagriCode("kabupaten", clean)) return;
+      // Map butuh Kemendagri; ringkasan butuh id internal bila ada di peringkat.
+      const match = peringkatKab.payload?.items?.find((item) => {
+        const k = item.kode ? normalizeKemendagriDigits(item.kode) : "";
+        return k === clean || item.nama.toLowerCase() === name.toLowerCase();
+      });
+      setSelectedKab({
+        id: match?.id ?? clean,
+        nama: name,
+        kode: clean,
+      });
       setSelectedKec(null);
       setSelectedDesa(null);
     } else if (level === "kecamatan") {
-      setSelectedKec({ id: code, nama: name });
+      if (!isValidKemendagriCode("kecamatan", clean)) return;
+      const match = peringkatKec.payload?.items?.find((item) => {
+        const k = item.kode ? normalizeKemendagriDigits(item.kode) : "";
+        return k === clean || item.nama.toLowerCase() === name.toLowerCase();
+      });
+      setSelectedKec({
+        id: match?.id ?? clean,
+        nama: name,
+        kode: clean,
+      });
       setSelectedDesa(null);
     } else if (level === "desa") {
-      setSelectedDesa({ id: code, nama: name });
+      if (!isValidKemendagriCode("desa", clean)) return;
+      const match = peringkatKel.payload?.items?.find((item) => {
+        const k = item.kode ? normalizeKemendagriDigits(item.kode) : "";
+        return k === clean || item.nama.toLowerCase() === name.toLowerCase();
+      });
+      setSelectedDesa({
+        id: match?.id ?? clean,
+        nama: name,
+        kode: clean,
+      });
     }
   };
 
@@ -875,6 +1027,9 @@ export function MapSebaran() {
                 onDrillDown={handleDrillDown}
                 onNavigateToLevel={handleNavigateToLevel}
                 onReset={clearFocus}
+                indicatorStatus={mapIndicatorStatus}
+                indicatorError={mapIndicatorError}
+                onRetryIndicator={retryMapIndicator}
               />
             </ClientOnly>
           )}

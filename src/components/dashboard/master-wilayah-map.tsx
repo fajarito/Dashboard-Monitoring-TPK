@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
-import { ChevronRight, RotateCcw, ArrowLeft, MapPin, AlertCircle, RefreshCw } from "lucide-react";
+import {
+  ChevronRight,
+  RotateCcw,
+  ArrowLeft,
+  MapPin,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+} from "lucide-react";
 import { MapIndicatorLegend } from "@/components/dashboard/map-indicator-legend";
 import {
   buildBasePathStyle,
@@ -26,6 +34,13 @@ import {
   indicatorTitle,
   type IndicatorClassification,
 } from "@/lib/map-indicator";
+import {
+  formatMasterWilayahRenderError,
+  isValidKemendagriCode,
+  normalizeKemendagriDigits,
+  sanitizeKemendagriCode,
+  type KemendagriLevel,
+} from "@/lib/kemendagri-code";
 import { type MetricKey } from "@/lib/map-data";
 import type {
   MasterWilayahFeatureProps,
@@ -97,6 +112,14 @@ export type MasterWilayahMapProps = {
    * tetap tampilkan basemap + label tingkat.
    */
   embedded?: boolean;
+  /**
+   * Status fetch metrik choropleth (`/api/peringkat*` / home agregat).
+   * Saat loading: overlay "Memuat indikator…" agar abu-abu sementara tidak terlihat "rusak".
+   * Saat error: overlay + retry (breadcrumb tetap bisa dipakai — tidak mengunci drill selamanya).
+   */
+  indicatorStatus?: "idle" | "loading" | "ready" | "error";
+  indicatorError?: string | null;
+  onRetryIndicator?: () => void;
 };
 
 function preloadLeafletCss() {
@@ -236,6 +259,17 @@ const PALETTE_BY_METRIC: Record<MetricKey, ReturnType<typeof sdkPaletteForMetric
     krs: sdkPaletteForMetric("krs"),
   };
 
+/** Level Kemendagri yang dipakai MW untuk child boundaries dari klik poligon. */
+function drillTargetKemendagriLevel(
+  current: WilayahLevelKey,
+): KemendagriLevel | null {
+  if (current === "nasional") return "provinsi";
+  if (current === "provinsi") return "kabupaten";
+  if (current === "kabupaten") return "kecamatan";
+  if (current === "kecamatan" || current === "desa") return "desa";
+  return null;
+}
+
 const LEVEL_LABELS: Record<WilayahLevelKey, string> = {
   nasional: "Nasional",
   provinsi: "Provinsi",
@@ -362,6 +396,9 @@ export function MasterWilayahMap({
   onNavigateToLevel,
   onReset,
   embedded = false,
+  indicatorStatus,
+  indicatorError = null,
+  onRetryIndicator,
 }: MasterWilayahMapProps) {
   const containerId = useId().replace(/:/g, "_");
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -374,9 +411,15 @@ export function MasterWilayahMap({
   const [sdkReady, setSdkReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** True setelah applyClientChoropleth sukses saat indikator siap (hindari flash abu-abu). */
+  const [choroplethReady, setChoroplethReady] = useState(
+    () => indicatorStatus == null,
+  );
   const [basemap, setBasemap] = useState<"canvas" | "satellite" | "topo">("canvas");
   const basemapRef = useRef(basemap);
   basemapRef.current = basemap;
+  const indicatorStatusRef = useRef(indicatorStatus);
+  indicatorStatusRef.current = indicatorStatus;
 
   const metricRowsRef = useRef(metricRows);
   metricRowsRef.current = metricRows;
@@ -581,7 +624,35 @@ export function MasterWilayahMap({
         unmatchedDev.slice(0, 20),
       );
     }
+
+    // Indikator siap (atau tidak di-gate) → izinkan lepas overlay setelah cat pertama.
+    const gate = indicatorStatusRef.current;
+    if (gate == null || gate === "ready") {
+      setChoroplethReady(true);
+    }
   }, [currentLevel, villageCode, buildChoroplethTooltipHtml, classifyFeature]);
+
+  // Ganti level / mulai fetch indikator baru → tutup warna sampai cat ulang.
+  useEffect(() => {
+    if (indicatorStatus == null) {
+      setChoroplethReady(true);
+      return;
+    }
+    if (
+      indicatorStatus === "loading" ||
+      indicatorStatus === "idle" ||
+      indicatorStatus === "error"
+    ) {
+      setChoroplethReady(false);
+    }
+  }, [
+    indicatorStatus,
+    currentLevel,
+    provinceCode,
+    regencyCode,
+    districtCode,
+    villageCode,
+  ]);
 
   // Pastikan style override tooltip terinjeksi
   useEffect(() => {
@@ -643,6 +714,9 @@ export function MasterWilayahMap({
 
       setLoading(true);
       setError(null);
+      if (indicatorStatusRef.current != null) {
+        setChoroplethReady(false);
+      }
 
       // Clean up previous map instance safely
       if (mapInstanceRef.current) {
@@ -674,6 +748,53 @@ export function MasterWilayahMap({
         return;
       }
 
+      const safeProvince = sanitizeKemendagriCode("provinsi", provinceCode);
+      const safeRegency = sanitizeKemendagriCode("kabupaten", regencyCode);
+      const safeDistrict = sanitizeKemendagriCode("kecamatan", districtCode);
+      const safeVillage = sanitizeKemendagriCode("desa", villageCode);
+
+      // Validasi sebelum POST thematic — id internal / panjang salah → HTTP 500 di MW.
+      if (currentLevel === "provinsi" && provinceCode && !safeProvince) {
+        setError(
+          formatMasterWilayahRenderError(
+            new Error(
+              `Kode Kemendagri provinsi tidak valid (${normalizeKemendagriDigits(provinceCode) || "kosong"}). Harus 2 digit.`,
+            ),
+            { level: "provinsi", code: provinceCode, name: provinceName },
+          ),
+        );
+        setLoading(false);
+        return;
+      }
+      if (currentLevel === "kabupaten" && regencyCode && !safeRegency) {
+        setError(
+          formatMasterWilayahRenderError(
+            new Error(
+              `Kode Kemendagri kab/kota tidak valid (${normalizeKemendagriDigits(regencyCode) || "kosong"}). Harus 4 digit — kemungkinan id internal terkirim ke peta.`,
+            ),
+            { level: "kabupaten", code: regencyCode, name: regencyName },
+          ),
+        );
+        setLoading(false);
+        return;
+      }
+      if (
+        (currentLevel === "kecamatan" || currentLevel === "desa") &&
+        districtCode &&
+        !safeDistrict
+      ) {
+        setError(
+          formatMasterWilayahRenderError(
+            new Error(
+              `Kode Kemendagri kecamatan tidak valid (${normalizeKemendagriDigits(districtCode) || "kosong"}). Harus 6 digit.`,
+            ),
+            { level: "kecamatan", code: districtCode, name: districtName },
+          ),
+        );
+        setLoading(false);
+        return;
+      }
+
       const options: MasterWilayahRenderOptions = {
         apiUrl: API_BASE_URL,
         palette,
@@ -687,9 +808,22 @@ export function MasterWilayahMap({
         popupFormatter: (props: MasterWilayahFeatureProps) =>
           buildChoroplethTooltipHtml(props, false),
         onFeatureClick: (props: MasterWilayahFeatureProps) => {
-          const code = String(props.code || props.kode || "").replace(/\./g, "").trim();
+          const raw = String(props.code || props.kode || "");
+          const code = normalizeKemendagriDigits(raw);
           const name = String(props.name || "").trim();
           if (!code) return;
+
+          const targetLevel = drillTargetKemendagriLevel(currentLevel);
+          if (targetLevel && !isValidKemendagriCode(targetLevel, code)) {
+            console.warn(
+              "[MasterWilayahMap] skip drill — kode Kemendagri tidak valid:",
+              { currentLevel, code, name },
+            );
+            setError(
+              `Kode wilayah "${name || code}" tidak valid untuk drill-down (${code}, diharapkan ${targetLevel}). Poligon ini dilewati — pilih wilayah lain.`,
+            );
+            return;
+          }
 
           if (currentLevel === "nasional") {
             onDrillDownRef.current("provinsi", code, name);
@@ -705,25 +839,40 @@ export function MasterWilayahMap({
         },
       };
 
-      // Set hierarchical options based on active level
-      if ((currentLevel === "desa" || currentLevel === "kecamatan") && districtCode) {
-        options.district = districtCode;
-        if (currentLevel === "desa" && villageCode) {
+      // Set hierarchical options based on active level (hanya kode tervalidasi)
+      if (
+        (currentLevel === "desa" || currentLevel === "kecamatan") &&
+        safeDistrict
+      ) {
+        options.district = safeDistrict;
+        if (currentLevel === "desa" && safeVillage) {
           options.data = [
             {
-              code: villageCode,
+              code: safeVillage,
               value: 100,
               label: `Desa/Kelurahan: ${villageName || ""}`,
             },
             ...(thematicDataRef.current || []),
           ];
         }
-      } else if (currentLevel === "kabupaten" && regencyCode) {
-        options.regency = regencyCode;
-      } else if (currentLevel === "provinsi" && provinceCode) {
-        options.province = provinceCode;
-      } else {
+      } else if (currentLevel === "kabupaten" && safeRegency) {
+        options.regency = safeRegency;
+      } else if (currentLevel === "provinsi" && safeProvince) {
+        options.province = safeProvince;
+      } else if (currentLevel === "nasional") {
         options.national = true;
+      } else {
+        // Level anak tanpa kode valid — jangan POST national dengan parent salah.
+        setError(
+          formatMasterWilayahRenderError(
+            new Error(
+              `Kode wilayah untuk level ${LEVEL_LABELS[currentLevel]} belum siap. Kembali ke level sebelumnya.`,
+            ),
+            { level: currentLevel },
+          ),
+        );
+        setLoading(false);
+        return;
       }
 
       try {
@@ -760,15 +909,14 @@ export function MasterWilayahMap({
             });
 
             // Desa highlight: fitBounds ke poligon terpilih
-            if (currentLevel === "desa" && villageCode) {
-              const cleanVillage = String(villageCode).replace(/\D/g, "").trim();
+            if (currentLevel === "desa" && safeVillage) {
               forEachPolygonLayer(instance.boundaryGroup, (layer) => {
-                const codeStr = String(
+                const codeStr = normalizeKemendagriDigits(
                   layer.feature?.properties?.code ||
                     layer.feature?.properties?.kode ||
                     "",
-                ).replace(/\D/g, "");
-                if (codeStr === cleanVillage) {
+                );
+                if (codeStr === safeVillage) {
                   layer.openPopup?.();
                   if (layer.getBounds && instance.map) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -791,12 +939,18 @@ export function MasterWilayahMap({
         }
       } catch (err) {
         if (seq === renderSeqRef.current) {
-          console.error("[MasterWilayahMap] render error:", err);
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Gagal memuat batas wilayah dari Master Wilayah API.",
-          );
+          const activeCode =
+            safeDistrict || safeRegency || safeProvince || null;
+          const activeName =
+            districtName || regencyName || provinceName || null;
+          // Jangan spam console.error untuk 500/404 yang sudah diganti pesan UI.
+          const msg = formatMasterWilayahRenderError(err, {
+            level: currentLevel,
+            code: activeCode,
+            name: activeName,
+          });
+          console.warn("[MasterWilayahMap] render failed:", err);
+          setError(msg);
           setLoading(false);
         }
       }
@@ -837,9 +991,10 @@ export function MasterWilayahMap({
   }, [metric, metricRows, thematicData]);
 
   // Ganti metrik / thematic → recolor saja (jangan destroy Map).
+  // Juga saat indikator baru ready — cat segera agar veil hilang cepat.
   useEffect(() => {
     applyClientChoropleth();
-  }, [metric, thematicData, metricRows, applyClientChoropleth]);
+  }, [metric, thematicData, metricRows, indicatorStatus, applyClientChoropleth]);
 
   useEffect(() => {
     if (sdkReady) {
@@ -1032,11 +1187,114 @@ export function MasterWilayahMap({
           className="w-full h-full"
         />
 
-        {!loading && !error ? (
-          <MapIndicatorLegend metric={metric} items={legendItems} />
-        ) : null}
+        {(() => {
+          const indicatorBusy =
+            indicatorStatus === "loading" || indicatorStatus === "idle";
+          const waitingChoropleth =
+            indicatorStatus === "ready" && !choroplethReady;
+          // Jangan blokir basemap: chip tipis saat geometry load; veil ringan saat tunggu warna.
+          const showGeometryChip = !error && loading;
+          const showIndicatorVeil =
+            !error &&
+            !loading &&
+            indicatorStatus !== "error" &&
+            (indicatorBusy || waitingChoropleth);
+          const showIndicatorError =
+            !error && indicatorStatus === "error";
+          const showLegend =
+            !loading &&
+            !error &&
+            !showIndicatorVeil &&
+            !showIndicatorError &&
+            choroplethReady;
 
-        {/* Error Overlay */}
+          return (
+            <>
+              {showLegend ? (
+                <MapIndicatorLegend metric={metric} items={legendItems} />
+              ) : null}
+
+              {/* Geometry MW — chip pojok, peta/basemap tetap terlihat */}
+              {showGeometryChip ? (
+                <div
+                  className="pointer-events-none absolute bottom-3 left-1/2 z-[1400] -translate-x-1/2"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-200">
+                    <Loader2
+                      className="h-3.5 w-3.5 animate-spin text-blue-600"
+                      aria-hidden
+                    />
+                    Memuat peta wilayah…
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Indikator — veil transparan + pill; pointer-events-none agar pan/drill tidak terasa terkunci */}
+              {showIndicatorVeil ? (
+                <div
+                  className="pointer-events-none absolute inset-0 z-[1400] flex items-end justify-center bg-gradient-to-t from-white/55 via-white/10 to-transparent pb-4 dark:from-slate-950/55 dark:via-slate-950/10"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <div className="inline-flex max-w-[min(100%,20rem)] flex-col items-center gap-0.5 rounded-full border border-slate-200/80 bg-white/95 px-3.5 py-2 text-center shadow-md dark:border-slate-700 dark:bg-slate-900/95">
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      <Loader2
+                        className="h-3.5 w-3.5 animate-spin text-blue-600"
+                        aria-hidden
+                      />
+                      Memuat indikator…
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500">
+                      Basemap sudah siap · warna menyusul
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Peringkat gagal — retry; breadcrumb di atas tetap bisa navigasi */}
+              {showIndicatorError ? (
+                <div className="absolute inset-0 z-[1450] flex flex-col items-center justify-center p-6 bg-white/70 dark:bg-slate-900/70 backdrop-blur-[1px] text-center">
+                  <AlertCircle className="h-10 w-10 text-amber-500 mb-2" />
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Gagal Memuat Indikator Peta
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">
+                    {indicatorError ||
+                      "Data peringkat tidak dapat dimuat. Coba lagi, atau kembali ke level sebelumnya lewat breadcrumb."}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {prevLevel ? (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToLevel(prevLevel)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        Kembali ke {LEVEL_LABELS[prevLevel]}
+                      </button>
+                    ) : null}
+                    {onRetryIndicator ? (
+                      <button
+                        type="button"
+                        onClick={() => onRetryIndicator()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Coba Lagi
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
+
+        {/* Error Overlay — HTTP 500/404 tidak crash; user bisa kembali / retry */}
         {error && (
           <div className="absolute inset-0 z-[1500] flex flex-col items-center justify-center p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs text-center">
             <AlertCircle className="h-10 w-10 text-rose-500 mb-2" />
@@ -1044,41 +1302,58 @@ export function MasterWilayahMap({
               Gagal Memuat Peta Master Wilayah
             </h4>
             <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">{error}</p>
-            {WIDGET_SCRIPT_URL ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (sdkReady) {
-                    void renderMap();
-                    return;
-                  }
-                  setError(null);
-                  setLoading(true);
-                  loadScriptPromise(WIDGET_SCRIPT_URL)
-                    .then(() => {
-                      installMasterWilayahSafeguard();
-                      setSdkReady(true);
-                    })
-                    .catch((err) => {
-                      setError(
-                        err instanceof Error
-                          ? err.message
-                          : "Gagal memuat widget Master Wilayah.",
-                      );
-                      setLoading(false);
-                    });
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Coba Muat Ulang
-              </button>
-            ) : (
-              <p className="text-[11px] text-slate-400 max-w-sm">
-                Perbaiki env lalu restart server lokal atau rebuild image
-                OpenShift.
-              </p>
-            )}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {prevLevel ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    onNavigateToLevel(prevLevel);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Kembali ke {LEVEL_LABELS[prevLevel]}
+                </button>
+              ) : null}
+              {WIDGET_SCRIPT_URL ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sdkReady) {
+                      void renderMap();
+                      return;
+                    }
+                    setError(null);
+                    setLoading(true);
+                    loadScriptPromise(WIDGET_SCRIPT_URL)
+                      .then(() => {
+                        installMasterWilayahSafeguard();
+                        setSdkReady(true);
+                      })
+                      .catch((err) => {
+                        setError(
+                          formatMasterWilayahRenderError(
+                            err instanceof Error
+                              ? err
+                              : new Error("Gagal memuat widget Master Wilayah."),
+                          ),
+                        );
+                        setLoading(false);
+                      });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Coba Muat Ulang
+                </button>
+              ) : (
+                <p className="text-[11px] text-slate-400 max-w-sm">
+                  Perbaiki env lalu restart server lokal atau rebuild image
+                  OpenShift.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

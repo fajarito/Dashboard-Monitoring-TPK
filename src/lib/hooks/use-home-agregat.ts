@@ -2,6 +2,13 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+import {
+  fetchClientJson,
+  HOME_PERINGKAT_URL,
+  HOME_RINGKASAN_URL,
+  peekClientJsonCache,
+  prefetchHomeAgregat,
+} from "@/lib/client-api-cache";
 import type {
   PeringkatProvinsiPayload,
   RingkasanPayload,
@@ -53,38 +60,48 @@ function getServerSnapshot() {
   return SERVER_SNAPSHOT;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try {
-      const body = (await response.json()) as { message?: string };
-      if (body?.message) detail = body.message;
-    } catch {
-      /* ignore non-JSON error body */
-    }
-    throw new Error(`${detail} (${url})`);
-  }
-  return (await response.json()) as T;
-}
+async function load(gen: number, force: boolean) {
+  const cachedRing = peekClientJsonCache<RingkasanPayload>(HOME_RINGKASAN_URL);
+  const cachedPer = peekClientJsonCache<PeringkatProvinsiPayload>(
+    HOME_PERINGKAT_URL,
+  );
 
-async function load(gen: number) {
-  snapshot = {
-    status: "loading",
-    ringkasan: null,
-    peringkat: null,
-    error: null,
-  };
-  emit();
+  // Memory hit 60s → langsung ready, tanpa flash loading / network.
+  if (!force && cachedRing && cachedPer) {
+    if (gen !== generation) return;
+    snapshot = {
+      status: "ready",
+      ringkasan: cachedRing,
+      peringkat: cachedPer,
+      error: null,
+    };
+    emit();
+    return;
+  }
+
+  // Ada cache parsial → tampilkan sambil refresh (hindari overlay lama).
+  if (!force && (cachedRing || cachedPer) && snapshot.status !== "ready") {
+    snapshot = {
+      status: "loading",
+      ringkasan: cachedRing,
+      peringkat: cachedPer,
+      error: null,
+    };
+    emit();
+  } else if (snapshot.status !== "ready") {
+    snapshot = {
+      status: "loading",
+      ringkasan: null,
+      peringkat: null,
+      error: null,
+    };
+    emit();
+  }
 
   try {
     const [ringkasanRes, peringkatRes] = await Promise.all([
-      fetchJson<RingkasanPayload>("/api/ringkasan?tingkat=nasional"),
-      fetchJson<PeringkatProvinsiPayload>("/api/peringkat/provinsi"),
+      fetchClientJson<RingkasanPayload>(HOME_RINGKASAN_URL, { force }),
+      fetchClientJson<PeringkatProvinsiPayload>(HOME_PERINGKAT_URL, { force }),
     ]);
     if (gen !== generation) return;
     snapshot = {
@@ -96,6 +113,17 @@ async function load(gen: number) {
     emit();
   } catch (err) {
     if (gen !== generation) return;
+    // Pertahankan data cache bila ada agar peta tidak blank.
+    if (cachedRing || cachedPer) {
+      snapshot = {
+        status: "ready",
+        ringkasan: cachedRing,
+        peringkat: cachedPer,
+        error: null,
+      };
+      emit();
+      return;
+    }
     snapshot = {
       status: "error",
       ringkasan: null,
@@ -110,7 +138,7 @@ function ensureStarted() {
   if (started) return;
   started = true;
   generation = 1;
-  void load(1);
+  void load(1, false);
 }
 
 function subscribe(listener: () => void) {
@@ -124,7 +152,7 @@ function subscribe(listener: () => void) {
 /**
  * Ambil agregat home: max 2 request paralel (ringkasan + peringkat).
  * State di-share antar konsumen (header + MapSebaran) agar tidak double-fetch.
- * Tidak memuat by_name / daftar keluarga.
+ * Cache memory 60s selaras API — tidak memuat by_name / daftar keluarga.
  */
 export function useHomeAgregat(): HomeAgregatState {
   const current = useSyncExternalStore(
@@ -136,7 +164,7 @@ export function useHomeAgregat(): HomeAgregatState {
   const refetch = useCallback(() => {
     started = true;
     generation += 1;
-    void load(generation);
+    void load(generation, true);
   }, []);
 
   return {
@@ -146,4 +174,15 @@ export function useHomeAgregat(): HomeAgregatState {
     error: current.error,
     refetch,
   };
+}
+
+/** Mulai fetch home sedini mungkin (paralel widget MW), sebelum map mount. */
+export function prefetchHomeAgregatEarly(): void {
+  prefetchHomeAgregat();
+  ensureStarted();
+}
+
+// Client bundle: kickoff paralel dengan hidrasi (bukan waterfall setelah map).
+if (typeof window !== "undefined") {
+  prefetchHomeAgregatEarly();
 }
