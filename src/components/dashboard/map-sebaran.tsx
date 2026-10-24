@@ -26,6 +26,7 @@ import {
 import { KabupatenSebaranTable } from "@/components/dashboard/kabupaten-sebaran-table";
 import { KomposisiPrioritasCard } from "@/components/dashboard/komposisi-prioritas-card";
 import { KomposisiTpkCard } from "@/components/dashboard/komposisi-tpk-card";
+import { NusantaraFreshHero } from "@/components/dashboard/nusantara-fresh-hero";
 import { ProvinceSebaranTable } from "@/components/dashboard/province-sebaran-table";
 import { QuickProvincePicks } from "@/components/dashboard/quick-province-picks";
 import { RasioInsightPanels } from "@/components/dashboard/rasio-insight-panels";
@@ -83,6 +84,10 @@ import {
   wilayahLevelLabels,
   type WilayahSearchItem,
 } from "@/lib/wilayah-search-data";
+import {
+  getProvinceBackground,
+  resolveHeroRegionCode,
+} from "@/lib/province-background";
 
 import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map";
 
@@ -237,6 +242,18 @@ export function MapSebaran() {
       String(selected.adminCode).padStart(2, "0"),
     );
   }, [selected]);
+
+  /**
+   * Hero foto mengikuti provinsi induk (atau nasional).
+   * Drill kab/kec/desa tidak mengganti foto ke wilayah lain.
+   */
+  const heroBackground = useMemo(() => {
+    const code = resolveHeroRegionCode({
+      level: currentLevel,
+      provinceAdminCode: selected?.adminCode ?? null,
+    });
+    return getProvinceBackground(code);
+  }, [currentLevel, selected?.adminCode]);
 
   /** Kode Kemendagri untuk SDK map — bukan id internal peringkat. */
   const regencyCode = useMemo(() => {
@@ -789,173 +806,199 @@ export function MapSebaran() {
 
   return (
     <section className="animate-content-enter space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="eyebrow">Fase 1 · Fondasi visual</div>
-          <h1 className="page-title">Peta Sebaran TPK</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Gambaran cepat sebaran Tim Pendamping Keluarga di seluruh Indonesia
-            — siap dibaca pimpinan tanpa istilah rumit. Gunakan kolom cari di
-            atas untuk menemukan wilayah hingga desa.
-          </p>
-        </div>
-        <div className="relative">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 gap-2 rounded-xl border-line bg-white text-ink hover:border-blue-300 hover:bg-blue-50"
-            onClick={() => setPickerOpen((open) => !open)}
-            aria-expanded={pickerOpen}
-            aria-haspopup="listbox"
-          >
-            <Layers2 className="size-4 text-primary" aria-hidden />
-            Ganti Data Peta
-          </Button>
-          {pickerOpen ? (
-            <div
-              className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-line bg-white p-2 shadow-[var(--shadow-card)]"
-              role="listbox"
-              aria-label="Pilih data peta"
+      <NusantaraFreshHero background={heroBackground}>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="eyebrow" style={{ color: "#2563EB" }}>
+              Nusantara Fresh Blue · Photo First
+            </div>
+            <h1 className="page-title" style={{ color: "#15315D" }}>
+              Peta Sebaran TPK
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm" style={{ color: "#607C9D" }}>
+              Gambaran cepat sebaran Tim Pendamping Keluarga di seluruh Indonesia
+              — siap dibaca pimpinan tanpa istilah rumit. Gunakan kolom cari di
+              atas untuk menemukan wilayah hingga desa.
+              {selected ? (
+                <>
+                  {" "}
+                  Fokus foto: <strong style={{ color: "#15315D" }}>{heroBackground.province}</strong>
+                  {currentLevel !== "provinsi" && currentLevel !== "nasional"
+                    ? " (provinsi induk)"
+                    : null}
+                  .
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="relative">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 gap-2 rounded-xl border-[rgba(217,230,247,0.95)] bg-white/95 text-[#15315D] hover:border-blue-300 hover:bg-white"
+              onClick={() => setPickerOpen((open) => !open)}
+              aria-expanded={pickerOpen}
+              aria-haspopup="listbox"
             >
-              {metricOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="option"
-                  aria-selected={metric === option}
-                  className={`flex w-full flex-col rounded-xl px-3 py-2.5 text-left transition-colors ${
-                    metric === option
-                      ? "bg-blue-50 text-primary"
-                      : "hover:bg-slate-50"
-                  }`}
-                  onClick={() => {
-                    setMetric(option);
-                    setPickerOpen(false);
-                  }}
-                >
-                  <span className="text-sm font-bold">{metricLabels[option]}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {metricHelp[option]}
-                  </span>
-                </button>
-              ))}
+              <Layers2 className="size-4 text-[#2563EB]" aria-hidden />
+              Ganti Data Peta
+            </Button>
+            {pickerOpen ? (
+              <div
+                className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-[rgba(217,230,247,0.95)] bg-white/95 p-2 shadow-[0_12px_36px_rgba(22,57,100,0.12)] backdrop-blur-md"
+                role="listbox"
+                aria-label="Pilih data peta"
+              >
+                {metricOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="option"
+                    aria-selected={metric === option}
+                    className={`flex w-full flex-col rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      metric === option
+                        ? "bg-blue-50 text-[#2563EB]"
+                        : "hover:bg-slate-50"
+                    }`}
+                    onClick={() => {
+                      setMetric(option);
+                      setPickerOpen(false);
+                    }}
+                  >
+                    <span className="text-sm font-bold">{metricLabels[option]}</span>
+                    <span className="text-[11px] text-[#607C9D]">
+                      {metricHelp[option]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
+          {ringkasanState === "error" ? (
+            <div className="fresh-blue-card p-4">
+              <ErrorState
+                title={
+                  selectedKab
+                    ? `Gagal memuat ringkasan ${selectedKab.nama}`
+                    : selected
+                      ? `Gagal memuat ringkasan ${selected.name}`
+                      : "Gagal memuat ringkasan"
+                }
+                description={ringkasanErrorMessage}
+                onRetry={retryAgregat}
+              />
             </div>
           ) : null}
-        </div>
-      </div>
-
-      <div className="space-y-2.5">
-        {ringkasanState === "error" ? (
-          <div className="design-card">
-            <ErrorState
-              title={
-                selectedKab
-                  ? `Gagal memuat ringkasan ${selectedKab.nama}`
-                  : selected
-                    ? `Gagal memuat ringkasan ${selected.name}`
-                    : "Gagal memuat ringkasan"
-              }
-              description={ringkasanErrorMessage}
-              onRetry={retryAgregat}
-            />
-          </div>
-        ) : null}
-        {ringkasanState === "empty" ? (
-          <div className="design-card">
-            <EmptyState
-              title="Ringkasan masih kosong"
-              description={ringkasanEmptyDescription}
-              action={
-                <div className="flex flex-wrap items-center gap-2">
-                  {selected ? (
+          {ringkasanState === "empty" ? (
+            <div className="fresh-blue-card p-4">
+              <EmptyState
+                title="Ringkasan masih kosong"
+                description={ringkasanEmptyDescription}
+                action={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selected ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-xl border-line"
+                        onClick={clearFocus}
+                      >
+                        Kembali ke nasional
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="outline"
                       className="h-9 rounded-xl border-line"
-                      onClick={clearFocus}
+                      onClick={retryAgregat}
                     >
-                      Kembali ke nasional
+                      Muat ulang
                     </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 rounded-xl border-line"
-                    onClick={retryAgregat}
-                  >
-                    Muat ulang
-                  </Button>
-                </div>
-              }
-            />
-          </div>
-        ) : null}
-        {ringkasanState === "loading" || ringkasanState === "ready" ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {kpiCards.map((card) => {
-            const Icon = card.icon;
-            const active = metric === card.key;
-            const note =
-              dataSource === "postgres" ? card.noteLive : card.noteMock;
-            return (
-              <button
-                key={card.key}
-                type="button"
-                onClick={() => setMetric(card.key)}
-                className={`group rounded-2xl border bg-white px-5 py-5 text-left shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)] sm:px-6 ${
-                  active
-                    ? "border-blue-400 ring-2 ring-blue-100"
-                    : "border-line"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 pr-1 text-[11px] leading-snug font-semibold tracking-[0.12em] text-slate-400 uppercase">
-                    {card.label}
                   </div>
-                  <span
-                    className={`grid size-7 shrink-0 place-items-center rounded-full ${card.color}`}
-                  >
-                    <Icon className="size-3.5" aria-hidden />
-                  </span>
-                </div>
-                <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-                  {ringkasanState === "loading" || !kpiTotals ? (
-                    <span
-                      className="mt-1 h-9 w-28 animate-pulse rounded-lg bg-slate-100"
-                      aria-hidden
-                    />
-                  ) : (
-                    <span
-                      suppressHydrationWarning
-                      className="text-[2rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[2.25rem]"
-                    >
-                      {formatNumber(kpiTotals[card.key])}
-                    </span>
-                  )}
-                  <span className="text-[11px] font-medium text-slate-400">
-                    {card.unit}
-                  </span>
-                </div>
-                <div className="mt-2.5 flex items-center justify-between gap-2">
-                  <span className="truncate text-[9px] font-medium text-slate-400">
-                    {note}
-                  </span>
-                  <span
-                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase ${
-                      active
-                        ? "bg-blue-50 text-primary"
-                        : "bg-slate-50 text-slate-400"
+                }
+              />
+            </div>
+          ) : null}
+          {ringkasanState === "loading" || ringkasanState === "ready" ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {kpiCards.map((card) => {
+                const Icon = card.icon;
+                const active = metric === card.key;
+                const note =
+                  dataSource === "postgres" ? card.noteLive : card.noteMock;
+                return (
+                  <button
+                    key={card.key}
+                    type="button"
+                    onClick={() => setMetric(card.key)}
+                    className={`fresh-blue-card group px-5 py-5 text-left sm:px-6 ${
+                      active ? "is-active" : ""
                     }`}
                   >
-                    {active ? "Aktif" : "Pilih"}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+                    <div className="flex items-start justify-between gap-2">
+                      <div
+                        className="min-w-0 pr-1 text-[11px] leading-snug font-semibold tracking-[0.12em] uppercase"
+                        style={{ color: "#607C9D" }}
+                      >
+                        {card.label}
+                      </div>
+                      <span
+                        className={`grid size-7 shrink-0 place-items-center rounded-full ${card.color}`}
+                      >
+                        <Icon className="size-3.5" aria-hidden />
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                      {ringkasanState === "loading" || !kpiTotals ? (
+                        <span
+                          className="mt-1 h-9 w-28 animate-pulse rounded-lg bg-slate-100"
+                          aria-hidden
+                        />
+                      ) : (
+                        <span
+                          suppressHydrationWarning
+                          className="text-[2rem] leading-none font-extrabold tracking-tight tabular-nums sm:text-[2.25rem]"
+                          style={{ color: "#15315D" }}
+                        >
+                          {formatNumber(kpiTotals[card.key])}
+                        </span>
+                      )}
+                      <span
+                        className="text-[11px] font-medium"
+                        style={{ color: "#607C9D" }}
+                      >
+                        {card.unit}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                      <span
+                        className="truncate text-[9px] font-medium"
+                        style={{ color: "#607C9D" }}
+                      >
+                        {note}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase ${
+                          active
+                            ? "bg-blue-50 text-[#2563EB]"
+                            : "bg-slate-50 text-slate-400"
+                        }`}
+                      >
+                        {active ? "Aktif" : "Pilih"}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
-        ) : null}
+      </NusantaraFreshHero>
 
+      <div className="space-y-2.5">
         {activeRingkasan ? (
           <SasaranIndikatorPanel
             scopeLabel={sasaranScope.scopeLabel}
@@ -980,17 +1023,17 @@ export function MapSebaran() {
         ) : null}
       </div>
 
-      <div className="design-card overflow-hidden">
+      <div className="fresh-blue-map-shell overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">
           <div>
-            <div className="section-title">
+            <div className="section-title" style={{ color: "#15315D" }}>
               {selectedKab
                 ? `Sebaran · ${selectedKab.nama}`
                 : selected
                   ? `Sebaran · ${selected.name}`
                   : "Sebaran Nasional"}
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="mt-1 text-xs" style={{ color: "#607C9D" }}>
               {selectedKab
                 ? "KPI mengikuti agregat kabupaten/kota — hapus filter kab untuk kembali ke provinsi"
                 : selected
@@ -998,7 +1041,7 @@ export function MapSebaran() {
                   : "Klik provinsi untuk memfilter ringkasan KPI"}
             </div>
           </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-primary">
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-[#2563EB]">
             Warna: {choroplethFormulaLabel(metric)}
           </span>
         </div>
