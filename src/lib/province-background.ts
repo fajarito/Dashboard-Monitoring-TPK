@@ -147,10 +147,13 @@ export const FRESH_BLUE_GRADIENT =
 
 /**
  * Soft fade → #F8FBFF di ujung bawah blok foto (judul+KPI saja).
- * Atas clear/saturated; bawah menyatu ke solid shell — bukan wash merata.
+ * Lebih pendek/halus agar hero hemat vertikal tanpa batas keras antar-section.
  */
 export const FRESH_BLUE_HERO_OVERLAY_PHOTO =
-  "linear-gradient(180deg, transparent 0%, transparent 40%, rgba(248,251,255,0.12) 58%, rgba(248,251,255,0.45) 72%, rgba(248,251,255,0.82) 88%, #f8fbff 100%)";
+  "linear-gradient(180deg, transparent 0%, transparent 35%, rgba(248,251,255,0.1) 55%, rgba(248,251,255,0.4) 72%, rgba(248,251,255,0.78) 88%, #f8fbff 100%)";
+
+/** Durasi crossfade foto wilayah (ms). Hormati prefers-reduced-motion di UI. */
+export const FRESH_BLUE_BG_CROSSFADE_MS = 400;
 
 /** Mode tanpa foto: overlay tidak perlu — surface sudah gradient. */
 export const FRESH_BLUE_HERO_OVERLAY_GRADIENT = "none";

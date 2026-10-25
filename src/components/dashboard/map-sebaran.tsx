@@ -841,7 +841,7 @@ export function MapSebaran() {
         }
         mapZone={
           <div className="fresh-blue-map-shell overflow-hidden">
-            <div className="flex flex-wrap items-start justify-between gap-3 px-6 pt-6">
+            <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 sm:px-6 sm:pt-5">
               <div>
                 <div className="section-title" style={{ color: "#15315D" }}>
                   {selectedKab
@@ -850,7 +850,7 @@ export function MapSebaran() {
                       ? `Sebaran · ${selected.name}`
                       : "Sebaran Nasional"}
                 </div>
-                <div className="mt-1 text-xs" style={{ color: "#607C9D" }}>
+                <div className="mt-1 text-xs" style={{ color: "#526B8C" }}>
                   {selectedKab
                     ? "KPI mengikuti agregat kabupaten/kota — hapus filter kab untuk kembali ke provinsi"
                     : selected
@@ -909,27 +909,20 @@ export function MapSebaran() {
           </div>
         }
       >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="max-w-2xl">
+        <div className="flex flex-wrap items-end justify-between gap-2.5">
+          <div className="nusantara-text-scrim max-w-2xl">
             <div className="eyebrow" style={{ color: "#2563EB" }}>
               Fase 1 · Fondasi visual
             </div>
             <h1
               className="page-title"
-              style={{
-                color: "#15315D",
-                textShadow:
-                  "0 1px 0 rgba(255,255,255,0.9), 0 2px 10px rgba(255,255,255,0.55)",
-              }}
+              style={{ color: "#15315D" }}
             >
               Peta Sebaran TPK
             </h1>
             <p
-              className="mt-1 max-w-2xl text-sm"
-              style={{
-                color: "#607C9D",
-                textShadow: "0 1px 0 rgba(255,255,255,0.75)",
-              }}
+              className="mt-1 max-w-2xl text-sm leading-relaxed"
+              style={{ color: "#526B8C" }}
             >
               Gambaran cepat sebaran Tim Pendamping Keluarga di seluruh Indonesia
               — siap dibaca pimpinan tanpa istilah rumit. Gunakan kolom cari di
@@ -953,7 +946,7 @@ export function MapSebaran() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 gap-2 rounded-xl border-white/65 bg-white/55 text-[#15315D] shadow-sm backdrop-blur-md hover:border-blue-300 hover:bg-white/75"
+              className="h-10 gap-2 rounded-xl border-white/70 bg-white/80 text-[#15315D] shadow-sm backdrop-blur-md hover:border-blue-300 hover:bg-white/90"
               onClick={() => setPickerOpen((open) => !open)}
               aria-expanded={pickerOpen}
               aria-haspopup="listbox"
@@ -963,7 +956,7 @@ export function MapSebaran() {
             </Button>
             {pickerOpen ? (
               <div
-                className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-[0_12px_36px_rgba(22,57,100,0.12)] backdrop-blur-md"
+                className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-white/70 bg-white/95 p-2 shadow-[0_12px_36px_rgba(22,57,100,0.12)] backdrop-blur-md"
                 role="listbox"
                 aria-label="Pilih data peta"
               >
@@ -984,7 +977,7 @@ export function MapSebaran() {
                     }}
                   >
                     <span className="text-sm font-bold">{metricLabels[option]}</span>
-                    <span className="text-[11px] text-[#607C9D]">
+                    <span className="text-[11px] text-[#64748B]">
                       {metricHelp[option]}
                     </span>
                   </button>
@@ -994,7 +987,7 @@ export function MapSebaran() {
           </div>
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {ringkasanState === "error" ? (
             <div className="fresh-blue-card p-4">
               <ErrorState
@@ -1041,7 +1034,7 @@ export function MapSebaran() {
             </div>
           ) : null}
           {ringkasanState === "loading" || ringkasanState === "ready" ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
               {kpiCards.map((card) => {
                 const Icon = card.icon;
                 const active = metric === card.key;
@@ -1052,14 +1045,14 @@ export function MapSebaran() {
                     key={card.key}
                     type="button"
                     onClick={() => setMetric(card.key)}
-                    className={`fresh-blue-card group px-5 py-5 text-left sm:px-6 ${
+                    className={`fresh-blue-card group px-4 py-4 text-left sm:px-5 sm:py-4 ${
                       active ? "is-active" : ""
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div
                         className="min-w-0 pr-1 text-[11px] leading-snug font-semibold tracking-[0.12em] uppercase"
-                        style={{ color: "#607C9D" }}
+                        style={{ color: "#577396" }}
                       >
                         {card.label}
                       </div>
@@ -1069,16 +1062,16 @@ export function MapSebaran() {
                         <Icon className="size-3.5" aria-hidden />
                       </span>
                     </div>
-                    <div className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
                       {ringkasanState === "loading" || !kpiTotals ? (
                         <span
-                          className="mt-1 h-9 w-28 animate-pulse rounded-lg bg-slate-100/80"
+                          className="mt-1 h-8 w-28 animate-pulse rounded-lg bg-slate-100/80"
                           aria-hidden
                         />
                       ) : (
                         <span
                           suppressHydrationWarning
-                          className="text-[2rem] leading-none font-extrabold tracking-tight tabular-nums sm:text-[2.25rem]"
+                          className="text-[1.85rem] leading-none font-extrabold tracking-tight tabular-nums sm:text-[2rem]"
                           style={{ color: "#15315D" }}
                         >
                           {formatNumber(kpiTotals[card.key])}
@@ -1086,23 +1079,23 @@ export function MapSebaran() {
                       )}
                       <span
                         className="text-[11px] font-medium"
-                        style={{ color: "#607C9D" }}
+                        style={{ color: "#64748B" }}
                       >
                         {card.unit}
                       </span>
                     </div>
-                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <div className="mt-2 flex items-center justify-between gap-2">
                       <span
                         className="truncate text-[9px] font-medium"
-                        style={{ color: "#607C9D" }}
+                        style={{ color: "#64748B" }}
                       >
                         {note}
                       </span>
                       <span
                         className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase ${
                           active
-                            ? "bg-blue-50/90 text-[#2563EB]"
-                            : "bg-white/50 text-slate-500"
+                            ? "bg-blue-50 text-[#2563EB]"
+                            : "bg-slate-50 text-[#64748B]"
                         }`}
                       >
                         {active ? "Aktif" : "Pilih"}
@@ -1116,7 +1109,7 @@ export function MapSebaran() {
         </div>
       </NusantaraFreshHero>
 
-      <div className="mt-5 space-y-5">
+      <div className="mt-4 space-y-4">
       {/* Pill cepat: di bawah peta, di atas tabel + kartu */}
       <QuickProvincePicks
         selectedId={selected?.id ?? null}

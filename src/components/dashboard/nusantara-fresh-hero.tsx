@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import {
+  FRESH_BLUE_BG_CROSSFADE_MS,
   FRESH_BLUE_GRADIENT,
   FRESH_BLUE_HERO_OVERLAY_GRADIENT,
   FRESH_BLUE_HERO_OVERLAY_PHOTO,
@@ -13,19 +20,24 @@ type NusantaraFreshHeroProps = {
   background: ProvinceBackground;
   /** Judul + KPI — mengambang di atas foto (tanpa bingkai). */
   children: ReactNode;
-  /** Card sekunder (sasaran/rasio) di zona #F8FBFF setelah soft fade — bukan di dalam “panel foto”. */
+  /** Card sekunder (sasaran/rasio) di zona #F8FBFF setelah soft fade. */
   belowPhoto?: ReactNode;
   /** Zona peta — sibling di shell yang sama. */
   mapZone?: ReactNode;
   className?: string;
 };
 
+type PhotoLayer = {
+  key: string;
+  url: string | null;
+  /** 0 = outgoing/hidden, 1 = visible */
+  opacity: number;
+};
+
 /**
  * True page background — BUKAN hero card / panel foto.
- *
- * Satu shell full-bleed (kompensasi padding <main>):
- * - foto hanya di belakang blok atas (judul+KPI), edge-to-edge, zero radius/border/shadow
- * - soft fade → #F8FBFF; belowPhoto + mapZone di solid yang sama (tanpa gap bingkai)
+ * Crossfade antar foto wilayah ~400ms; tanpa CLS; reduced-motion → instant.
+ * Hanya memuat layer aktif (+ outgoing singkat) — bukan preload 39 foto.
  */
 export function NusantaraFreshHero({
   background,
@@ -34,9 +46,85 @@ export function NusantaraFreshHero({
   mapZone,
   className = "",
 }: NusantaraFreshHeroProps) {
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const showPhoto =
-    Boolean(background.imageUrl) && failedUrl !== background.imageUrl;
+  const [failedUrls, setFailedUrls] = useState<Set<string>>(() => new Set());
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const targetUrl =
+    background.imageUrl && !failedUrls.has(background.imageUrl)
+      ? background.imageUrl
+      : null;
+  const targetKey = `${background.code}:${targetUrl ?? "gradient"}`;
+
+  const [layers, setLayers] = useState<PhotoLayer[]>(() => [
+    {
+      key: `${background.code}:${background.imageUrl ?? "gradient"}`,
+      url: background.imageUrl,
+      opacity: 1,
+    },
+  ]);
+  const activeKeyRef = useRef(targetKey);
+  const timersRef = useRef<{
+    rafStart: number | null;
+    rafFade: number | null;
+    timeout: number | null;
+  }>({ rafStart: null, rafFade: null, timeout: null });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduceMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (activeKeyRef.current === targetKey) return;
+    activeKeyRef.current = targetKey;
+
+    const timers = timersRef.current;
+    if (timers.rafStart != null) window.cancelAnimationFrame(timers.rafStart);
+    if (timers.rafFade != null) window.cancelAnimationFrame(timers.rafFade);
+    if (timers.timeout != null) window.clearTimeout(timers.timeout);
+    timers.rafStart = timers.rafFade = timers.timeout = null;
+
+    // Deferred setState — hindari sync setState di body effect (lint + cascade).
+    timers.rafStart = window.requestAnimationFrame(() => {
+      timers.rafStart = null;
+      if (reduceMotion) {
+        setLayers([{ key: targetKey, url: targetUrl, opacity: 1 }]);
+        return;
+      }
+
+      // Incoming opacity 0; previous tetap 1 → crossfade tanpa CLS
+      setLayers((prev) => {
+        const prevActive = prev.find((layer) => layer.opacity > 0) ?? prev[0];
+        const kept = prevActive ? [{ ...prevActive, opacity: 1 }] : [];
+        return [...kept, { key: targetKey, url: targetUrl, opacity: 0 }];
+      });
+
+      timers.rafFade = window.requestAnimationFrame(() => {
+        timers.rafFade = null;
+        setLayers((prev) =>
+          prev.map((layer) => ({
+            ...layer,
+            opacity: layer.key === targetKey ? 1 : 0,
+          })),
+        );
+        timers.timeout = window.setTimeout(() => {
+          timers.timeout = null;
+          setLayers((prev) => prev.filter((layer) => layer.key === targetKey));
+        }, FRESH_BLUE_BG_CROSSFADE_MS + 50);
+      });
+    });
+
+    return () => {
+      if (timers.rafStart != null) window.cancelAnimationFrame(timers.rafStart);
+      if (timers.rafFade != null) window.cancelAnimationFrame(timers.rafFade);
+      if (timers.timeout != null) window.clearTimeout(timers.timeout);
+      timers.rafStart = timers.rafFade = timers.timeout = null;
+    };
+  }, [targetKey, targetUrl, reduceMotion]);
+
+  const showPhoto = layers.some((layer) => Boolean(layer.url));
 
   const creditLine = background.photoCredit
     ? background.license
@@ -57,7 +145,20 @@ export function NusantaraFreshHero({
     outline: "none",
     background: "#f8fbff",
     overflow: "visible",
-  } as const;
+    ["--nusantara-bg-crossfade" as string]: reduceMotion
+      ? "0ms"
+      : `${FRESH_BLUE_BG_CROSSFADE_MS}ms`,
+  } as CSSProperties;
+
+  const markFailed = (url: string | null) => {
+    if (!url) return;
+    setFailedUrls((prev) => {
+      if (prev.has(url)) return prev;
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  };
 
   return (
     <div
@@ -67,37 +168,44 @@ export function NusantaraFreshHero({
       aria-label="Latar halaman Peta Sebaran"
       style={fullBleedStyle}
     >
-      {/*
-        Blok atas: foto = background absolute HANYA di sini (bukan kartu
-        penuh-tinggi). Judul+KPI mengambang; soft fade di ujung bawah blok.
-      */}
       <div className="nusantara-page-shell__top relative">
         <div
           className="nusantara-page-shell__media pointer-events-none absolute inset-0 z-0 overflow-hidden"
           aria-hidden
           style={{ borderRadius: 0, border: "none", boxShadow: "none" }}
         >
-          {showPhoto && background.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={background.imageUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="nusantara-page-shell__photo absolute inset-0 h-full w-full object-cover object-[center_18%]"
-              style={{
-                borderRadius: 0,
-                objectFit: "cover",
-                objectPosition: "center 18%",
-              }}
-              onError={() => setFailedUrl(background.imageUrl)}
-            />
-          ) : (
+          {layers.map((layer) => (
             <div
-              className="absolute inset-0"
-              style={{ backgroundImage: FRESH_BLUE_GRADIENT, borderRadius: 0 }}
-            />
-          )}
+              key={layer.key}
+              className="nusantara-page-shell__photo-layer"
+              style={{ opacity: layer.opacity }}
+            >
+              {layer.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={layer.url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="nusantara-page-shell__photo absolute inset-0 h-full w-full object-cover object-[center_22%]"
+                  style={{
+                    borderRadius: 0,
+                    objectFit: "cover",
+                    objectPosition: "center 22%",
+                  }}
+                  onError={() => markFailed(layer.url)}
+                />
+              ) : (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: FRESH_BLUE_GRADIENT,
+                    borderRadius: 0,
+                  }}
+                />
+              )}
+            </div>
+          ))}
           <div
             className="nusantara-page-shell__fade absolute inset-0"
             style={{
@@ -109,10 +217,10 @@ export function NusantaraFreshHero({
           />
         </div>
 
-        <div className="nusantara-page-shell__content relative z-[1] flex flex-col gap-5 px-5 pb-10 pt-6 sm:gap-6 md:px-8 md:pb-12 md:pt-6">
+        <div className="nusantara-page-shell__content relative z-[1] flex flex-col gap-3.5 px-5 pb-6 pt-5 sm:gap-4 md:px-8 md:pb-7 md:pt-5">
           {(background.isAiMockup || !background.isVerified) && showPhoto ? (
-            <div className="pointer-events-none absolute top-5 right-5 z-[2] md:top-6 md:right-8">
-              <span className="inline-flex items-center rounded-full border border-white/55 bg-white/70 px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#607C9D] shadow-sm backdrop-blur-sm">
+            <div className="pointer-events-none absolute top-4 right-5 z-[2] md:top-5 md:right-8">
+              <span className="inline-flex items-center rounded-full border border-white/55 bg-white/75 px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#64748B] shadow-sm backdrop-blur-sm">
                 Placeholder visual - bukan foto dokumenter
               </span>
             </div>
@@ -122,7 +230,7 @@ export function NusantaraFreshHero({
 
           {showPhoto && (creditLine || background.isAiMockup) ? (
             <p
-              className="text-[10px] font-medium text-[#607C9D]"
+              className="text-[10px] font-medium text-[#64748B]"
               style={{ textShadow: "0 1px 0 rgba(255,255,255,0.85)" }}
             >
               {background.isAiMockup
@@ -135,7 +243,7 @@ export function NusantaraFreshHero({
       </div>
 
       {belowPhoto ? (
-        <div className="nusantara-page-shell__below relative z-[1] space-y-2.5 px-5 pb-5 md:px-8">
+        <div className="nusantara-page-shell__below relative z-[1] space-y-2 px-5 pb-3 pt-0.5 md:px-8 md:pb-3.5">
           {belowPhoto}
         </div>
       ) : null}

@@ -88,11 +88,11 @@ function IndikatorCard({
   glossaryId?: string;
 }) {
   return (
-    <article className="rounded-2xl border border-line bg-white px-5 py-4 shadow-[var(--shadow-soft)] sm:px-5 sm:py-5">
+    <article className="rounded-2xl border border-line bg-white px-4 py-3.5 shadow-[var(--shadow-soft)] sm:px-5 sm:py-4">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 text-[10px] leading-snug font-semibold tracking-[0.08em] text-slate-400 uppercase">
+        <div className="min-w-0 text-[10px] leading-snug font-semibold tracking-[0.08em] text-[#577396] uppercase">
           {glossaryId ? (
-            <GlossaryTerm termId={glossaryId} className="text-slate-400 uppercase">
+            <GlossaryTerm termId={glossaryId} className="text-[#577396] uppercase">
               {label}
             </GlossaryTerm>
           ) : (
@@ -105,10 +105,10 @@ function IndikatorCard({
           <Icon className="size-3" aria-hidden />
         </span>
       </div>
-      <div className="mt-2.5 text-[1.35rem] leading-none font-extrabold tracking-tight text-navy tabular-nums sm:text-[1.5rem]">
+      <div className="mt-2 text-[1.35rem] leading-none font-extrabold tracking-tight text-[#15315D] tabular-nums sm:text-[1.45rem]">
         {value == null ? "—" : formatNumber(value)}
       </div>
-      <div className="mt-2 text-[9px] font-medium text-slate-400">
+      <div className="mt-1.5 text-[9px] font-medium text-[#64748B]">
         {scopeLabel}
       </div>
     </article>
@@ -168,12 +168,12 @@ export function SasaranIndikatorPanel({
     <section aria-label={`Indikator sasaran ${scopeLabel}`}>
       <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
         <div>
-          <div className="text-[10px] font-extrabold tracking-[0.14em] text-primary uppercase">
+          <div className="text-[10px] font-extrabold tracking-[0.14em] text-[#2563EB] uppercase">
             Indikator sasaran
           </div>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-[11px] text-[#526B8C]">
             Keluarga & lingkungan · agregat{" "}
-            <span className="font-semibold text-navy">{scopeLabel}</span>
+            <span className="font-semibold text-[#15315D]">{scopeLabel}</span>
             {caption ? (
               <>
                 {" · "}

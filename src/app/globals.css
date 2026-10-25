@@ -166,14 +166,14 @@
     box-shadow: var(--shadow-soft);
   }
 
-  /* Glass KPI di atas foto — transparan agar landscape tetap kelihatan */
+  /* KPI utama — spek Fresh Blue (konsisten, kontras di atas foto) */
   .fresh-blue-card {
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(214, 229, 247, 0.85);
     border-radius: 24px;
-    background: rgba(255, 255, 255, 0.48);
-    box-shadow: 0 10px 28px rgba(22, 57, 100, 0.1);
-    -webkit-backdrop-filter: blur(14px) saturate(1.2);
-    backdrop-filter: blur(14px) saturate(1.2);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 6px 24px rgba(26, 64, 112, 0.07);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1);
+    backdrop-filter: blur(10px) saturate(1.1);
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease,
@@ -181,17 +181,42 @@
   }
 
   .fresh-blue-card:hover {
-    border-color: rgba(37, 99, 235, 0.4);
-    background: rgba(255, 255, 255, 0.58);
-    box-shadow: 0 12px 32px rgba(22, 57, 100, 0.12);
+    border-color: rgba(37, 99, 235, 0.35);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 8px 28px rgba(26, 64, 112, 0.09);
   }
 
   .fresh-blue-card.is-active {
-    border-color: rgba(37, 99, 235, 0.55);
-    background: rgba(255, 255, 255, 0.62);
+    border-color: rgba(37, 99, 235, 0.65);
+    background: rgba(255, 255, 255, 0.95);
     box-shadow:
       0 0 0 2px rgba(37, 99, 235, 0.18),
-      0 12px 32px rgba(22, 57, 100, 0.1);
+      0 8px 28px rgba(26, 64, 112, 0.08);
+  }
+
+  /* Overlay lokal di belakang judul/deskripsi di atas foto */
+  .nusantara-text-scrim {
+    border-radius: 16px;
+    background: linear-gradient(
+      90deg,
+      rgba(248, 251, 255, 0.72) 0%,
+      rgba(248, 251, 255, 0.45) 55%,
+      rgba(248, 251, 255, 0) 100%
+    );
+    padding: 0.35rem 0.75rem 0.45rem 0;
+  }
+
+  .nusantara-page-shell__photo-layer {
+    position: absolute;
+    inset: 0;
+    transition: opacity var(--nusantara-bg-crossfade, 400ms) ease;
+    will-change: opacity;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nusantara-page-shell__photo-layer {
+      transition: none;
+    }
   }
 
   .fresh-blue-map-shell {
