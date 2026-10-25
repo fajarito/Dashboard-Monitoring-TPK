@@ -21,6 +21,28 @@ export const KRS_PIN_LABELS: Record<TpkKeluargaPrioritas, string> = {
 };
 
 /**
+ * Urutan layer cluster pin — satu MarkerClusterGroup per kunci.
+ * Dipisah agar cluster tidak tercampur (mayoritas "bukan" mengecat semua biru).
+ */
+export const KRS_PIN_PRIORITAS_ORDER: TpkKeluargaPrioritas[] = [
+  "p1",
+  "p2",
+  "p3",
+  "p4",
+  "bukan",
+  "tidakRisiko",
+];
+
+export function resolvePinPrioritas(
+  raw: string | null | undefined,
+): TpkKeluargaPrioritas {
+  if (raw && raw in KRS_PIN_COLORS) {
+    return raw as TpkKeluargaPrioritas;
+  }
+  return "bukan";
+}
+
+/**
  * Warna cluster dari fillColor anak (mayoritas).
  * Tanpa ini, MarkerCluster.Default.css mengecat small-cluster hijau —
  * filter Prioritas 3 terlihat "hijau" padahal pin individu kuning.

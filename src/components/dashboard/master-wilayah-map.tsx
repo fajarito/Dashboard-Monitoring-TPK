@@ -46,9 +46,10 @@ import { type MetricKey } from "@/lib/map-data";
 import {
   KRS_PIN_COLORS,
   KRS_PIN_LABELS,
-  majorityPinColor,
+  KRS_PIN_PRIORITAS_ORDER,
   pinLabelInk,
   pointInPolygon,
+  resolvePinPrioritas,
 } from "@/lib/krs-pin-style";
 import type { KrsPointItem, TpkKeluargaPrioritas } from "@/lib/data/types";
 import type {
@@ -1155,7 +1156,8 @@ export function MasterWilayahMap({
 
   /**
    * Overlay pin KRS — update tanpa remount choropleth.
-   * Cluster via Leaflet.markercluster (CDN); fallback layerGroup.
+   * Satu MarkerClusterGroup per prioritas (P1–P4, bukan, tidakRisiko)
+   * agar cluster tidak tercampur lalu mengecat biru karena mayoritas "bukan".
    * Opsional clip ke poligon desa aktif (point-in-polygon ringan).
    */
   useEffect(() => {
@@ -1168,7 +1170,7 @@ export function MasterWilayahMap({
       const L = window.L as LeafletLike | undefined;
       if (!instance || !map || !L?.circleMarker) return;
 
-      // Bersihkan layer lama
+      // Bersihkan layer lama (LayerGroup induk atau single cluster legacy)
       if (krsClusterRef.current) {
         try {
           map.removeLayer(krsClusterRef.current);
@@ -1213,46 +1215,51 @@ export function MasterWilayahMap({
         });
       }
 
-      const cluster =
-        typeof L.markerClusterGroup === "function"
-          ? L.markerClusterGroup({
-              maxClusterRadius: 48,
-              showCoverageOnHover: false,
-              spiderfyOnMaxZoom: true,
-              pane: pinPaneName,
-              clusterPane: pinPaneName,
-              // Warna cluster = mayoritas fillColor anak (bukan hijau default).
-              iconCreateFunction: (cl: {
-                getChildCount: () => number;
-                getAllChildMarkers: () => Array<{
-                  options?: { fillColor?: string };
-                }>;
-              }) => {
-                const childMarkers = cl.getAllChildMarkers?.() ?? [];
-                const fill =
-                  majorityPinColor(
-                    childMarkers.map((m) => m?.options?.fillColor),
-                    KRS_PIN_COLORS.bukan,
-                  ) || KRS_PIN_COLORS.bukan;
-                const count = cl.getChildCount();
-                const size = count < 10 ? 36 : count < 40 ? 42 : 48;
-                const divIcon = L.divIcon?.bind(L);
-                const point = L.point?.bind(L);
-                if (!divIcon) {
-                  // Fallback minimal bila divIcon belum ada di Leaflet runtime.
-                  return undefined;
-                }
-                return divIcon({
-                  html: `<div class="krs-cluster-inner" style="background-color:${fill};color:${pinLabelInk(fill)}"><span>${count}</span></div>`,
-                  className: "krs-marker-cluster",
-                  iconSize: point ? point(size, size) : [size, size],
-                });
-              },
-            })
-          : L.layerGroup
-            ? L.layerGroup()
-            : null;
-      if (!cluster) return;
+      const parent =
+        typeof L.layerGroup === "function" ? L.layerGroup() : null;
+      if (!parent) return;
+
+      const clustersByPrioritas = new Map<
+        TpkKeluargaPrioritas,
+        {
+          addLayer: (layer: unknown) => void;
+          getLayers?: () => unknown[];
+        }
+      >();
+
+      const makeCluster = (prioritasKey: TpkKeluargaPrioritas) => {
+        const fill = KRS_PIN_COLORS[prioritasKey];
+        if (typeof L.markerClusterGroup !== "function") {
+          return L.layerGroup?.() ?? null;
+        }
+        return L.markerClusterGroup({
+          maxClusterRadius: 48,
+          showCoverageOnHover: false,
+          spiderfyOnMaxZoom: true,
+          pane: pinPaneName,
+          clusterPane: pinPaneName,
+          // Warna tetap per prioritas — anak dalam group ini homogen.
+          iconCreateFunction: (cl: { getChildCount: () => number }) => {
+            const count = cl.getChildCount();
+            const size = count < 10 ? 36 : count < 40 ? 42 : 48;
+            const divIcon = L.divIcon?.bind(L);
+            const point = L.point?.bind(L);
+            if (!divIcon) return undefined;
+            return divIcon({
+              html: `<div class="krs-cluster-inner" style="background-color:${fill};color:${pinLabelInk(fill)}"><span>${count}</span></div>`,
+              className: "krs-marker-cluster",
+              iconSize: point ? point(size, size) : [size, size],
+            });
+          },
+        });
+      };
+
+      for (const key of KRS_PIN_PRIORITAS_ORDER) {
+        const cluster = makeCluster(key);
+        if (!cluster) continue;
+        clustersByPrioritas.set(key, cluster);
+        parent.addLayer(cluster);
+      }
 
       for (const point of krsPoints) {
         if (
@@ -1263,9 +1270,8 @@ export function MasterWilayahMap({
         ) {
           continue;
         }
-        const color =
-          KRS_PIN_COLORS[point.prioritas as TpkKeluargaPrioritas] ??
-          KRS_PIN_COLORS.bukan;
+        const prioritasKey = resolvePinPrioritas(point.prioritas);
+        const color = KRS_PIN_COLORS[prioritasKey];
         const marker = L.circleMarker([point.latitude, point.longitude], {
           radius: 6,
           color: "#ffffff",
@@ -1275,12 +1281,10 @@ export function MasterWilayahMap({
           pane: pinPaneName,
           interactive: true,
           bubblingMouseEvents: false,
-          // Dipakai iconCreateFunction + debug filter warna.
-          krsPrioritas: point.prioritas,
+          krsPrioritas: prioritasKey,
         });
         const prioritasLabel =
-          KRS_PIN_LABELS[point.prioritas as TpkKeluargaPrioritas] ??
-          point.prioritas;
+          KRS_PIN_LABELS[prioritasKey] ?? point.prioritas;
         const popup = `<div style="font:12px/1.4 system-ui,sans-serif;min-width:140px">
           <strong>${escapeHtml(point.namaKepalaKeluarga)}</strong><br/>
           <span style="color:#64748b">${escapeHtml(point.kodeKeluarga)}</span><br/>
@@ -1290,12 +1294,17 @@ export function MasterWilayahMap({
         marker.on?.("click", (ev: { originalEvent?: Event }) => {
           ev?.originalEvent?.stopPropagation?.();
         });
-        cluster.addLayer(marker);
+        const bucket = clustersByPrioritas.get(prioritasKey);
+        if (bucket) {
+          bucket.addLayer(marker);
+        } else {
+          parent.addLayer(marker);
+        }
       }
 
-      map.addLayer(cluster);
-      cluster.bringToFront?.();
-      krsClusterRef.current = cluster;
+      map.addLayer(parent);
+      parent.bringToFront?.();
+      krsClusterRef.current = parent;
     }
 
     void syncPins();
