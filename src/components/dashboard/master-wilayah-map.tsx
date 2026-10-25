@@ -46,6 +46,8 @@ import { type MetricKey } from "@/lib/map-data";
 import {
   KRS_PIN_COLORS,
   KRS_PIN_LABELS,
+  majorityPinColor,
+  pinLabelInk,
   pointInPolygon,
 } from "@/lib/krs-pin-style";
 import type { KrsPointItem, TpkKeluargaPrioritas } from "@/lib/data/types";
@@ -140,11 +142,40 @@ const MARKER_CLUSTER_JS =
   "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js";
 const MARKER_CLUSTER_CSS =
   "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css";
-const MARKER_CLUSTER_DEFAULT_CSS =
-  "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css";
+/** CSS cluster kustom — jangan pakai MarkerCluster.Default.css (small=hijau). */
+const KRS_CLUSTER_STYLE_ID = "krs-marker-cluster-style";
+const KRS_CLUSTER_CSS = `
+.krs-marker-cluster {
+  background: transparent;
+}
+.krs-marker-cluster .krs-cluster-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+  font: 700 11px/1 system-ui, sans-serif;
+}
+.krs-marker-cluster .krs-cluster-inner span {
+  line-height: 1;
+}
+`.trim();
+
+function ensureKrsClusterStyle(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(KRS_CLUSTER_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = KRS_CLUSTER_STYLE_ID;
+  style.textContent = KRS_CLUSTER_CSS;
+  document.head.appendChild(style);
+}
 
 function ensureMarkerClusterAssets(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
+  ensureKrsClusterStyle();
   const L = window.L as
     | { markerClusterGroup?: unknown; MarkerClusterGroup?: unknown }
     | undefined;
@@ -152,13 +183,11 @@ function ensureMarkerClusterAssets(): Promise<void> {
     return Promise.resolve();
   }
 
-  for (const href of [MARKER_CLUSTER_CSS, MARKER_CLUSTER_DEFAULT_CSS]) {
-    if (!document.querySelector(`link[href="${href}"]`)) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = href;
-      document.head.appendChild(link);
-    }
+  if (!document.querySelector(`link[href="${MARKER_CLUSTER_CSS}"]`)) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = MARKER_CLUSTER_CSS;
+    document.head.appendChild(link);
   }
 
   const existing = document.querySelector(
@@ -193,7 +222,14 @@ type LeafletLike = {
     bindPopup: (html: string) => unknown;
     bindTooltip: (html: string, opts?: Record<string, unknown>) => unknown;
     on?: (type: string, fn: (ev: { originalEvent?: Event }) => void) => unknown;
+    options?: { fillColor?: string; krsPrioritas?: string };
   };
+  divIcon?: (opts: {
+    html: string;
+    className?: string;
+    iconSize?: unknown;
+  }) => unknown;
+  point?: (x: number, y: number) => unknown;
   markerClusterGroup?: (opts?: Record<string, unknown>) => {
     addLayer: (layer: unknown) => void;
     clearLayers: () => void;
@@ -1185,6 +1221,33 @@ export function MasterWilayahMap({
               spiderfyOnMaxZoom: true,
               pane: pinPaneName,
               clusterPane: pinPaneName,
+              // Warna cluster = mayoritas fillColor anak (bukan hijau default).
+              iconCreateFunction: (cl: {
+                getChildCount: () => number;
+                getAllChildMarkers: () => Array<{
+                  options?: { fillColor?: string };
+                }>;
+              }) => {
+                const childMarkers = cl.getAllChildMarkers?.() ?? [];
+                const fill =
+                  majorityPinColor(
+                    childMarkers.map((m) => m?.options?.fillColor),
+                    KRS_PIN_COLORS.bukan,
+                  ) || KRS_PIN_COLORS.bukan;
+                const count = cl.getChildCount();
+                const size = count < 10 ? 36 : count < 40 ? 42 : 48;
+                const divIcon = L.divIcon?.bind(L);
+                const point = L.point?.bind(L);
+                if (!divIcon) {
+                  // Fallback minimal bila divIcon belum ada di Leaflet runtime.
+                  return undefined;
+                }
+                return divIcon({
+                  html: `<div class="krs-cluster-inner" style="background-color:${fill};color:${pinLabelInk(fill)}"><span>${count}</span></div>`,
+                  className: "krs-marker-cluster",
+                  iconSize: point ? point(size, size) : [size, size],
+                });
+              },
             })
           : L.layerGroup
             ? L.layerGroup()
@@ -1212,6 +1275,8 @@ export function MasterWilayahMap({
           pane: pinPaneName,
           interactive: true,
           bubblingMouseEvents: false,
+          // Dipakai iconCreateFunction + debug filter warna.
+          krsPrioritas: point.prioritas,
         });
         const prioritasLabel =
           KRS_PIN_LABELS[point.prioritas as TpkKeluargaPrioritas] ??

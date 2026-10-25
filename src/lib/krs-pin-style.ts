@@ -21,6 +21,43 @@ export const KRS_PIN_LABELS: Record<TpkKeluargaPrioritas, string> = {
 };
 
 /**
+ * Warna cluster dari fillColor anak (mayoritas).
+ * Tanpa ini, MarkerCluster.Default.css mengecat small-cluster hijau —
+ * filter Prioritas 3 terlihat "hijau" padahal pin individu kuning.
+ */
+export function majorityPinColor(
+  colors: Array<string | null | undefined>,
+  fallback: string = KRS_PIN_COLORS.bukan,
+): string {
+  const counts = new Map<string, number>();
+  for (const raw of colors) {
+    const color = (raw && String(raw).trim()) || fallback;
+    counts.set(color, (counts.get(color) ?? 0) + 1);
+  }
+  let best = fallback;
+  let bestN = -1;
+  for (const [color, n] of counts) {
+    if (n > bestN) {
+      best = color;
+      bestN = n;
+    }
+  }
+  return best;
+}
+
+/** Kontras teks di atas fill prioritas (kuning/oranye → gelap). */
+export function pinLabelInk(bg: string): string {
+  const hex = bg.replace("#", "").trim();
+  if (hex.length < 6) return "#0f172a";
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  if (![r, g, b].every((n) => Number.isFinite(n))) return "#0f172a";
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.55 ? "#0f172a" : "#ffffff";
+}
+
+/**
  * Ray-cast point-in-polygon (lng/lat ring).
  * Ring = [[lng, lat], ...] — ring tertutup opsional.
  */
