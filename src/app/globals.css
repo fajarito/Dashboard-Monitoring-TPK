@@ -194,18 +194,6 @@
       0 8px 28px rgba(26, 64, 112, 0.08);
   }
 
-  /* Overlay lokal di belakang judul/deskripsi di atas foto */
-  .nusantara-text-scrim {
-    border-radius: 16px;
-    background: linear-gradient(
-      90deg,
-      rgba(248, 251, 255, 0.72) 0%,
-      rgba(248, 251, 255, 0.45) 55%,
-      rgba(248, 251, 255, 0) 100%
-    );
-    padding: 0.35rem 0.75rem 0.45rem 0;
-  }
-
   .nusantara-page-shell__photo-layer {
     position: absolute;
     inset: 0;

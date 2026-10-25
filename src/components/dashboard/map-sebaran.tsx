@@ -910,19 +910,26 @@ export function MapSebaran() {
         }
       >
         <div className="flex flex-wrap items-end justify-between gap-2.5">
-          <div className="nusantara-text-scrim max-w-2xl">
+          <div className="max-w-2xl">
             <div className="eyebrow" style={{ color: "#2563EB" }}>
               Fase 1 · Fondasi visual
             </div>
             <h1
               className="page-title"
-              style={{ color: "#15315D" }}
+              style={{
+                color: "#15315D",
+                textShadow:
+                  "0 1px 0 rgba(255,255,255,0.9), 0 2px 10px rgba(255,255,255,0.55)",
+              }}
             >
               Peta Sebaran TPK
             </h1>
             <p
               className="mt-1 max-w-2xl text-sm leading-relaxed"
-              style={{ color: "#526B8C" }}
+              style={{
+                color: "#526B8C",
+                textShadow: "0 1px 0 rgba(255,255,255,0.75)",
+              }}
             >
               Gambaran cepat sebaran Tim Pendamping Keluarga di seluruh Indonesia
               — siap dibaca pimpinan tanpa istilah rumit. Gunakan kolom cari di
