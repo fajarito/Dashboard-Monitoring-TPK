@@ -26,6 +26,7 @@ import {
 import { KabupatenSebaranTable } from "@/components/dashboard/kabupaten-sebaran-table";
 import { KomposisiPrioritasCard } from "@/components/dashboard/komposisi-prioritas-card";
 import { KomposisiTpkCard } from "@/components/dashboard/komposisi-tpk-card";
+import { KrsPinFilters } from "@/components/dashboard/krs-pin-filters";
 import { NusantaraFreshHero } from "@/components/dashboard/nusantara-fresh-hero";
 import { ProvinceSebaranTable } from "@/components/dashboard/province-sebaran-table";
 import { QuickProvincePicks } from "@/components/dashboard/quick-province-picks";
@@ -38,11 +39,16 @@ import {
   prefetchPeringkatKabupaten,
   prefetchPeringkatKecamatan,
 } from "@/lib/client-api-cache";
-import type { PeringkatKabupatenItem } from "@/lib/data/types";
+import type {
+  PeringkatKabupatenItem,
+  TpkKeluargaIndikatorFilter,
+  TpkKeluargaPrioritas,
+} from "@/lib/data/types";
 import {
   prefetchHomeAgregatEarly,
   useHomeAgregat,
 } from "@/lib/hooks/use-home-agregat";
+import { useKrsPoints } from "@/lib/hooks/use-krs-points";
 import { usePeringkatKabupaten } from "@/lib/hooks/use-peringkat-kabupaten";
 import { usePeringkatKecamatan } from "@/lib/hooks/use-peringkat-kecamatan";
 import { usePeringkatKelurahan } from "@/lib/hooks/use-peringkat-kelurahan";
@@ -219,6 +225,19 @@ export function MapSebaran() {
   );
   const homeAgregat = useHomeAgregat();
 
+  /** Filter pin KRS — hanya aktif di level desa (home Peta Sebaran). */
+  const [pinPrioritas, setPinPrioritas] = useState<TpkKeluargaPrioritas[]>([]);
+  const [pinIndikator, setPinIndikator] = useState<
+    TpkKeluargaIndikatorFilter[]
+  >(["krs"]);
+  const [pinValidCoords, setPinValidCoords] = useState(true);
+  const [pinQ, setPinQ] = useState("");
+  const [pinQDebounced, setPinQDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setPinQDebounced(pinQ.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [pinQ]);
+
   // Prefetch paralel: agregat home + script MW — jangan tunggu map mount.
   useEffect(() => {
     prefetchHomeAgregatEarly();
@@ -281,6 +300,31 @@ export function MapSebaran() {
   const selectedProvinsiApiId = useMemo(
     () => (selected ? getProvinsiApiId(selected) : null),
     [selected],
+  );
+
+  /**
+   * id_kelurahan untuk fetch pin — pakai id internal peringkat bila ada,
+   * fallback ke id selectedDesa (bisa Kemendagri jika belum match).
+   */
+  const selectedKelurahanApiId = useMemo(() => {
+    if (!selectedDesa) return null;
+    return selectedDesa.id?.trim() || null;
+  }, [selectedDesa]);
+
+  const krsPins = useKrsPoints({
+    enabled: currentLevel === "desa",
+    kelurahanId: selectedKelurahanApiId,
+    provinsiId: selectedProvinsiApiId,
+    prioritas: pinPrioritas,
+    indikator: pinIndikator,
+    validCoordsOnly: pinValidCoords,
+    q: pinQDebounced,
+    limit: 1000,
+  });
+
+  const krsPointItems = useMemo(
+    () => krsPins.payload?.items ?? [],
+    [krsPins.payload?.items],
   );
 
   const scopeInput = useMemo(() => {
@@ -863,6 +907,27 @@ export function MapSebaran() {
               </span>
             </div>
 
+            {currentLevel === "desa" ? (
+              <div className="px-5 pt-3 sm:px-6">
+                <KrsPinFilters
+                  prioritas={pinPrioritas}
+                  indikator={pinIndikator}
+                  validCoordsOnly={pinValidCoords}
+                  q={pinQ}
+                  onPrioritasChange={setPinPrioritas}
+                  onIndikatorChange={setPinIndikator}
+                  onValidCoordsOnlyChange={setPinValidCoords}
+                  onQChange={setPinQ}
+                  status={krsPins.status}
+                  returned={krsPins.payload?.returned ?? 0}
+                  total={krsPins.payload?.total ?? 0}
+                  truncated={krsPins.payload?.truncated ?? false}
+                  error={krsPins.error}
+                  onRetry={krsPins.refetch}
+                />
+              </div>
+            ) : null}
+
             <div className="relative mt-2">
               {mapDemoState === "loading" ? (
                 <MapSkeleton />
@@ -890,6 +955,10 @@ export function MapSebaran() {
                     indicatorStatus={mapIndicatorStatus}
                     indicatorError={mapIndicatorError}
                     onRetryIndicator={retryMapIndicator}
+                    krsPoints={
+                      currentLevel === "desa" ? krsPointItems : []
+                    }
+                    clipPinsToVillage
                   />
                 </ClientOnly>
               )}
