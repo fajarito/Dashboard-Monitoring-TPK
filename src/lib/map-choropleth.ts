@@ -607,3 +607,19 @@ export function buildSelectedPathStyle(
     opacity: 1,
   };
 }
+
+/**
+ * Level desa/kelurahan: tanpa fill choropleth — hanya stroke tipis agar
+ * basemap (bangunan/jalan) terlihat. fillOpacity 0; hover di map skip jika ≤0.
+ */
+export function buildOutlinePathStyle(
+  selected = false,
+): ChoroplethPathStyle {
+  return {
+    fillColor: "#000000",
+    fillOpacity: 0,
+    weight: selected ? 2.5 : 1.35,
+    color: selected ? SELECTED_BORDER : "#334155",
+    opacity: selected ? 1 : 0.9,
+  };
+}

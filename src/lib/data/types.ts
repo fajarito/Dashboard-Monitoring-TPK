@@ -448,3 +448,67 @@ export type TpkKeluargaPayload = {
   };
   meta: RingkasanMeta;
 };
+
+/** Hard max pin KRS per request (kelurahan only). */
+export const KRS_POINTS_HARD_MAX = 2000;
+export const KRS_POINTS_DEFAULT_LIMIT = 1000;
+
+export type KrsPointsBbox = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+/**
+ * Query pin keluarga/KRS di peta desa.
+ * Wajib kelurahanId + provinsiId (partition prune; tanpa scan nasional).
+ */
+export type KrsPointsQuery = {
+  kelurahanId: number;
+  provinsiId: number;
+  prioritas: TpkKeluargaPrioritas[];
+  indikator: TpkKeluargaIndikatorFilter[];
+  /** Default true — buang lat/lng null/invalid. */
+  validCoordsOnly: boolean;
+  /** Cari nama KK (ILIKE); kosong = tanpa filter. */
+  q: string | null;
+  bbox: KrsPointsBbox | null;
+  limit: number;
+  offset: number;
+};
+
+/** Titik pin tipis untuk overlay peta (tanpa NIK). */
+export type KrsPointItem = {
+  id: string;
+  kodeKeluarga: string;
+  namaKepalaKeluarga: string;
+  prioritas: TpkKeluargaPrioritas;
+  krs: boolean;
+  latitude: number;
+  longitude: number;
+};
+
+export type KrsPointsPayload = {
+  items: KrsPointItem[];
+  total: number;
+  returned: number;
+  truncated: boolean;
+  limit: number;
+  offset: number;
+  filters: {
+    kelurahanId: number;
+    provinsiId: number;
+    prioritas: TpkKeluargaPrioritas[];
+    indikator: TpkKeluargaIndikatorFilter[];
+    validCoordsOnly: boolean;
+    q: string | null;
+    bbox: KrsPointsBbox | null;
+  };
+  grain: {
+    level: "kelurahan";
+    kelurahanId: number;
+    namaKelurahan: string | null;
+  };
+  meta: RingkasanMeta;
+};

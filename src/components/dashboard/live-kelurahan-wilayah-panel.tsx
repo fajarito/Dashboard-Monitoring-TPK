@@ -240,6 +240,7 @@ export function LiveKelurahanWilayahPanel({
           desaSlug={desaSlug}
           desaName={displayKelName}
           kelurahanApiId={kelurahanApiId}
+          provinsiApiId={provinsiApiId}
           metric={mapMetric}
           onMetricChange={setMapMetric}
           childRows={mapChildRows}

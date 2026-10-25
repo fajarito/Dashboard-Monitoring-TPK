@@ -14,6 +14,7 @@ import { MapIndicatorLegend } from "@/components/dashboard/map-indicator-legend"
 import {
   buildBasePathStyle,
   buildHoverPathStyle,
+  buildOutlinePathStyle,
   buildSelectedPathStyle,
   forEachPolygonLayer,
   formatChoroplethHover,
@@ -42,6 +43,12 @@ import {
   type KemendagriLevel,
 } from "@/lib/kemendagri-code";
 import { type MetricKey } from "@/lib/map-data";
+import {
+  KRS_PIN_COLORS,
+  KRS_PIN_LABELS,
+  pointInPolygon,
+} from "@/lib/krs-pin-style";
+import type { KrsPointItem, TpkKeluargaPrioritas } from "@/lib/data/types";
 import type {
   MasterWilayahFeatureProps,
   MasterWilayahInstance,
@@ -120,7 +127,113 @@ export type MasterWilayahMapProps = {
   indicatorStatus?: "idle" | "loading" | "ready" | "error";
   indicatorError?: string | null;
   onRetryIndicator?: () => void;
+  /**
+   * Pin KRS kelurahan (hanya meaningful di level desa).
+   * Di-update tanpa remount choropleth; cluster via Leaflet.markercluster.
+   */
+  krsPoints?: KrsPointItem[];
+  /** Filter titik di luar poligon desa aktif (ringan, client-side). */
+  clipPinsToVillage?: boolean;
 };
+
+const MARKER_CLUSTER_JS =
+  "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js";
+const MARKER_CLUSTER_CSS =
+  "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css";
+const MARKER_CLUSTER_DEFAULT_CSS =
+  "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css";
+
+function ensureMarkerClusterAssets(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  const L = window.L as
+    | { markerClusterGroup?: unknown; MarkerClusterGroup?: unknown }
+    | undefined;
+  if (L && (L.markerClusterGroup || L.MarkerClusterGroup)) {
+    return Promise.resolve();
+  }
+
+  for (const href of [MARKER_CLUSTER_CSS, MARKER_CLUSTER_DEFAULT_CSS]) {
+    if (!document.querySelector(`link[href="${href}"]`)) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
+    }
+  }
+
+  const existing = document.querySelector(
+    `script[src="${MARKER_CLUSTER_JS}"]`,
+  ) as HTMLScriptElement | null;
+  if (existing) {
+    return new Promise((resolve) => {
+      if (L?.markerClusterGroup || L?.MarkerClusterGroup) {
+        resolve();
+        return;
+      }
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => resolve(), { once: true });
+    });
+  }
+
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = MARKER_CLUSTER_JS;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => resolve();
+    document.head.appendChild(script);
+  });
+}
+
+type LeafletLike = {
+  circleMarker: (
+    latlng: [number, number],
+    opts: Record<string, unknown>,
+  ) => {
+    bindPopup: (html: string) => unknown;
+    bindTooltip: (html: string, opts?: Record<string, unknown>) => unknown;
+    on?: (type: string, fn: (ev: { originalEvent?: Event }) => void) => unknown;
+  };
+  markerClusterGroup?: (opts?: Record<string, unknown>) => {
+    addLayer: (layer: unknown) => void;
+    clearLayers: () => void;
+    bringToFront?: () => void;
+  };
+  layerGroup?: () => {
+    addLayer: (layer: unknown) => void;
+    clearLayers: () => void;
+    bringToFront?: () => void;
+  };
+};
+
+function extractVillageRings(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  layer: any,
+): Array<Array<[number, number]>> {
+  const rings: Array<Array<[number, number]>> = [];
+  const latlngs = layer?.getLatLngs?.();
+  if (!latlngs) return rings;
+
+  const pushRing = (ring: Array<{ lat: number; lng: number }>) => {
+    if (!Array.isArray(ring) || ring.length < 3) return;
+    if (typeof ring[0]?.lat !== "number") return;
+    rings.push(ring.map((p) => [p.lng, p.lat] as [number, number]));
+  };
+
+  // Polygon: [ring...] or MultiPolygon: [[ring...], ...]
+  if (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) {
+    for (const poly of latlngs) {
+      if (Array.isArray(poly[0]) && typeof poly[0][0]?.lat === "number") {
+        pushRing(poly[0]);
+      }
+    }
+  } else if (Array.isArray(latlngs[0]) && typeof latlngs[0][0]?.lat === "number") {
+    pushRing(latlngs[0]);
+  } else if (typeof latlngs[0]?.lat === "number") {
+    pushRing(latlngs);
+  }
+  return rings;
+}
 
 function preloadLeafletCss() {
   if (typeof document === "undefined") return;
@@ -399,10 +512,14 @@ export function MasterWilayahMap({
   indicatorStatus,
   indicatorError = null,
   onRetryIndicator,
+  krsPoints = [],
+  clipPinsToVillage = true,
 }: MasterWilayahMapProps) {
   const containerId = useId().replace(/:/g, "_");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<MasterWilayahInstance | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const krsClusterRef = useRef<any>(null);
 
   // Concurrency lock & sequence tracking to serialize renders and avoid double-render collision
   const renderSeqRef = useRef(0);
@@ -575,8 +692,26 @@ export function MasterWilayahMap({
         unmatchedDev.push({ code: codeStr, name: featName });
       }
 
-      // Desa aktif: choropleth spek + border selected (bukan warna biru tetap).
-      // Sibling desa tetap terwarna agar legenda/indikator konsisten.
+      // Level desa: tanpa fill (basemap terlihat) + polygon non-interaktif
+      // agar klik mengenai pin KRS, bukan choropleth/popup desa.
+      if (currentLevel === "desa") {
+        const selected = Boolean(cleanVillage && codeStr === cleanVillage);
+        const outline = buildOutlinePathStyle(selected);
+        layer._mwBaseStyle = outline;
+        layer.setStyle?.(outline);
+        if (layer.options) layer.options.interactive = false;
+        const el =
+          typeof layer.getElement === "function"
+            ? layer.getElement()
+            : layer._path;
+        if (el?.style) el.style.pointerEvents = "none";
+        layer.unbindTooltip?.();
+        layer.unbindPopup?.();
+        layer.closePopup?.();
+        return;
+      }
+
+      // Prov/kab/kec: choropleth spek + border selected.
       if (cleanVillage && codeStr === cleanVillage) {
         const selected = buildSelectedPathStyle(classification.color);
         layer._mwBaseStyle = selected;
@@ -586,6 +721,12 @@ export function MasterWilayahMap({
         layer._mwBaseStyle = base;
         layer.setStyle?.(base);
       }
+      if (layer.options) layer.options.interactive = true;
+      const el =
+        typeof layer.getElement === "function"
+          ? layer.getElement()
+          : layer._path;
+      if (el?.style) el.style.pointerEvents = "";
 
       // Refresh tooltip saat ganti metrik (hindari HTML cache SDK / flicker).
       const tipHtml = buildChoroplethTooltipHtml(
@@ -834,7 +975,8 @@ export function MasterWilayahMap({
           } else if (currentLevel === "kecamatan") {
             onDrillDownRef.current("desa", code, name);
           } else if (currentLevel === "desa") {
-            onDrillDownRef.current("desa", code, name);
+            // Level desa: klik ditangani pin KRS — jangan drill/popup choropleth.
+            return;
           }
         },
       };
@@ -908,7 +1050,7 @@ export function MasterWilayahMap({
               });
             });
 
-            // Desa highlight: fitBounds ke poligon terpilih
+            // Desa: fitBounds saja — jangan openPopup poligon (tutup basemap/pin).
             if (currentLevel === "desa" && safeVillage) {
               forEachPolygonLayer(instance.boundaryGroup, (layer) => {
                 const codeStr = normalizeKemendagriDigits(
@@ -917,7 +1059,7 @@ export function MasterWilayahMap({
                     "",
                 );
                 if (codeStr === safeVillage) {
-                  layer.openPopup?.();
+                  layer.closePopup?.();
                   if (layer.getBounds && instance.map) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (instance.map as any).fitBounds(layer.getBounds(), {
@@ -974,6 +1116,135 @@ export function MasterWilayahMap({
     if (!mapInstanceRef.current?.map) return;
     applyBasemapTiles(mapInstanceRef.current.map, basemap, currentLevel);
   }, [basemap, currentLevel]);
+
+  /**
+   * Overlay pin KRS — update tanpa remount choropleth.
+   * Cluster via Leaflet.markercluster (CDN); fallback layerGroup.
+   * Opsional clip ke poligon desa aktif (point-in-polygon ringan).
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncPins() {
+      const instance = mapInstanceRef.current;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const map = instance?.map as any;
+      const L = window.L as LeafletLike | undefined;
+      if (!instance || !map || !L?.circleMarker) return;
+
+      // Bersihkan layer lama
+      if (krsClusterRef.current) {
+        try {
+          map.removeLayer(krsClusterRef.current);
+        } catch {
+          /* ignore */
+        }
+        krsClusterRef.current = null;
+      }
+
+      if (currentLevel !== "desa" || krsPoints.length === 0) return;
+
+      // Pastikan batas desa tetap outline-only + non-interaktif sebelum pin.
+      applyClientChoropleth();
+
+      await ensureMarkerClusterAssets();
+      if (cancelled) return;
+
+      // Pane di atas overlay polygon (400) agar pin/cluster menerima klik.
+      const pinPaneName = "krsPinsPane";
+      if (typeof map.createPane === "function" && !map.getPane?.(pinPaneName)) {
+        const pane = map.createPane(pinPaneName);
+        if (pane?.style) {
+          pane.style.zIndex = "650";
+          pane.style.pointerEvents = "auto";
+        }
+      }
+
+      let rings: Array<Array<[number, number]>> = [];
+      if (clipPinsToVillage && villageCode && instance.boundaryGroup) {
+        const cleanVillage = String(villageCode).replace(/\D/g, "").trim();
+        forEachPolygonLayer(instance.boundaryGroup, (layer) => {
+          const codeStr = String(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (layer as any).feature?.properties?.code ||
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (layer as any).feature?.properties?.kode ||
+              "",
+          ).replace(/\D/g, "");
+          if (codeStr === cleanVillage) {
+            rings = rings.concat(extractVillageRings(layer));
+          }
+        });
+      }
+
+      const cluster =
+        typeof L.markerClusterGroup === "function"
+          ? L.markerClusterGroup({
+              maxClusterRadius: 48,
+              showCoverageOnHover: false,
+              spiderfyOnMaxZoom: true,
+              pane: pinPaneName,
+              clusterPane: pinPaneName,
+            })
+          : L.layerGroup
+            ? L.layerGroup()
+            : null;
+      if (!cluster) return;
+
+      for (const point of krsPoints) {
+        if (
+          rings.length > 0 &&
+          !rings.some((ring) =>
+            pointInPolygon(point.longitude, point.latitude, ring),
+          )
+        ) {
+          continue;
+        }
+        const color =
+          KRS_PIN_COLORS[point.prioritas as TpkKeluargaPrioritas] ??
+          KRS_PIN_COLORS.bukan;
+        const marker = L.circleMarker([point.latitude, point.longitude], {
+          radius: 6,
+          color: "#ffffff",
+          weight: 1.5,
+          fillColor: color,
+          fillOpacity: 0.92,
+          pane: pinPaneName,
+          interactive: true,
+          bubblingMouseEvents: false,
+        });
+        const prioritasLabel =
+          KRS_PIN_LABELS[point.prioritas as TpkKeluargaPrioritas] ??
+          point.prioritas;
+        const popup = `<div style="font:12px/1.4 system-ui,sans-serif;min-width:140px">
+          <strong>${escapeHtml(point.namaKepalaKeluarga)}</strong><br/>
+          <span style="color:#64748b">${escapeHtml(point.kodeKeluarga)}</span><br/>
+          <span style="display:inline-block;margin-top:4px;padding:1px 6px;border-radius:999px;background:${color}22;color:#0f172a;font-weight:700;font-size:10px">${escapeHtml(prioritasLabel)}${point.krs ? " · KRS" : ""}</span>
+        </div>`;
+        marker.bindPopup(popup);
+        marker.on?.("click", (ev: { originalEvent?: Event }) => {
+          ev?.originalEvent?.stopPropagation?.();
+        });
+        cluster.addLayer(marker);
+      }
+
+      map.addLayer(cluster);
+      cluster.bringToFront?.();
+      krsClusterRef.current = cluster;
+    }
+
+    void syncPins();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    krsPoints,
+    currentLevel,
+    villageCode,
+    clipPinsToVillage,
+    loading,
+    applyClientChoropleth,
+  ]);
 
   const legendItems = useMemo(() => {
     if (metric === "anggota") {

@@ -10,7 +10,13 @@ import {
   ErrorState,
   MapSkeleton,
 } from "@/components/dashboard/data-state";
+import { KrsPinFilters } from "@/components/dashboard/krs-pin-filters";
 import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map";
+import type {
+  TpkKeluargaIndikatorFilter,
+  TpkKeluargaPrioritas,
+} from "@/lib/data/types";
+import { useKrsPoints } from "@/lib/hooks/use-krs-points";
 import {
   buildThematicData,
   choroplethFormulaLabel,
@@ -66,6 +72,8 @@ export type WilayahScopeMapProps = {
   desaSlug?: string;
   desaName?: string | null;
   kelurahanApiId?: string | null;
+  /** id_provinsi internal — wajib untuk fetch pin KRS (partition prune). */
+  provinsiApiId?: string | null;
   /** Anak satu level di bawah — dari /api/peringkat*. */
   childRows: MetricRow[];
   childStatus: "idle" | "loading" | "ready" | "error";
@@ -94,6 +102,7 @@ export function WilayahScopeMap({
   desaSlug,
   desaName,
   kelurahanApiId,
+  provinsiApiId,
   childRows,
   childStatus,
   childError,
@@ -122,6 +131,35 @@ export function WilayahScopeMap({
   useEffect(() => {
     prefetchMasterWilayahWidget();
   }, []);
+
+  /** Filter pin KRS — hanya aktif di level desa. */
+  const [pinPrioritas, setPinPrioritas] = useState<TpkKeluargaPrioritas[]>([]);
+  const [pinIndikator, setPinIndikator] = useState<
+    TpkKeluargaIndikatorFilter[]
+  >(["krs"]);
+  const [pinValidCoords, setPinValidCoords] = useState(true);
+  const [pinQ, setPinQ] = useState("");
+  const [pinQDebounced, setPinQDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setPinQDebounced(pinQ.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [pinQ]);
+
+  const krsPins = useKrsPoints({
+    enabled: currentLevel === "desa",
+    kelurahanId: kelurahanApiId,
+    provinsiId: provinsiApiId,
+    prioritas: pinPrioritas,
+    indikator: pinIndikator,
+    validCoordsOnly: pinValidCoords,
+    q: pinQDebounced,
+    limit: 1000,
+  });
+
+  const krsPointItems = useMemo(
+    () => krsPins.payload?.items ?? [],
+    [krsPins.payload?.items],
+  );
 
   const provinceCode = useMemo(
     () => provinceAdminCode.replace(/\D/g, "").padStart(2, "0").slice(-2),
@@ -553,6 +591,25 @@ export function WilayahScopeMap({
         </span>
       </div>
 
+      {currentLevel === "desa" ? (
+        <KrsPinFilters
+          prioritas={pinPrioritas}
+          indikator={pinIndikator}
+          validCoordsOnly={pinValidCoords}
+          q={pinQ}
+          onPrioritasChange={setPinPrioritas}
+          onIndikatorChange={setPinIndikator}
+          onValidCoordsOnlyChange={setPinValidCoords}
+          onQChange={setPinQ}
+          status={krsPins.status}
+          returned={krsPins.payload?.returned ?? 0}
+          total={krsPins.payload?.total ?? 0}
+          truncated={krsPins.payload?.truncated ?? false}
+          error={krsPins.error}
+          onRetry={krsPins.refetch}
+        />
+      ) : null}
+
       <div className="relative mt-2">
         <ClientOnly fallback={<MapSkeleton />}>
           <MasterWilayahMap
@@ -605,6 +662,8 @@ export function WilayahScopeMap({
             indicatorStatus={indicatorStatus}
             indicatorError={childError}
             onRetryIndicator={onRetryChildren}
+            krsPoints={currentLevel === "desa" ? krsPointItems : []}
+            clipPinsToVillage
           />
         </ClientOnly>
       </div>
