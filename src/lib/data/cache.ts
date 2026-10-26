@@ -9,6 +9,8 @@ type CacheEntry<T> = {
 };
 
 const store = new Map<string, CacheEntry<unknown>>();
+/** Singleflight: request paralel dengan key sama berbagi 1 promise (anti-stampede). */
+const inflight = new Map<string, Promise<unknown>>();
 
 export const DEFAULT_CACHE_TTL_SEC = 60;
 
@@ -32,6 +34,34 @@ export function setCached<T>(
     expiresAt: Date.now() + ttlSec * 1000,
   });
   return value;
+}
+
+/**
+ * Cache hit → return. Miss → jalankan loader sekali; caller paralel menunggu yang sama.
+ * Tidak menyimpan hasil error (agar retry berikutnya bisa jalan).
+ */
+export async function getOrLoadCached<T>(
+  key: string,
+  loader: () => Promise<T>,
+  ttlSec: number = DEFAULT_CACHE_TTL_SEC,
+): Promise<T> {
+  const hit = getCached<T>(key);
+  if (hit) return hit;
+
+  const pending = inflight.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+
+  const promise = (async () => {
+    try {
+      const value = await loader();
+      return setCached(key, value, ttlSec);
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+
+  inflight.set(key, promise);
+  return promise;
 }
 
 export function cacheKey(parts: Array<string | number | null | undefined>) {

@@ -79,11 +79,15 @@ export function getPool(kind: PoolKind): Pool {
   const existing = store[kind];
   if (existing) return existing;
 
+  // Timeout ketat: readiness lama 5s; jangan biarkan koneksi/query menggantung 8s+.
+  // query_timeout = client-side; statement_timeout = server-side (pg).
   const pool = new Pool({
     connectionString: config.url,
     max: 4,
     idleTimeoutMillis: 15_000,
-    connectionTimeoutMillis: 8_000,
+    connectionTimeoutMillis: 3_000,
+    query_timeout: 4_000,
+    statement_timeout: 4_000,
     application_name: `dashboard-tpk-${kind}`,
   });
 
@@ -98,6 +102,35 @@ export function getPool(kind: PoolKind): Pool {
   return pool;
 }
 
+/** Klasifikasi penyebab tanpa membocorkan secret (untuk log + pesan UI). */
+export function classifyPostgresFailure(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code?: unknown }).code ?? "")
+      : "";
+  if (
+    /timeout|ETIMEDOUT|Query read timeout|canceling statement due to statement timeout/i.test(
+      msg,
+    ) ||
+    code === "ETIMEDOUT"
+  ) {
+    return "timeout";
+  }
+  if (
+    /ECONNREFUSED|ENOTFOUND|ENETUNREACH|EHOSTUNREACH|getaddrinfo|Connection terminated unexpectedly|server closed the connection/i.test(
+      msg,
+    ) ||
+    /ECONNREFUSED|ENOTFOUND|ENETUNREACH/.test(code)
+  ) {
+    return "connection";
+  }
+  if (/too many clients|remaining connection slots|connection pool/i.test(msg)) {
+    return "pool_exhausted";
+  }
+  return "query_error";
+}
+
 /** Query typed + error wrapping (log aman, tanpa password). */
 export async function queryPool<T extends QueryResultRow = QueryResultRow>(
   kind: PoolKind,
@@ -109,14 +142,21 @@ export async function queryPool<T extends QueryResultRow = QueryResultRow>(
   try {
     return await pool.query<T>(text, params);
   } catch (err) {
-    logPostgresError(`query failed (${kind})`, err, {
+    const reason = classifyPostgresFailure(err);
+    logPostgresError(`query failed (${kind}) [${reason}]`, err, {
       pool: kind,
       url: config.url,
     });
     const hint = config.url ? redactDatabaseUrl(config.url) : config.envKey;
     throw new PostgresDataError(
-      "postgres_query_failed",
-      `Query ${kind} gagal (${hint}). Periksa koneksi/SQL — lihat log server.`,
+      reason === "timeout"
+        ? "postgres_timeout"
+        : reason === "connection"
+          ? "postgres_connection_failed"
+          : reason === "pool_exhausted"
+            ? "postgres_pool_exhausted"
+            : "postgres_query_failed",
+      `Query ${kind} gagal (${reason}: ${hint}). Periksa koneksi/SQL — lihat log server.`,
       { pool: kind, cause: err, status: 503 },
     );
   }

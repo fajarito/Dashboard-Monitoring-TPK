@@ -35,21 +35,23 @@ spec:
                 configMapKeyRef:
                   name: dashboard-tpk-config
                   key: PORT
+          # Jangan probe /api/ringkasan — itu query triple-pool DWH/SIGA.
+          # Probe berat → pod NotReady + stampede DB saat cold start / UAT lambat.
           readinessProbe:
             httpGet:
-              path: /api/ringkasan?tingkat=nasional
+              path: /api/health
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 5
+            timeoutSeconds: 2
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/health
               port: http
-            initialDelaySeconds: 30
+            initialDelaySeconds: 20
             periodSeconds: 20
-            timeoutSeconds: 5
+            timeoutSeconds: 2
             failureThreshold: 3
           resources:
             requests:

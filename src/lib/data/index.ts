@@ -2,6 +2,7 @@ import {
   cacheKey,
   DEFAULT_CACHE_TTL_SEC,
   getCached,
+  getOrLoadCached,
   setCached,
 } from "@/lib/data/cache";
 import { getPeringkatKabupatenMock } from "@/lib/data/mock/peringkat-kabupaten";
@@ -207,39 +208,31 @@ export async function fetchRingkasan(
     query.tingkat,
     query.id ?? "",
   ]);
-  const hit = getCached<RingkasanPayload>(key);
-  if (hit) return hit;
-
-  let payload: RingkasanPayload;
-  if (source === "postgres") {
-    assertPostgresReady();
-    payload = await getRingkasanPostgres(query);
-  } else {
-    payload = getRingkasanMock(query);
-  }
-
-  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+  return getOrLoadCached(key, async () => {
+    if (source === "postgres") {
+      assertPostgresReady();
+      return getRingkasanPostgres(query);
+    }
+    return getRingkasanMock(query);
+  }, DEFAULT_CACHE_TTL_SEC);
 }
 
 export async function fetchPeringkatProvinsi(): Promise<PeringkatProvinsiPayload> {
   const source = resolveDataSource();
   const key = cacheKey(["peringkat", "provinsi", source]);
-  const hit = getCached<PeringkatProvinsiPayload>(key);
-  if (hit) return hit;
-
-  let payload: PeringkatProvinsiPayload;
-  if (source === "postgres") {
-    assertPostgresReady();
-    payload = await getPeringkatProvinsiPostgres();
-  } else {
-    payload = getPeringkatProvinsiMock();
-  }
-
-  if (payload.items.length > 40) {
-    payload = { ...payload, items: payload.items.slice(0, 40) };
-  }
-
-  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+  return getOrLoadCached(key, async () => {
+    let payload: PeringkatProvinsiPayload;
+    if (source === "postgres") {
+      assertPostgresReady();
+      payload = await getPeringkatProvinsiPostgres();
+    } else {
+      payload = getPeringkatProvinsiMock();
+    }
+    if (payload.items.length > 40) {
+      payload = { ...payload, items: payload.items.slice(0, 40) };
+    }
+    return payload;
+  }, DEFAULT_CACHE_TTL_SEC);
 }
 
 export async function fetchPeringkatKabupaten(
