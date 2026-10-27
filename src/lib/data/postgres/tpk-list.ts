@@ -419,8 +419,11 @@ function mapPkbRow(row: PkbJoinRow): TpkListPkb {
     row.jabatan_pkb,
     row.jabatan_plkb,
   );
+  const pkbId = row.pkbid?.trim() || "";
   return {
-    pkbId: row.pkbid,
+    pkbId,
+    // SIGA PKBID = identitas pegawai; dipakai sebagai NIP match portal.
+    nip: pkbId || null,
     nama: row.nama?.trim() || null,
     jabatan,
     jabatanDetail,

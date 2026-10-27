@@ -1146,8 +1146,11 @@ function PkbCell({ pkb }: { pkb: TpkListPkb | null }) {
         ) : null}
       </div>
       <div className="mt-1 flex items-center justify-between gap-2">
-        <div className="min-w-0 font-mono text-[11px] font-semibold tracking-wide text-slate-400 tabular-nums">
-          {pkb.nik ? `NIK ${pkb.nik}` : "NIK —"}
+        <div className="min-w-0 space-y-0.5 font-mono text-[11px] font-semibold tracking-wide text-slate-400 tabular-nums">
+          <div>
+            {pkb.nip || pkb.pkbId ? `NIP ${pkb.nip || pkb.pkbId}` : "NIP —"}
+          </div>
+          <div>{pkb.nik ? `NIK ${pkb.nik}` : "NIK —"}</div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <TpkContactAction phone={pkb.noHp} kind="call" size="sm" />

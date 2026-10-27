@@ -216,12 +216,18 @@ export type TpkListQuery = {
 /** PKB/PLKB aktif untuk desa TPK (via dat_KelurahanDesaBinaan). */
 export type TpkListPkb = {
   pkbId: string;
+  /**
+   * NIP pegawai untuk match API portal.
+   * Di SIGA biasanya = TRIM(PKBID); diisi eksplisit agar UI/portal jelas.
+   */
+  nip: string | null;
   nama: string | null;
   /** 1 → PKB, 2 → PLKB (JabatanPKBAtauPLKBID). */
   jabatan: "PKB" | "PLKB" | null;
   /**
    * Jenjang detail (huruf JabatanPKBID / JabatanBPLKBID) bila ada.
    * Label resmi Terampil/Mahir/… belum dikunci → boleh kode huruf mentah.
+   * Portal dapat menimpa tampilan dengan `jab_akhir`.
    */
   jabatanDetail: string | null;
   nik: string | null;

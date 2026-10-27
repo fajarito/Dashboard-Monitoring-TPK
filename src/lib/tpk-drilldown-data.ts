@@ -15,6 +15,8 @@ export type PkbJabatanDetail = "Terampil" | "Mahir" | "Pertama" | "Madya";
 export type TpkPkb = {
   name: string;
   nik: string;
+  /** NIP untuk match portal (demo rich = NIP contoh UAT). */
+  nip: string;
   phone: string | null;
   jabatan: PkbJabatan;
   jabatanDetail: PkbJabatanDetail;
@@ -367,9 +369,14 @@ function makePkb(
     phone = "0000";
   }
 
+  const nip = rich
+    ? "196803291988032003"
+    : `19${String(Math.floor(rand() * 1e8)).padStart(8, "0")}${String(Math.floor(rand() * 1e8)).padStart(8, "0")}`;
+
   return {
     name: rich ? "Rina Maulana" : makePerson(rand),
     nik: makeNik(rand, adminCode),
+    nip,
     phone,
     jabatan,
     jabatanDetail,

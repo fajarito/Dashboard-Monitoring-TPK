@@ -63,7 +63,8 @@ function emptyIndikator(): TpkListIndikator {
 
 function toPkb(tpk: TpkUnit): TpkListPkb {
   return {
-    pkbId: tpk.pkb.nik || `mock-${tpk.id}`,
+    pkbId: tpk.pkb.nip || tpk.pkb.nik || `mock-${tpk.id}`,
+    nip: tpk.pkb.nip || null,
     nama: tpk.pkb.name,
     jabatan: tpk.pkb.jabatan,
     jabatanDetail: tpk.pkb.jabatanDetail,

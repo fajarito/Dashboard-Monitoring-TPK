@@ -55,6 +55,20 @@ Jika ketiga URL terisi tetapi query gagal → **HTTP 503** JSON jelas (`meta.sou
 
 Cache in-memory + header `Cache-Control` ~**60 detik**. Home **tidak** memuat `by_name` / daftar keluarga.
 
+### Detail PKB (API portal + foto SIMSDM)
+
+Kartu pembina di detail TPK diperkaya by **NIP** dari portal UAT (`jab_akhir`, `email_dinas`, `nohp`, foto). Agregat jumlah PKB **tidak** berubah.
+
+| Env | Keterangan |
+|---|---|
+| `PKB_PORTAL_API_BASE_URL` | Default `https://api-portal.apps.ocp-uat.bkkbn.go.id` |
+| `PKB_PORTAL_API_TOKEN` | Bearer; tanpa token → stub NIP demo / fallback lokal |
+| `SIMSDM_FOTO_BASE_URL` | Default `https://simsdm.bkkbn.go.id/assets/uploads/pictures` |
+
+- Proxy: `GET /api/pkb/[nip]?propinsi=&kabupaten=&statuspegawai=PKB`
+- NIP demo stub: `196803291988032003` (mock TPK rich Sukamaju)
+- Template: `.env.example` (force-add; jangan commit token)
+
 ## Build image (Docker / OpenShift)
 
 ```bash

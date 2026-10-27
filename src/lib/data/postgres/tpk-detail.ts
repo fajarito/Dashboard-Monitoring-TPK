@@ -204,8 +204,10 @@ function mapPkbRow(row: PkbJoinRow): TpkListPkb {
     row.jabatan_pkb,
     row.jabatan_plkb,
   );
+  const pkbId = row.pkbid?.trim() || "";
   return {
-    pkbId: row.pkbid,
+    pkbId,
+    nip: pkbId || null,
     nama: row.nama?.trim() || null,
     jabatan,
     jabatanDetail,

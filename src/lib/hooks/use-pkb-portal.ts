@@ -1,0 +1,108 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+export type PkbPortalClientPayload = {
+  nip: string;
+  nama: string;
+  nohp: string | null;
+  emailDinas: string | null;
+  jabAkhir: string | null;
+  statusPegawai: string | null;
+  jenisPegawai: string | null;
+  fotoUrl: string | null;
+  source: "portal" | "stub" | "fallback";
+  warning: string | null;
+};
+
+export type PkbPortalLokasiInput = {
+  propinsi?: string | null;
+  kabupaten?: string | null;
+  statuspegawai?: string | null;
+};
+
+export type UsePkbPortalState = {
+  status: "idle" | "loading" | "ready" | "empty" | "error";
+  data: PkbPortalClientPayload | null;
+  error: string | null;
+};
+
+/**
+ * Enrich detail PKB dari proxy `/api/pkb/[nip]` (server pegang token).
+ * Tidak mempengaruhi agregat jumlah PKB.
+ */
+export function usePkbPortal(
+  nip: string | null | undefined,
+  lokasi: PkbPortalLokasiInput,
+): UsePkbPortalState {
+  const [state, setState] = useState<UsePkbPortalState>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
+
+  const nipKey = nip?.trim() ?? "";
+  const propinsi = lokasi.propinsi?.trim() ?? "";
+  const kabupaten = lokasi.kabupaten?.trim() ?? "";
+  const statuspegawai = lokasi.statuspegawai?.trim() || "PKB";
+
+  useEffect(() => {
+    if (!nipKey || !/^\d{8,25}$/.test(nipKey)) {
+      setState({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    const controller = new AbortController();
+    setState({ status: "loading", data: null, error: null });
+
+    const params = new URLSearchParams();
+    if (propinsi) params.set("propinsi", propinsi);
+    if (kabupaten) params.set("kabupaten", kabupaten);
+    params.set("statuspegawai", statuspegawai);
+
+    void fetch(`/api/pkb/${encodeURIComponent(nipKey)}?${params.toString()}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 503) {
+          return { kind: "empty" as const };
+        }
+        if (!response.ok) {
+          let detail = `HTTP ${response.status}`;
+          try {
+            const body = (await response.json()) as { message?: string };
+            if (body?.message) detail = body.message;
+          } catch {
+            /* ignore */
+          }
+          throw new Error(detail);
+        }
+        const data = (await response.json()) as PkbPortalClientPayload;
+        return { kind: "ready" as const, data };
+      })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.kind === "empty") {
+          setState({ status: "empty", data: null, error: null });
+          return;
+        }
+        setState({ status: "ready", data: result.data, error: null });
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setState({
+          status: "error",
+          data: null,
+          error:
+            err instanceof Error ? err.message : "Gagal memuat detail portal PKB",
+        });
+      });
+
+    return () => controller.abort();
+  }, [nipKey, propinsi, kabupaten, statuspegawai]);
+
+  return state;
+}
