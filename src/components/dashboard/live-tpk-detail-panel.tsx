@@ -352,16 +352,16 @@ function PkbPembinaCard({
                 Sumber SIGA · dat_PKB
               </p>
               {pelatihanItems.length > 0 ? (
-                <ul className="mt-1.5 space-y-1">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {pelatihanItems.map((item) => (
-                    <li
+                    <span
                       key={item}
-                      className="text-[13px] font-semibold text-navy"
+                      className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-emerald-700 uppercase"
                     >
                       {item}
-                    </li>
+                    </span>
                   ))}
-                </ul>
+                </div>
               ) : (
                 <p className="mt-1.5 text-[12px] text-muted-foreground">
                   {pelatihanEmpty}
