@@ -15,9 +15,8 @@ export const revalidate = 0;
 /**
  * GET /api/keluarga/detail?kki=&provinsiId=&diag=1
  * Detail 1 KK dari `"verval2024_monitoring"."stunting_head_{NN}"`.
- * `provinsiId` = id_provinsi internal (Jabar=12 → `_12`; BPS 32 ≠ suffix).
- * Match: `kki = ANY(padded)` bentuk 14+6spasi+sisa. Tanpa replace/compact scan.
- * `diag=1` / timeout → JSON `diag` berisi SQL exact + param (spasi = `·`).
+ * Pola Fajar: `WHERE src."kki" = $1` — `$1` = padded primary (14+6spasi+sisa).
+ * Tanpa ANY / id_kelurahan di SQL. `diag=1` / timeout → SQL exact + param.
  * Pool: DATABASE_URL_VERVAL. Unset → mock.
  */
 export async function GET(request: NextRequest) {

@@ -6,7 +6,6 @@ import {
 import {
   compactKki,
   describeKkiForDiag,
-  paddedKkiForms,
   primaryPaddedKki,
 } from "@/lib/data/kki";
 import {
@@ -104,16 +103,15 @@ export function stuntingHeadPartitionRelation(
 }
 
 /**
- * Satu round-trip equality ke bentuk KKI padded (pola Fajar).
- * `kki = ANY($1)` tetap bisa pakai btree index bila ada — jangan `replace()`.
- * `$2` = id_kelurahan opsional (NULL = abaikan) untuk sempitkan scan partisi besar.
+ * Pola Fajar persis — equality scalar, padded primary saja:
+ *   WHERE src."kki" = $1  LIMIT 1
+ * Tanpa ANY, tanpa id_kelurahan di SQL (filter kelurahan di app setelah fetch).
  */
-function sqlExactAnyOnPartition(qualified: string): string {
+function sqlExactEqOnPartition(qualified: string): string {
   return `
 SELECT ${DETAIL_SELECT}
 FROM ${qualified} src
-WHERE src."kki" = ANY($1::text[])
-  AND ($2::int4 IS NULL OR src."id_kelurahan" = $2)
+WHERE src."kki" = $1
 LIMIT 1
 `;
 }
@@ -203,11 +201,13 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
  * Baca 1 keluarga dari **tabel partisi**
  * `"verval2024_monitoring"."stunting_head_{NN}"` (NN = id_provinsi pad 2).
  *
- * Contoh Fajar:
- * `SELECT * FROM stunting_head_01 WHERE kki = '11061020310200      001019026'`
- *
- * Hanya equality padded (satu query ANY). **Tanpa** `replace(kki,' ','')` —
- * fallback compact memaksa seq-scan dan sering timeout di partisi besar (Jabar).
+ * Pola Fajar persis:
+ * ```sql
+ * SELECT … FROM "verval2024_monitoring"."stunting_head_12" src
+ * WHERE src."kki" = $1
+ * LIMIT 1
+ * ```
+ * `$1` = padded primary (`14` + 6 spasi + sisa). Tanpa ANY / id_kelurahan / replace.
  */
 export async function getKeluargaDetailPostgres(
   query: KeluargaDetailQuery,
@@ -245,24 +245,23 @@ export async function getKeluargaDetailPostgres(
     );
   }
 
-  // Urutan: bentuk Fajar (14+6spasi+sisa), lalu 1-spasi bila beda. Tanpa compact.
-  const forms = paddedKkiForms(query.kki);
-  const candidates = forms.length > 0 ? forms : [paddedPrimary];
   const kelurahanId =
     query.kelurahanId != null && Number.isFinite(query.kelurahanId)
       ? Math.trunc(query.kelurahanId)
       : null;
-  const sql = sqlExactAnyOnPartition(qualified);
-  const params: unknown[] = [candidates, kelurahanId];
+
+  const sql = sqlExactEqOnPartition(qualified);
+  const params: unknown[] = [paddedPrimary];
   const diag = {
     ...buildDiag({
       relation,
       sql,
       params,
       kkiRaw: query.kki,
-      attempt: "exact_padded_any",
+      attempt: "exact_kki_eq",
     }),
     kelurahanId,
+    kelurahanFilter: "app_after_fetch",
   };
 
   if (query.diag) {
@@ -270,7 +269,17 @@ export async function getKeluargaDetailPostgres(
   }
 
   const res = await queryVervalDetail<StuntingHeadRowRow>(sql, params, diag);
-  const row = res.rows[0];
+  let row: StuntingHeadRowRow | undefined = res.rows[0];
+
+  // Filter kelurahan di app (bukan di SQL hot path) — sesuai permintaan Fajar.
+  if (
+    row &&
+    kelurahanId != null &&
+    row.id_kelurahan != null &&
+    Number(row.id_kelurahan) !== kelurahanId
+  ) {
+    row = undefined;
+  }
 
   if (!row) {
     throw new PostgresDataError(
@@ -279,7 +288,9 @@ export async function getKeluargaDetailPostgres(
       {
         pool: "verval",
         status: 404,
-        details: query.diag ? diag : { qualified, kki: describeKkiForDiag(query.kki) },
+        details: query.diag
+          ? diag
+          : { qualified, kki: describeKkiForDiag(query.kki) },
       },
     );
   }
@@ -309,8 +320,11 @@ export async function getKeluargaDetailPostgres(
         ? {
             diag: {
               qualified: relation.qualified,
+              sql: diag.sql,
+              paramsVisible: diag.paramsVisible,
               kki: describeKkiForDiag(query.kki),
-              matchedKki: typeof row.kki === "string" ? row.kki.replace(/ /g, "·") : row.kki,
+              matchedKki:
+                typeof row.kki === "string" ? row.kki.replace(/ /g, "·") : row.kki,
             },
           }
         : {}),

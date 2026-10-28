@@ -607,8 +607,7 @@ export type KeluargaDetailQuery = {
    */
   provinsiId: number | null;
   /**
-   * Opsional — filter `id_kelurahan` (scope desa pin) agar scan partisi lebih sempit
-   * bila belum ada index btree(kki).
+   * Opsional — filter `id_kelurahan` di **app setelah fetch** (bukan di SQL hot path).
    */
   kelurahanId?: number | null;
   /** `diag=1` — sertakan SQL exact / param di error & meta. */
