@@ -58,7 +58,7 @@ import {
   KRS_POINTS_DEFAULT_LIMIT,
   KRS_POINTS_HARD_MAX,
 } from "@/lib/data/types";
-import { compactKki } from "@/lib/data/kki";
+import { compactKki, primaryPaddedKki } from "@/lib/data/kki";
 
 export type {
   DataSource,
@@ -646,29 +646,32 @@ export function parseKeluargaDetailQuery(
   searchParams: URLSearchParams,
 ): KeluargaDetailQuery {
   // KKI wajib (Fajar). Alias historis: kodeKeluarga/kode — hanya jika nilainya KKI.
-  // Jangan collapse spasi internal: URL `+++` → spasi (bentuk padded Fajar).
+  // Selalu rebuild ke 14+6spasi — URL `+` tunggal (1 spasi) tetap jadi 6 spasi.
   const kkiRaw =
     searchParams.get("kki") ??
     searchParams.get("kodeKeluarga") ??
     searchParams.get("kode") ??
     "";
-  const kki = kkiRaw.replace(/^\s+|\s+$/g, "");
-  const provRaw = searchParams.get("provinsiId");
-  const provinsiId =
-    provRaw && Number.isFinite(Number(provRaw)) ? Number(provRaw) : null;
-  const kelRaw = searchParams.get("kelurahanId");
-  const kelurahanId =
-    kelRaw && Number.isFinite(Number(kelRaw)) ? Number(kelRaw) : null;
-  const diagRaw = searchParams.get("diag");
-  const diag =
-    diagRaw === "1" || diagRaw === "true" || diagRaw === "yes";
-  if (!compactKki(kki)) {
+  const compact = compactKki(kkiRaw);
+  if (!compact) {
     throw new PostgresDataError(
       "invalid_kki",
       "Parameter kki wajib diisi (join pin ↔ stunting_head).",
       { status: 400 },
     );
   }
+  const padded = primaryPaddedKki(kkiRaw);
+  const kki = padded ?? compact;
+  const provRaw = searchParams.get("provinsiId");
+  const provinsiId =
+    provRaw && Number.isFinite(Number(provRaw)) ? Number(provRaw) : null;
+  // kelurahanId di URL diabaikan di path detail (beda namespace) — parse untuk diag saja.
+  const kelRaw = searchParams.get("kelurahanId");
+  const kelurahanId =
+    kelRaw && Number.isFinite(Number(kelRaw)) ? Number(kelRaw) : null;
+  const diagRaw = searchParams.get("diag");
+  const diag =
+    diagRaw === "1" || diagRaw === "true" || diagRaw === "yes";
   return { kki, provinsiId, kelurahanId, diag };
 }
 

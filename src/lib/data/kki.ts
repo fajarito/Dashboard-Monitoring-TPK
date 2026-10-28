@@ -47,12 +47,32 @@ export function canonicalKki(value: string | null | undefined): string {
 
 /**
  * Bentuk KKI dump tipikal (contoh Fajar):
- * `'11061020310200      001019026'` = 14 digit + 6 spasi + sisa.
+ * `'11061020310200      001019026'` = 14 digit + **6 spasi** + sisa.
+ *
+ * **Selalu** rebuild dari compact — jangan andalkan jumlah `+`/spasi di URL.
+ * Contoh OpenShift 404: `kki=32760110060018+001034036` (1 `+`) → tetap
+ * `'32760110060018      001034036'` (6 spasi) setelah fungsi ini.
  */
 export function primaryPaddedKki(value: string | null | undefined): string | null {
   const c = compactKki(value);
   if (c.length < 15) return null;
   return `${c.slice(0, 14)}${" ".repeat(6)}${c.slice(14)}`;
+}
+
+/** Jumlah spasi di antara blok 14 digit dan sisa (harus 6 untuk dump). */
+export function countKkiInternalSpaces(value: string): number {
+  const m = /^(\d{14})(\s+)(\d+)/.exec(spacesFromPlus(value).trim());
+  return m ? m[2].length : 0;
+}
+
+/**
+ * Normalisasi untuk lookup SQL: wajib bentuk padded primary 6 spasi.
+ * Return null jika compact terlalu pendek.
+ */
+export function normalizeKkiForLookup(
+  value: string | null | undefined,
+): string | null {
+  return primaryPaddedKki(value);
 }
 
 /**

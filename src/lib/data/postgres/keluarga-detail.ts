@@ -234,6 +234,7 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
  * LIMIT 1
  * ```
  * `$1` = padded primary (`14` + 6 spasi + sisa). Tanpa ANY / id_kelurahan / replace.
+ * Jangan filter id_kelurahan setelah fetch (bed namespace ID → false 404).
  */
 export async function getKeluargaDetailPostgres(
   query: KeluargaDetailQuery,
@@ -258,6 +259,7 @@ export async function getKeluargaDetailPostgres(
   const relation = stuntingHeadPartitionRelation(Math.trunc(query.provinsiId));
   const { qualified } = relation;
 
+  // Wajib rebuild pad-6 dari compact — input boleh 1 spasi / 6 spasi / tanpa spasi.
   const paddedPrimary = primaryPaddedKki(query.kki);
   if (!paddedPrimary) {
     throw new PostgresDataError(
@@ -271,12 +273,8 @@ export async function getKeluargaDetailPostgres(
     );
   }
 
-  const kelurahanId =
-    query.kelurahanId != null && Number.isFinite(query.kelurahanId)
-      ? Math.trunc(query.kelurahanId)
-      : null;
-
   const sql = sqlExactEqOnPartition(qualified);
+  // $1 = tepat bentuk dump Fajar (14 + 6 spasi + sisa), bukan string URL mentah.
   const params: unknown[] = [paddedPrimary];
   const diag = {
     ...buildDiag({
@@ -284,10 +282,11 @@ export async function getKeluargaDetailPostgres(
       sql,
       params,
       kkiRaw: query.kki,
-      attempt: "exact_kki_eq",
+      attempt: "exact_kki_eq_pad6",
     }),
-    kelurahanId,
-    kelurahanFilter: "app_after_fetch",
+    paddedPrimaryVisible: paddedPrimary.replace(/ /g, "·"),
+    paddedSpaceCount: 6,
+    kelurahanIdIgnored: query.kelurahanId ?? null,
   };
 
   if (query.diag) {
@@ -295,17 +294,9 @@ export async function getKeluargaDetailPostgres(
   }
 
   const res = await queryVervalDetail<StuntingHeadRowRow>(sql, params, diag);
-  let row: StuntingHeadRowRow | undefined = res.rows[0];
-
-  // Filter kelurahan di app (bukan di SQL hot path) — sesuai permintaan Fajar.
-  if (
-    row &&
-    kelurahanId != null &&
-    row.id_kelurahan != null &&
-    Number(row.id_kelurahan) !== kelurahanId
-  ) {
-    row = undefined;
-  }
+  // Lookup by KKI saja (pola Fajar). Jangan filter id_kelurahan di app —
+  // id desa peta / DWH sering ≠ id_kelurahan Verval → false 404 (modal kosong).
+  const row: StuntingHeadRowRow | undefined = res.rows[0];
 
   if (!row) {
     throw new PostgresDataError(
