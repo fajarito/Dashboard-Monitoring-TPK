@@ -147,6 +147,12 @@ function buildDiag(args: {
   };
 }
 
+/**
+ * Fajar: index btree(kki) belum bisa dibuat; OK query >4s (EXPLAIN ~1.9s seq scan).
+ * Naikkan timeout **hanya** di path detail — jangan ubah pool global.
+ */
+const VERVAL_DETAIL_TIMEOUT_MS = 20_000;
+
 async function queryVervalDetail<T extends StuntingHeadRowRow>(
   text: string,
   params: unknown[],
@@ -154,15 +160,27 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
 ): Promise<QueryResult<T>> {
   const config = getPoolConfigs().verval;
   const pool = getPool("verval");
+  const client = await pool.connect();
   try {
-    // query_timeout = opsi node-pg (di luar QueryConfig strict typings).
-    return await pool.query<T>({
+    // SET LOCAL hanya berlaku dalam transaksi — aman dikembalikan ke pool.
+    await client.query("BEGIN");
+    await client.query(
+      `SET LOCAL statement_timeout = '${VERVAL_DETAIL_TIMEOUT_MS}'`,
+    );
+    const result = await client.query<T>({
       text,
       values: params,
-      // Client-side; server role mungkin statement_timeout ~4s.
-      query_timeout: 8_000,
+      // Client-side mirror (node-pg); server pakai SET LOCAL di atas.
+      query_timeout: VERVAL_DETAIL_TIMEOUT_MS,
     } as { text: string; values: unknown[]; query_timeout: number });
+    await client.query("COMMIT");
+    return result;
   } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* ignore */
+    }
     logPostgresError("query failed (verval detail)", err, {
       pool: "verval",
       url: config.url,
@@ -172,6 +190,7 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
       sql: diagBase.sql,
       paramsVisible: diagBase.paramsVisible,
       kki: diagBase.kki,
+      timeoutMs: VERVAL_DETAIL_TIMEOUT_MS,
     });
     const hint = config.url ? redactDatabaseUrl(config.url) : config.envKey;
     const missingTable =
@@ -190,10 +209,17 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
     throw new PostgresDataError(
       timedOut ? "postgres_query_timeout" : "postgres_query_failed",
       timedOut
-        ? `Query verval timeout pada ${diagBase.qualified} (${hint}). Cek index btree(kki) + bentuk padded; lihat diag.sql.`
+        ? `Query verval timeout ${VERVAL_DETAIL_TIMEOUT_MS}ms pada ${diagBase.qualified} (${hint}). Seq scan tanpa index kki; lihat diag.sql.`
         : `Query verval gagal pada ${diagBase.qualified} (${hint}).`,
-      { pool: "verval", cause: err, status: 503, details: diagBase },
+      {
+        pool: "verval",
+        cause: err,
+        status: 503,
+        details: { ...diagBase, timeoutMs: VERVAL_DETAIL_TIMEOUT_MS },
+      },
     );
+  } finally {
+    client.release();
   }
 }
 
