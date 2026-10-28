@@ -19,6 +19,11 @@ import type {
   TpkListIndikator,
   TpkListPkb,
 } from "@/lib/data/types";
+import {
+  mapPkbPelatihanSqlRow,
+  resolvePkbPelatihanEmptyHint,
+  resolvePkbPelatihanLabels,
+} from "@/lib/pkb-pelatihan-siga";
 import { formatTpkDisplayName } from "@/lib/tpk-display-name";
 
 type SigaTpkRow = {
@@ -55,6 +60,18 @@ type PkbJoinRow = {
   jabatan_tipe: number | null;
   jabatan_pkb: string | null;
   jabatan_plkb: string | null;
+  pelatihan_fungsional_ldu: number | null;
+  pelatihan_fungsional_refreshing: number | null;
+  pelatihan_fungsional_penjenjangan: number | null;
+  pelatihan_fungsional_belum_terlatih: number | null;
+  pelatihan_teknis_pencatatan_laporan: number | null;
+  pelatihan_teknis_kip_konseling: number | null;
+  pelatihan_teknis_advokasi: number | null;
+  pelatihan_teknis_kie: number | null;
+  pelatihan_teknis_substansi_lainnya: number | null;
+  pelatihan_teknis_kependudukan: number | null;
+  pelatihan_teknis_pembangunan_keluarga: number | null;
+  pelatihan_teknis_belum_terlatih: number | null;
 };
 
 type NamaProvRow = { id_provinsi: number; nama_provinsi: string };
@@ -205,6 +222,8 @@ function mapPkbRow(row: PkbJoinRow): TpkListPkb {
     row.jabatan_plkb,
   );
   const pkbId = row.pkbid?.trim() || "";
+  const pelatihanFlags = mapPkbPelatihanSqlRow(row);
+  const pelatihanLabels = resolvePkbPelatihanLabels(pelatihanFlags);
   return {
     pkbId,
     nip: pkbId || null,
@@ -213,6 +232,11 @@ function mapPkbRow(row: PkbJoinRow): TpkListPkb {
     jabatanDetail,
     nik: row.nik?.trim() || null,
     noHp: row.nohp?.trim() || null,
+    pelatihanLabels,
+    pelatihanEmptyHint:
+      pelatihanLabels.length === 0
+        ? resolvePkbPelatihanEmptyHint(pelatihanFlags)
+        : null,
   };
 }
 

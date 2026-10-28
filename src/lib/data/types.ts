@@ -232,6 +232,13 @@ export type TpkListPkb = {
   jabatanDetail: string | null;
   nik: string | null;
   noHp: string | null;
+  /**
+   * Jenis pelatihan dari SIGA `dat_PKB.Pelatihan*` (flag=1).
+   * Bukan dari portal / jabatanDetail.
+   */
+  pelatihanLabels: string[];
+  /** Hint empty-state SIGA (belum terlatih / kosong). */
+  pelatihanEmptyHint: string | null;
 };
 
 /**

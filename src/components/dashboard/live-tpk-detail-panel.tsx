@@ -176,8 +176,8 @@ function ProfileMeta({
 
 /**
  * Profil profesional PKB/PLKB — satu composition (bukan nested cards).
- * NIP & field portal dari response; lokasi title-case; pelatihan dari portal
- * atau jenjang lokal (`jabatanDetail`).
+ * Identitas (NIP/foto/jabatan/kontak/lokasi) dari portal;
+ * informasi terlatih dari SIGA `dat_PKB.Pelatihan*` (payload.pkb.pelatihanLabels).
  */
 function PkbPembinaCard({
   pkb,
@@ -232,17 +232,13 @@ function PkbPembinaCard({
       lokasi.kelurahan,
   ]);
 
-  const pelatihanItems: string[] = [];
-  if (portalReady && Array.isArray(d.pelatihanLabels)) {
-    for (const label of d.pelatihanLabels) {
-      const s = label?.trim();
-      if (s && !pelatihanItems.includes(s)) pelatihanItems.push(s);
-    }
-  }
-  // Fallback lokal: jenjang jabatan (Terampil/Mahir/…) bila portal kosong.
-  if (pelatihanItems.length === 0 && pkb?.jabatanDetail?.trim()) {
-    pelatihanItems.push(`Jenjang ${pkb.jabatanDetail.trim()}`);
-  }
+  // Terlatih = SIGA/DWH saja (bukan portal / jabatanDetail).
+  const pelatihanItems = (pkb?.pelatihanLabels ?? []).filter((s) =>
+    Boolean(s?.trim()),
+  );
+  const pelatihanEmpty =
+    pkb?.pelatihanEmptyHint?.trim() ||
+    "Belum ada data pelatihan dari SIGA.";
 
   const source = d?.source ?? "fallback";
   const sourceLabel =
@@ -352,6 +348,9 @@ function PkbPembinaCard({
               <div className="text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
                 Informasi terlatih
               </div>
+              <p className="mt-0.5 text-[10px] text-slate-400">
+                Sumber SIGA · dat_PKB
+              </p>
               {pelatihanItems.length > 0 ? (
                 <ul className="mt-1.5 space-y-1">
                   {pelatihanItems.map((item) => (
@@ -365,7 +364,7 @@ function PkbPembinaCard({
                 </ul>
               ) : (
                 <p className="mt-1.5 text-[12px] text-muted-foreground">
-                  Belum ada data pelatihan / jenjang.
+                  {pelatihanEmpty}
                 </p>
               )}
             </div>
