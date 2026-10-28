@@ -167,13 +167,16 @@ function PkbPembinaCard({
   lokasi,
 }: {
   pkb: TpkListPkb | null;
+  /** Nama wilayah dari payload TPK (bukan kode BPS). */
   lokasi: {
     propinsi: string | null;
     kabupaten: string | null;
+    kecamatan: string | null;
+    kelurahan: string | null;
   };
 }) {
   // Lookup portal: prefer NIP 18d, else NIK/KTP 16d (pkb.nik) → query ktp=.
-  // Kode wilayah (8 digit) ditolak — tidak dikirim sebagai NIP.
+  // Lokasi filter = nama UPPER (prop/kab/kec/kel) — bukan kode.
   const portal = usePkbPortal(
     pkb
       ? { nip: pkb.nip, pkbId: pkb.pkbId, nik: pkb.nik }
@@ -181,6 +184,8 @@ function PkbPembinaCard({
     {
       propinsi: lokasi.propinsi,
       kabupaten: lokasi.kabupaten,
+      kecamatan: lokasi.kecamatan,
+      kelurahan: lokasi.kelurahan,
       statuspegawai: "PKB",
     },
   );
@@ -470,6 +475,8 @@ function DetailReady({
         lokasi={{
           propinsi: payload.wilayah.namaProvinsi,
           kabupaten: payload.wilayah.namaKabupaten,
+          kecamatan: payload.wilayah.namaKecamatan,
+          kelurahan: payload.wilayah.namaKelurahan,
         }}
       />
 

@@ -6,6 +6,7 @@ import {
   getPkbPortalToken,
 } from "@/lib/pkb-portal";
 import {
+  resolvePortalLokasiNames,
   resolvePortalLookupKey,
   type PkbPortalLookupKey,
 } from "@/lib/pkb-portal-lookup";
@@ -18,29 +19,37 @@ type RouteContext = {
 };
 
 /**
- * GET /api/pkb/[key]?propinsi=&kabupaten=&statuspegawai=PKB
- * Alias query: lokasi_propinsi, lokasi_kabupaten, ktp=
+ * GET /api/pkb/[key]?lokasi_propinsi=&lokasi_kabupaten=&lokasi_kecamatan=&lokasi_kelurahan=
  *
  * Path `[key]` = NIP 18-digit ATAU NIK/KTP 16-digit.
  * Query `?ktp=` menimpa path bila valid (16 digit).
- * Portal live: `ktp=<NIK>` (konfirmasi Fajar) atau `NIP=<NIP>`.
- * Response selalu menampilkan `NIP` dari portal (bukan NIK lokal).
- * ?diag=1 → meta auth (tanpa token).
+ * Lokasi filter = **nama** (UPPER), bukan kode — contoh Fajar:
+ *   `?ktp=…&lokasi_kecamatan=BOJONG%20GEDE&lokasi_kelurahan=SUSUKAN`
+ * Response selalu menampilkan `NIP` dari portal.
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   const { nip: rawPath } = await context.params;
   const pathKey = decodeURIComponent(rawPath || "").trim();
+  const q = request.nextUrl.searchParams;
   const qKtp =
-    request.nextUrl.searchParams.get("ktp")?.trim() ||
-    request.nextUrl.searchParams.get("KTP")?.trim() ||
-    request.nextUrl.searchParams.get("nik")?.trim() ||
+    q.get("ktp")?.trim() ||
+    q.get("KTP")?.trim() ||
+    q.get("nik")?.trim() ||
     null;
 
   const lookup: PkbPortalLookupKey | null =
     resolvePortalLookupKey(qKtp) ?? resolvePortalLookupKey(pathKey);
 
   const diag = getPkbPortalAuthDiag();
-  const wantDiag = request.nextUrl.searchParams.get("diag") === "1";
+  const wantDiag = q.get("diag") === "1";
+
+  const lokasiNames = resolvePortalLokasiNames({
+    propinsi: q.get("lokasi_propinsi") || q.get("propinsi"),
+    kabupaten: q.get("lokasi_kabupaten") || q.get("kabupaten"),
+    kecamatan: q.get("lokasi_kecamatan") || q.get("kecamatan"),
+    kelurahan: q.get("lokasi_kelurahan") || q.get("kelurahan"),
+  });
+  const statuspegawai = q.get("statuspegawai")?.trim() || "PKB";
 
   if (!lookup) {
     return NextResponse.json(
@@ -53,6 +62,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               ...diag,
               pathKey: pathKey || null,
               qKtp: qKtp || null,
+              lokasi: lokasiNames,
               generatedAt: new Date().toISOString(),
             }
           : undefined,
@@ -61,20 +71,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const propinsi =
-    request.nextUrl.searchParams.get("propinsi")?.trim() ||
-    request.nextUrl.searchParams.get("lokasi_propinsi")?.trim() ||
-    "";
-  const kabupaten =
-    request.nextUrl.searchParams.get("kabupaten")?.trim() ||
-    request.nextUrl.searchParams.get("lokasi_kabupaten")?.trim() ||
-    "";
-  const statuspegawai =
-    request.nextUrl.searchParams.get("statuspegawai")?.trim() || "PKB";
-
   const { enrichment, httpStatus } = await fetchPkbFromPortal(lookup, {
-    propinsi,
-    kabupaten,
+    ...lokasiNames,
     statuspegawai,
   });
 
@@ -90,6 +88,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         portalHttpStatus: httpStatus,
         meta: {
           generatedAt: new Date().toISOString(),
+          lokasi: lokasiNames,
           ...diag,
         },
       },
@@ -131,6 +130,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         portalHttpStatus: httpStatus,
         lookupKind: lookup.kind,
         lookupValue: lookup.value,
+        lokasi: lokasiNames,
         simsdmFotoBase: process.env.SIMSDM_FOTO_BASE_URL?.trim() || null,
         ...diag,
       },

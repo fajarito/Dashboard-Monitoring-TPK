@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  resolvePortalLokasiNames,
   resolvePortalLookupFromPkb,
   type PkbPortalLookupKey,
 } from "@/lib/pkb-portal-lookup";
@@ -40,8 +41,11 @@ export type PkbPortalClientPayload = {
 };
 
 export type PkbPortalLokasiInput = {
+  /** Nama (bukan kode). */
   propinsi?: string | null;
   kabupaten?: string | null;
+  kecamatan?: string | null;
+  kelurahan?: string | null;
   statuspegawai?: string | null;
 };
 
@@ -79,11 +83,16 @@ export function usePkbPortal(
       ? resolvePortalLookupFromPkb({ nip: pkb, pkbId: pkb, nik: pkb })
       : resolvePortalLookupFromPkb(pkb);
 
-  const propinsi = lokasi.propinsi?.trim() ?? "";
-  const kabupaten = lokasi.kabupaten?.trim() ?? "";
+  const lokasiNames = resolvePortalLokasiNames({
+    propinsi: lokasi.propinsi,
+    kabupaten: lokasi.kabupaten,
+    kecamatan: lokasi.kecamatan,
+    kelurahan: lokasi.kelurahan,
+  });
   const statuspegawai = lokasi.statuspegawai?.trim() || "PKB";
   const lookupKind = lookup?.kind ?? "";
   const lookupValue = lookup?.value ?? "";
+  const { propinsi, kabupaten, kecamatan, kelurahan } = lokasiNames;
 
   useEffect(() => {
     if (!lookup) {
@@ -104,10 +113,11 @@ export function usePkbPortal(
     if (lookup.kind === "ktp") {
       params.set("ktp", lookup.value);
     }
+    // Portal filter = nama UPPER (bukan kode).
     if (propinsi) params.set("lokasi_propinsi", propinsi);
     if (kabupaten) params.set("lokasi_kabupaten", kabupaten);
-    if (propinsi) params.set("propinsi", propinsi);
-    if (kabupaten) params.set("kabupaten", kabupaten);
+    if (kecamatan) params.set("lokasi_kecamatan", kecamatan);
+    if (kelurahan) params.set("lokasi_kelurahan", kelurahan);
     params.set("statuspegawai", statuspegawai);
 
     const pathKey = encodeURIComponent(lookup.value);
@@ -183,8 +193,16 @@ export function usePkbPortal(
       });
 
     return () => controller.abort();
-    // lookupKind/Value stabilkan deps tanpa objek baru tiap render
-  }, [lookupKind, lookupValue, propinsi, kabupaten, statuspegawai]);
+    // lookupKind/Value + nama lokasi stabilkan deps tanpa objek baru tiap render
+  }, [
+    lookupKind,
+    lookupValue,
+    propinsi,
+    kabupaten,
+    kecamatan,
+    kelurahan,
+    statuspegawai,
+  ]);
 
   return state;
 }

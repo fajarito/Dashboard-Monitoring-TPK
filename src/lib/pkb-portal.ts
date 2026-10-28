@@ -11,14 +11,18 @@ export {
   isValidNikKtp,
   isValidNipPns,
   isWilayahCode,
+  normalizePortalLokasiName,
+  resolvePortalLokasiNames,
   resolvePortalLookupFromPkb,
   resolvePortalLookupKey,
   resolvePortalLookupNip,
   type PkbPortalLookupKey,
   type PkbPortalLookupKind,
+  type PkbPortalLokasiNames,
 } from "@/lib/pkb-portal-lookup";
 
 import {
+  resolvePortalLokasiNames,
   resolvePortalLookupKey,
   type PkbPortalLookupKey,
 } from "@/lib/pkb-portal-lookup";
@@ -40,8 +44,14 @@ export type PkbPortalRecord = {
 };
 
 export type PkbPortalLokasi = {
+  /** Nama provinsi (bukan kode). */
   propinsi: string;
+  /** Nama kabupaten/kota (bukan kode). */
   kabupaten: string;
+  /** Nama kecamatan (bukan kode). */
+  kecamatan?: string;
+  /** Nama kelurahan/desa (bukan kode). */
+  kelurahan?: string;
   statuspegawai?: string;
 };
 
@@ -342,10 +352,17 @@ export async function fetchPkbFromPortal(
   } else {
     params.set("NIP", lookup.value);
   }
-  const propinsi = lokasi.propinsi?.trim().toUpperCase() || "";
-  const kabupaten = lokasi.kabupaten?.trim().toUpperCase() || "";
-  if (propinsi) params.set("lokasi_propinsi", propinsi);
-  if (kabupaten) params.set("lokasi_kabupaten", kabupaten);
+  // Filter lokasi = NAMA (UPPER), bukan kode wilayah — konfirmasi Fajar.
+  const names = resolvePortalLokasiNames({
+    propinsi: lokasi.propinsi,
+    kabupaten: lokasi.kabupaten,
+    kecamatan: lokasi.kecamatan,
+    kelurahan: lokasi.kelurahan,
+  });
+  if (names.propinsi) params.set("lokasi_propinsi", names.propinsi);
+  if (names.kabupaten) params.set("lokasi_kabupaten", names.kabupaten);
+  if (names.kecamatan) params.set("lokasi_kecamatan", names.kecamatan);
+  if (names.kelurahan) params.set("lokasi_kelurahan", names.kelurahan);
   params.set(
     "statuspegawai",
     (lokasi.statuspegawai?.trim() || "PKB").toUpperCase(),

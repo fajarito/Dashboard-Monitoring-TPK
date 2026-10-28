@@ -81,3 +81,43 @@ export function resolvePortalLookupNip(
   const key = resolvePortalLookupKey(...candidates);
   return key ? key.value : null;
 }
+
+/**
+ * Nama lokasi untuk query portal — UPPERCASE, bukan kode wilayah.
+ * Null jika kosong / murni digit / kode BPS (2–10 digit).
+ * Contoh valid: "BOJONG GEDE", "SUSUKAN", "JAWA BARAT".
+ */
+export function normalizePortalLokasiName(
+  raw: string | null | undefined,
+): string | null {
+  const value = raw?.trim();
+  if (!value) return null;
+  const compact = value.replace(/[.\-\s]/g, "");
+  if (/^\d+$/.test(compact) && compact.length <= 10) return null;
+  if (isWilayahCode(compact)) return null;
+  return value.toUpperCase();
+}
+
+export type PkbPortalLokasiNames = {
+  propinsi?: string | null;
+  kabupaten?: string | null;
+  kecamatan?: string | null;
+  kelurahan?: string | null;
+};
+
+/** Normalisasi 4 level lokasi → hanya nama string siap query portal. */
+export function resolvePortalLokasiNames(
+  input: PkbPortalLokasiNames | null | undefined,
+): {
+  propinsi: string;
+  kabupaten: string;
+  kecamatan: string;
+  kelurahan: string;
+} {
+  return {
+    propinsi: normalizePortalLokasiName(input?.propinsi) ?? "",
+    kabupaten: normalizePortalLokasiName(input?.kabupaten) ?? "",
+    kecamatan: normalizePortalLokasiName(input?.kecamatan) ?? "",
+    kelurahan: normalizePortalLokasiName(input?.kelurahan) ?? "",
+  };
+}
