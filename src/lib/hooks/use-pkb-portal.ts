@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  resolvePortalLookupFromPkb,
+  type PkbPortalLookupKey,
+} from "@/lib/pkb-portal-lookup";
+
 /** Payload proxy — field portal + alias UI. */
 export type PkbPortalClientPayload = {
-  /** NIP dari response portal. */
+  /** NIP dari response portal (setelah lookup by NIP atau ktp). */
   NIP: string;
   nip: string;
   nama: string;
@@ -28,6 +33,10 @@ export type PkbPortalClientPayload = {
   fotoUrl: string | null;
   source: "portal" | "stub" | "fallback";
   warning: string | null;
+  meta?: {
+    lookupKind?: "nip" | "ktp";
+    lookupValue?: string;
+  };
 };
 
 export type PkbPortalLokasiInput = {
@@ -40,64 +49,69 @@ export type UsePkbPortalState = {
   status: "idle" | "loading" | "ready" | "empty" | "error";
   data: PkbPortalClientPayload | null;
   error: string | null;
+  lookup: PkbPortalLookupKey | null;
+};
+
+export type UsePkbPortalPkbInput = {
+  nip?: string | null;
+  pkbId?: string | null;
+  nik?: string | null;
 };
 
 /**
- * Enrich detail PKB dari proxy `/api/pkb/[nip]` (server pegang token).
- * `nip` argumen = kunci pencarian (biasanya PKBID SIGA); NIP tampilan = `data.NIP`.
+ * Enrich detail PKB dari proxy `/api/pkb/[key]` (server pegang token).
+ * Lookup: prefer NIP 18-digit, else NIK/KTP 16-digit → portal `?ktp=`.
+ * NIP tampilan = `data.NIP` dari response portal.
  */
 export function usePkbPortal(
-  nip: string | null | undefined,
+  pkb: UsePkbPortalPkbInput | string | null | undefined,
   lokasi: PkbPortalLokasiInput,
 ): UsePkbPortalState {
   const [state, setState] = useState<UsePkbPortalState>({
     status: "idle",
     data: null,
     error: null,
+    lookup: null,
   });
 
-  // Izinkan PKBID bermasker; server menormalisasi digit via resolvePortalLookupNip.
-  const nipKey = (() => {
-    const raw = nip?.trim() ?? "";
-    if (!raw) return "";
-    if (/^\d{8,25}$/.test(raw)) return raw;
-    const digits = raw.replace(/\D/g, "");
-    return digits.length >= 8 && digits.length <= 25 ? digits : raw;
-  })();
+  const lookup: PkbPortalLookupKey | null =
+    typeof pkb === "string"
+      ? resolvePortalLookupFromPkb({ nip: pkb, pkbId: pkb, nik: pkb })
+      : resolvePortalLookupFromPkb(pkb);
+
   const propinsi = lokasi.propinsi?.trim() ?? "";
   const kabupaten = lokasi.kabupaten?.trim() ?? "";
   const statuspegawai = lokasi.statuspegawai?.trim() || "PKB";
+  const lookupKind = lookup?.kind ?? "";
+  const lookupValue = lookup?.value ?? "";
 
   useEffect(() => {
-    if (!nipKey) {
+    if (!lookup) {
       setState({
         status: "idle",
         data: null,
-        error: "NIP lookup kosong (pkb.nip / pkbId tidak ada di payload TPK)",
-      });
-      return;
-    }
-    if (!/^\d{8,25}$/.test(nipKey)) {
-      setState({
-        status: "idle",
-        data: null,
-        error: `NIP lookup tidak valid untuk portal: "${nipKey}" (butuh 8–25 digit)`,
+        lookup: null,
+        error:
+          "Lookup portal kosong — butuh NIP 18 digit atau NIK/KTP 16 digit di pkb (bukan kode wilayah)",
       });
       return;
     }
 
     const controller = new AbortController();
-    setState({ status: "loading", data: null, error: null });
+    setState({ status: "loading", data: null, error: null, lookup });
 
     const params = new URLSearchParams();
+    if (lookup.kind === "ktp") {
+      params.set("ktp", lookup.value);
+    }
     if (propinsi) params.set("lokasi_propinsi", propinsi);
     if (kabupaten) params.set("lokasi_kabupaten", kabupaten);
-    // alias tetap dikirim agar kompatibel
     if (propinsi) params.set("propinsi", propinsi);
     if (kabupaten) params.set("kabupaten", kabupaten);
     params.set("statuspegawai", statuspegawai);
 
-    void fetch(`/api/pkb/${encodeURIComponent(nipKey)}?${params.toString()}`, {
+    const pathKey = encodeURIComponent(lookup.value);
+    void fetch(`/api/pkb/${pathKey}?${params.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -110,11 +124,14 @@ export function usePkbPortal(
             const body = (await response.json()) as {
               message?: string;
               error?: string;
-              meta?: { tokenConfigured?: boolean; tokenHadBearerPrefix?: boolean };
+              meta?: {
+                tokenConfigured?: boolean;
+                tokenHadBearerPrefix?: boolean;
+              };
             };
             message = body?.message ?? body?.error ?? null;
             if (body?.meta?.tokenHadBearerPrefix) {
-              message = `${message ?? "auth"} (env punya prefix Bearer — sudah di-strip di v4)`;
+              message = `${message ?? "auth"} (env punya prefix Bearer — sudah di-strip)`;
             }
             if (body?.meta && body.meta.tokenConfigured === false) {
               message =
@@ -146,16 +163,18 @@ export function usePkbPortal(
             status: "empty",
             data: null,
             error: result.message ?? null,
+            lookup,
           });
           return;
         }
-        setState({ status: "ready", data: result.data, error: null });
+        setState({ status: "ready", data: result.data, error: null, lookup });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         setState({
           status: "error",
           data: null,
+          lookup,
           error:
             err instanceof Error
               ? err.message
@@ -164,7 +183,8 @@ export function usePkbPortal(
       });
 
     return () => controller.abort();
-  }, [nipKey, propinsi, kabupaten, statuspegawai]);
+    // lookupKind/Value stabilkan deps tanpa objek baru tiap render
+  }, [lookupKind, lookupValue, propinsi, kabupaten, statuspegawai]);
 
   return state;
 }

@@ -4,8 +4,11 @@ import {
   fetchPkbFromPortal,
   getPkbPortalAuthDiag,
   getPkbPortalToken,
-  resolvePortalLookupNip,
 } from "@/lib/pkb-portal";
+import {
+  resolvePortalLookupKey,
+  type PkbPortalLookupKey,
+} from "@/lib/pkb-portal-lookup";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,24 +18,44 @@ type RouteContext = {
 };
 
 /**
- * GET /api/pkb/[nip]?propinsi=&kabupaten=&statuspegawai=PKB
- * Alias query: lokasi_propinsi, lokasi_kabupaten.
- * Proxy server-side ke API portal (token tidak diekspos ke browser).
- * ?diag=1 → meta auth (tanpa token) untuk debug lokal.
+ * GET /api/pkb/[key]?propinsi=&kabupaten=&statuspegawai=PKB
+ * Alias query: lokasi_propinsi, lokasi_kabupaten, ktp=
+ *
+ * Path `[key]` = NIP 18-digit ATAU NIK/KTP 16-digit.
+ * Query `?ktp=` menimpa path bila valid (16 digit).
+ * Portal live: `ktp=<NIK>` (konfirmasi Fajar) atau `NIP=<NIP>`.
+ * Response selalu menampilkan `NIP` dari portal (bukan NIK lokal).
+ * ?diag=1 → meta auth (tanpa token).
  */
 export async function GET(request: NextRequest, context: RouteContext) {
-  const { nip: rawNip } = await context.params;
-  const nip = resolvePortalLookupNip(decodeURIComponent(rawNip || ""));
+  const { nip: rawPath } = await context.params;
+  const pathKey = decodeURIComponent(rawPath || "").trim();
+  const qKtp =
+    request.nextUrl.searchParams.get("ktp")?.trim() ||
+    request.nextUrl.searchParams.get("KTP")?.trim() ||
+    request.nextUrl.searchParams.get("nik")?.trim() ||
+    null;
+
+  const lookup: PkbPortalLookupKey | null =
+    resolvePortalLookupKey(qKtp) ?? resolvePortalLookupKey(pathKey);
+
   const diag = getPkbPortalAuthDiag();
   const wantDiag = request.nextUrl.searchParams.get("diag") === "1";
 
-  if (!nip) {
+  if (!lookup) {
     return NextResponse.json(
       {
-        error: "invalid_nip",
+        error: "invalid_lookup",
         message:
-          "Parameter NIP tidak valid (butuh 8–25 digit). Cek pkb.nip / pkbId di payload TPK.",
-        meta: wantDiag ? { ...diag, generatedAt: new Date().toISOString() } : undefined,
+          "Butuh NIP 18 digit atau NIK/KTP 16 digit. Kode wilayah (mis. 32010108) ditolak. Isi pkb.nik di payload TPK.",
+        meta: wantDiag
+          ? {
+              ...diag,
+              pathKey: pathKey || null,
+              qKtp: qKtp || null,
+              generatedAt: new Date().toISOString(),
+            }
+          : undefined,
       },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
@@ -49,7 +72,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const statuspegawai =
     request.nextUrl.searchParams.get("statuspegawai")?.trim() || "PKB";
 
-  const { enrichment, httpStatus } = await fetchPkbFromPortal(nip, {
+  const { enrichment, httpStatus } = await fetchPkbFromPortal(lookup, {
     propinsi,
     kabupaten,
     statuspegawai,
@@ -61,9 +84,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       {
         error: hasToken ? "pkb_not_found" : "portal_token_missing",
         message: hasToken
-          ? "PKB tidak ditemukan / tidak ter-parse dari portal untuk NIP ini."
+          ? `PKB tidak ditemukan di portal untuk ${lookup.kind}=${lookup.value}.`
           : "PKB_PORTAL_API_TOKEN belum terbaca proses Next (isi .env.local lalu restart next dev).",
-        nip,
+        lookup,
         portalHttpStatus: httpStatus,
         meta: {
           generatedAt: new Date().toISOString(),
@@ -79,7 +102,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   return NextResponse.json(
     {
-      // Field portal (semua ditampilkan di kartu; NIP = response.NIP, bukan NIK).
+      // NIP tampilan = response portal (bukan NIK/KTP yang dipakai lookup).
       NIP: enrichment.nip,
       nip: enrichment.nip,
       nama: enrichment.nama,
@@ -106,7 +129,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       meta: {
         generatedAt: new Date().toISOString(),
         portalHttpStatus: httpStatus,
-        lookupNip: nip,
+        lookupKind: lookup.kind,
+        lookupValue: lookup.value,
         simsdmFotoBase: process.env.SIMSDM_FOTO_BASE_URL?.trim() || null,
         ...diag,
       },
@@ -116,6 +140,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       headers: {
         "Cache-Control": "private, max-age=60",
         "X-Pkb-Source": enrichment.source,
+        "X-Pkb-Lookup": lookup.kind,
       },
     },
   );

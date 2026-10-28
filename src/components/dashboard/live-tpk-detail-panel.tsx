@@ -172,20 +172,26 @@ function PkbPembinaCard({
     kabupaten: string | null;
   };
 }) {
-  // Kunci pencarian ke portal: pkb.nip (SIGA) lalu pkbId.
-  // Tanpa digit 8–25 → hook idle, tidak pernah hit /api/pkb.
-  const lookupKey = pkb?.nip?.trim() || pkb?.pkbId?.trim() || null;
-  const portal = usePkbPortal(lookupKey, {
-    propinsi: lokasi.propinsi,
-    kabupaten: lokasi.kabupaten,
-    // Filter portal = statuspegawai (PKB/PLKB), BUKAN jab_akhir/jabatan lokal.
-    statuspegawai: "PKB",
-  });
+  // Lookup portal: prefer NIP 18d, else NIK/KTP 16d (pkb.nik) → query ktp=.
+  // Kode wilayah (8 digit) ditolak — tidak dikirim sebagai NIP.
+  const portal = usePkbPortal(
+    pkb
+      ? { nip: pkb.nip, pkbId: pkb.pkbId, nik: pkb.nik }
+      : null,
+    {
+      propinsi: lokasi.propinsi,
+      kabupaten: lokasi.kabupaten,
+      statuspegawai: "PKB",
+    },
+  );
+  const lookupKey = portal.lookup
+    ? `${portal.lookup.kind}:${portal.lookup.value}`
+    : null;
 
   const d = portal.data;
   const portalReady = portal.status === "ready" && d != null;
 
-  // NIP tampilan: HANYA dari response portal. Jangan pakai NIK / lookupKey lokal.
+  // NIP tampilan: HANYA dari response portal (meski lookup via ktp/NIK).
   const displayNip = portalReady ? d.NIP || d.nip : null;
   const name = portalReady ? d.nama : pkb?.nama || null;
   const phone = portalReady ? d.nohp : pkb?.noHp || null;
@@ -220,7 +226,7 @@ function PkbPembinaCard({
         : portal.status === "loading"
           ? "Memuat portal…"
           : portal.status === "idle" && portal.error
-            ? "Lookup NIP kosong"
+            ? "Lookup kosong"
             : portal.status === "empty"
               ? "Portal kosong"
               : portal.status === "error"
@@ -229,9 +235,17 @@ function PkbPembinaCard({
 
   const nipStatusLine = (() => {
     if (displayNip) return `NIP ${displayNip}`;
-    if (portal.status === "loading") return "NIP … memuat portal";
+    if (portal.status === "loading") {
+      const via =
+        portal.lookup?.kind === "ktp"
+          ? "via KTP"
+          : portal.lookup?.kind === "nip"
+            ? "via NIP"
+            : "";
+      return `NIP … memuat portal ${via}`.trim();
+    }
     if (portal.status === "idle" && !lookupKey) {
-      return "NIP — (tidak ada nip/pkbId di data TPK lokal)";
+      return "NIP — (tidak ada NIP 18d / NIK 16d di data TPK)";
     }
     if (portal.status === "idle" && portal.error) {
       return `NIP — (${portal.error})`;
@@ -253,8 +267,8 @@ function PkbPembinaCard({
             PKB / PLKB pembina
           </h2>
           <p className="mt-1.5 max-w-md text-[12px] leading-relaxed text-muted-foreground">
-            Field dari API portal (NIP, jabatan, lokasi, email, foto SIMSDM) —
-            bukan NIK KTP
+            Lookup portal by NIP atau KTP (NIK lokal); tampilan NIP + foto
+            SIMSDM dari response portal
           </p>
         </div>
         <span

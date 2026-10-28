@@ -1,13 +1,32 @@
 /**
  * Integrasi API Portal PKB (UAT) + foto SIMSDM.
  * Server-side only — jangan import dari client component.
+ * Helper lookup murni: `pkb-portal-lookup.ts` (aman di client).
  *
  * Auth: set PKB_PORTAL_API_TOKEN (Bearer). Tanpa token → stub/fallback lokal.
  * Agregat jumlah PKB tidak diubah di sini.
  */
 
+export {
+  isValidNikKtp,
+  isValidNipPns,
+  isWilayahCode,
+  resolvePortalLookupFromPkb,
+  resolvePortalLookupKey,
+  resolvePortalLookupNip,
+  type PkbPortalLookupKey,
+  type PkbPortalLookupKind,
+} from "@/lib/pkb-portal-lookup";
+
+import {
+  resolvePortalLookupKey,
+  type PkbPortalLookupKey,
+} from "@/lib/pkb-portal-lookup";
+
 export type PkbPortalRecord = {
   NIP: string;
+  /** NIK/KTP dari response portal (field `ktp`). */
+  ktp: string | null;
   nama: string;
   nohp: string | null;
   jenispegawai: string | null;
@@ -58,6 +77,8 @@ const DEFAULT_SIMSDM_FOTO_BASE =
 
 /** NIP contoh UAT (Bali / Kota Denpasar) — untuk stub & smoke. */
 export const PKB_PORTAL_DEMO_NIP = "196803291988032003";
+/** NIK/KTP contoh yang dipetakan ke stub demo (tanpa token). */
+export const PKB_PORTAL_DEMO_KTP = "5171046903680003";
 
 function readEnv(name: string): string | null {
   const value = process.env[name]?.trim();
@@ -121,23 +142,6 @@ export function getPkbPortalAuthDiag(): {
   };
 }
 
-/**
- * Kunci NIP untuk query portal.
- * Ambil digit dari PKBID/nip lokal; NIP PNS biasanya 15–18 digit.
- */
-export function resolvePortalLookupNip(
-  ...candidates: Array<string | null | undefined>
-): string | null {
-  for (const raw of candidates) {
-    const value = raw?.trim();
-    if (!value) continue;
-    if (/^\d{8,25}$/.test(value)) return value;
-    const digits = value.replace(/\D/g, "");
-    if (digits.length >= 8 && digits.length <= 25) return digits;
-  }
-  return null;
-}
-
 /** Absolute URL SIMSDM (server-side fetch / debug). */
 export function buildSimsdmFotoUrl(
   foto: string | null | undefined,
@@ -166,13 +170,22 @@ export function buildPkbFotoProxyUrl(
 /** Aset stub lokal (public/) — dipakai tanpa token. */
 export const PKB_STUB_FOTO_PATH = "/pkb-stub-avatar.svg";
 
-/** Stub hasil portal untuk NIP demo — dipakai tanpa token atau saat smoke. */
+/** Stub hasil portal untuk NIP/KTP demo — dipakai tanpa token atau saat smoke. */
 export function getPkbPortalStub(
-  nip: string,
+  lookup: PkbPortalLookupKey | string,
 ): PkbPortalRecord | null {
-  if (nip !== PKB_PORTAL_DEMO_NIP) return null;
+  const key =
+    typeof lookup === "string"
+      ? resolvePortalLookupKey(lookup)
+      : lookup;
+  if (!key) return null;
+  const hit =
+    (key.kind === "nip" && key.value === PKB_PORTAL_DEMO_NIP) ||
+    (key.kind === "ktp" && key.value === PKB_PORTAL_DEMO_KTP);
+  if (!hit) return null;
   return {
     NIP: PKB_PORTAL_DEMO_NIP,
+    ktp: PKB_PORTAL_DEMO_KTP,
     nama: "Ni Luh Putu Suryani",
     nohp: "081234567890",
     jenispegawai: "PNS",
@@ -200,6 +213,7 @@ function normalizeRecord(raw: unknown): PkbPortalRecord | null {
   };
   return {
     NIP: nip,
+    ktp: str("ktp") ?? str("KTP") ?? str("nik") ?? str("NIK"),
     nama: str("nama") ?? nip,
     nohp: str("nohp") ?? str("no_hp"),
     jenispegawai: str("jenispegawai"),
@@ -213,32 +227,43 @@ function normalizeRecord(raw: unknown): PkbPortalRecord | null {
   };
 }
 
-function nipDigitsEqual(a: string, b: string): boolean {
+function digitsEqual(a: string, b: string): boolean {
   return a.replace(/\D/g, "") === b.replace(/\D/g, "");
 }
 
 function pickMatchingRecord(
   payload: unknown,
-  nip: string,
+  lookup: PkbPortalLookupKey,
 ): PkbPortalRecord | null {
+  const matchRec = (rec: PkbPortalRecord | null): PkbPortalRecord | null => {
+    if (!rec) return null;
+    if (lookup.kind === "nip" && digitsEqual(rec.NIP, lookup.value)) return rec;
+    if (
+      lookup.kind === "ktp" &&
+      rec.ktp &&
+      digitsEqual(rec.ktp, lookup.value)
+    ) {
+      return rec;
+    }
+    return null;
+  };
+
   if (Array.isArray(payload)) {
     for (const item of payload) {
-      const rec = normalizeRecord(item);
-      if (rec && nipDigitsEqual(rec.NIP, nip)) return rec;
+      const hit = matchRec(normalizeRecord(item));
+      if (hit) return hit;
     }
-    // Satu-satunya elemen array → terima meski field NIP sedikit berbeda format
+    // Query by ktp biasanya 1 record — terima elemen tunggal.
     if (payload.length === 1) return normalizeRecord(payload[0]);
     return null;
   }
   if (payload && typeof payload === "object") {
     const obj = payload as Record<string, unknown>;
-    if (Array.isArray(obj.data)) return pickMatchingRecord(obj.data, nip);
-    if (Array.isArray(obj.result)) return pickMatchingRecord(obj.result, nip);
-    if (Array.isArray(obj.items)) return pickMatchingRecord(obj.items, nip);
+    if (Array.isArray(obj.data)) return pickMatchingRecord(obj.data, lookup);
+    if (Array.isArray(obj.result)) return pickMatchingRecord(obj.result, lookup);
+    if (Array.isArray(obj.items)) return pickMatchingRecord(obj.items, lookup);
     const rec = normalizeRecord(payload);
-    if (rec && nipDigitsEqual(rec.NIP, nip)) return rec;
-    // Object tunggal tanpa array wrapper — terima bila ada NIP
-    return rec;
+    return matchRec(rec) ?? rec;
   }
   return null;
 }
@@ -276,25 +301,34 @@ export type FetchPkbPortalResult = {
 };
 
 /**
- * Ambil detail PKB by NIP dari portal UAT.
- * Tanpa token → stub (jika NIP demo) atau null (pemanggil pakai fallback lokal).
+ * Ambil detail PKB dari portal UAT.
+ * - kind=nip → query `NIP=`
+ * - kind=ktp → query `ktp=` (NIK 16 digit) — konfirmasi Fajar
+ * Tanpa token → stub (NIP/KTP demo) atau null.
  */
 export async function fetchPkbFromPortal(
-  nip: string,
-  lokasi: PkbPortalLokasi,
+  lookupInput: PkbPortalLookupKey | string,
+  lokasi: PkbPortalLokasi = { propinsi: "", kabupaten: "" },
   init?: { signal?: AbortSignal },
 ): Promise<FetchPkbPortalResult> {
-  const cleanNip = resolvePortalLookupNip(nip);
-  if (!cleanNip) {
+  const lookup =
+    typeof lookupInput === "string"
+      ? resolvePortalLookupKey(lookupInput)
+      : lookupInput;
+  if (!lookup) {
     return { enrichment: null, httpStatus: null };
   }
 
   const token = getPkbPortalToken();
   if (!token) {
-    const stub = getPkbPortalStub(cleanNip);
+    const stub = getPkbPortalStub(lookup);
     if (stub) {
       return {
-        enrichment: toEnrichment(stub, "stub", "PKB_PORTAL_API_TOKEN belum di-set — stub demo"),
+        enrichment: toEnrichment(
+          stub,
+          "stub",
+          "PKB_PORTAL_API_TOKEN belum di-set — stub demo",
+        ),
         httpStatus: null,
       };
     }
@@ -302,7 +336,12 @@ export async function fetchPkbFromPortal(
   }
 
   const params = new URLSearchParams();
-  params.set("NIP", cleanNip);
+  // Portal UAT: lookup by KTP pakai query lowercase `ktp` (bukan NIK/KTP).
+  if (lookup.kind === "ktp") {
+    params.set("ktp", lookup.value);
+  } else {
+    params.set("NIP", lookup.value);
+  }
   const propinsi = lokasi.propinsi?.trim().toUpperCase() || "";
   const kabupaten = lokasi.kabupaten?.trim().toUpperCase() || "";
   if (propinsi) params.set("lokasi_propinsi", propinsi);
@@ -319,7 +358,6 @@ export async function fetchPkbFromPortal(
       method: "GET",
       headers: {
         Accept: "application/json",
-        // token sudah di-strip dari prefix "Bearer " bila ada di .env
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
@@ -329,13 +367,16 @@ export async function fetchPkbFromPortal(
     if (!response.ok) {
       let detail = `Portal HTTP ${response.status}`;
       try {
-        const errBody = (await response.json()) as { error?: string; message?: string };
+        const errBody = (await response.json()) as {
+          error?: string;
+          message?: string;
+        };
         if (errBody?.message) detail = `${detail}: ${errBody.message}`;
         else if (errBody?.error) detail = `${detail}: ${errBody.error}`;
       } catch {
         /* ignore */
       }
-      const stub = getPkbPortalStub(cleanNip);
+      const stub = getPkbPortalStub(lookup);
       if (stub) {
         return {
           enrichment: toEnrichment(stub, "stub", `${detail} — stub demo`),
@@ -349,16 +390,15 @@ export async function fetchPkbFromPortal(
     }
 
     const body: unknown = await response.json();
-    const record = pickMatchingRecord(body, cleanNip);
+    const record = pickMatchingRecord(body, lookup);
     if (!record) {
-      // Response 200 tapi shape tidak dikenali / NIP tidak cocok
-      const stub = getPkbPortalStub(cleanNip);
+      const stub = getPkbPortalStub(lookup);
       if (stub) {
         return {
           enrichment: toEnrichment(
             stub,
             "stub",
-            "Portal 200 tapi NIP/record tidak ter-parse — stub demo",
+            "Portal 200 tapi record tidak ter-parse — stub demo",
           ),
           httpStatus: response.status,
         };
@@ -370,7 +410,7 @@ export async function fetchPkbFromPortal(
       httpStatus: response.status,
     };
   } catch (err) {
-    const stub = getPkbPortalStub(cleanNip);
+    const stub = getPkbPortalStub(lookup);
     if (stub) {
       return {
         enrichment: toEnrichment(
