@@ -2,14 +2,29 @@
 
 import { useEffect, useState } from "react";
 
+/** Payload proxy — field portal + alias UI. */
 export type PkbPortalClientPayload = {
+  /** NIP dari response portal. */
+  NIP: string;
   nip: string;
   nama: string;
   nohp: string | null;
+  jenispegawai: string | null;
+  statuspegawai: string | null;
+  lokasi_propinsi: string | null;
+  lokasi_kabupaten: string | null;
+  lokasi_kecamatan: string | null;
+  email_dinas: string | null;
+  jab_akhir: string | null;
+  foto: string | null;
   emailDinas: string | null;
   jabAkhir: string | null;
   statusPegawai: string | null;
   jenisPegawai: string | null;
+  lokasiPropinsi: string | null;
+  lokasiKabupaten: string | null;
+  lokasiKecamatan: string | null;
+  fotoFile: string | null;
   fotoUrl: string | null;
   source: "portal" | "stub" | "fallback";
   warning: string | null;
@@ -29,7 +44,7 @@ export type UsePkbPortalState = {
 
 /**
  * Enrich detail PKB dari proxy `/api/pkb/[nip]` (server pegang token).
- * Tidak mempengaruhi agregat jumlah PKB.
+ * `nip` argumen = kunci pencarian (biasanya PKBID SIGA); NIP tampilan = `data.NIP`.
  */
 export function usePkbPortal(
   nip: string | null | undefined,
@@ -97,7 +112,9 @@ export function usePkbPortal(
           status: "error",
           data: null,
           error:
-            err instanceof Error ? err.message : "Gagal memuat detail portal PKB",
+            err instanceof Error
+              ? err.message
+              : "Gagal memuat detail portal PKB",
         });
       });
 

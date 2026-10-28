@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Briefcase, Mail, UserRound } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, UserRound } from "lucide-react";
 
 import { DrilldownBreadcrumb } from "@/components/dashboard/drilldown-breadcrumb";
 import {
@@ -98,6 +99,69 @@ function wilayahPath(payload: TpkDetailPayload): string {
   return parts.join(", ");
 }
 
+function PkbFoto({
+  src,
+  alt,
+}: {
+  src: string | null;
+  alt: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span
+        className="grid size-[88px] place-items-center rounded-2xl bg-violet-50 text-violet-700 ring-1 ring-violet-100"
+        aria-hidden
+      >
+        <UserRound className="size-9" />
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- proxy same-origin / stub SVG
+    <img
+      src={src}
+      alt={alt}
+      width={88}
+      height={88}
+      className="size-[88px] rounded-2xl object-cover ring-1 ring-slate-200"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function PortalField({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string | null | undefined;
+  mono?: boolean;
+}) {
+  if (!value?.trim()) return null;
+  return (
+    <div className="min-w-[9rem] flex-1">
+      <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-0.5 text-[13px] font-semibold text-navy break-words",
+          mono && "font-mono text-[12px] tracking-wide tabular-nums",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Kartu pembina — prioritas tampilan = field API portal.
+ * NIP = `portal.NIP` (bukan NIK KTP / bukan label lokal).
+ */
 function PkbPembinaCard({
   pkb,
   lokasi,
@@ -108,24 +172,44 @@ function PkbPembinaCard({
     kabupaten: string | null;
   };
 }) {
-  const nip = pkb?.nip?.trim() || pkb?.pkbId?.trim() || null;
-  const portal = usePkbPortal(nip, {
+  // Kunci pencarian ke portal (SIGA PKBID) — bukan teks yang ditampilkan sebagai NIP.
+  const lookupKey = pkb?.nip?.trim() || pkb?.pkbId?.trim() || null;
+  const portal = usePkbPortal(lookupKey, {
     propinsi: lokasi.propinsi,
     kabupaten: lokasi.kabupaten,
     statuspegawai: pkb?.jabatan,
   });
 
-  const name = portal.data?.nama?.trim() || pkb?.nama || null;
-  const phone = portal.data?.nohp?.trim() || pkb?.noHp || null;
-  const jabAkhir =
-    portal.data?.jabAkhir?.trim() ||
-    [pkb?.jabatan, pkb?.jabatanDetail].filter(Boolean).join(" · ") ||
-    null;
-  const email = portal.data?.emailDinas?.trim() || null;
-  const fotoUrl = portal.data?.fotoUrl || null;
-  const statusPegawai =
-    portal.data?.statusPegawai?.trim() || pkb?.jabatan || null;
-  const source = portal.data?.source ?? "fallback";
+  const d = portal.data;
+  const portalReady = portal.status === "ready" && d != null;
+
+  // NIP tampilan: HANYA dari response portal. Jangan pakai NIK.
+  const displayNip = portalReady ? d.NIP || d.nip : null;
+  const name = portalReady ? d.nama : pkb?.nama || null;
+  const phone = portalReady ? d.nohp : pkb?.noHp || null;
+  const jabAkhir = portalReady
+    ? d.jab_akhir || d.jabAkhir
+    : [pkb?.jabatan, pkb?.jabatanDetail].filter(Boolean).join(" · ") || null;
+  const email = portalReady ? d.email_dinas || d.emailDinas : null;
+  const jenisPegawai = portalReady
+    ? d.jenispegawai || d.jenisPegawai
+    : null;
+  const statusPegawai = portalReady
+    ? d.statuspegawai || d.statusPegawai
+    : pkb?.jabatan || null;
+  const lokasiPropinsi = portalReady
+    ? d.lokasi_propinsi || d.lokasiPropinsi
+    : null;
+  const lokasiKabupaten = portalReady
+    ? d.lokasi_kabupaten || d.lokasiKabupaten
+    : null;
+  const lokasiKecamatan = portalReady
+    ? d.lokasi_kecamatan || d.lokasiKecamatan
+    : null;
+  const fotoUrl = portalReady ? d.fotoUrl : null;
+  const fotoFile = portalReady ? d.foto || d.fotoFile : null;
+
+  const source = d?.source ?? "fallback";
   const sourceLabel =
     source === "portal"
       ? "Portal UAT"
@@ -143,7 +227,8 @@ function PkbPembinaCard({
             PKB / PLKB pembina
           </h2>
           <p className="mt-1.5 max-w-md text-[12px] leading-relaxed text-muted-foreground">
-            Detail jabatan, kontak, dan foto dari API portal (match NIP)
+            Field dari API portal (NIP, jabatan, lokasi, email, foto SIMSDM) —
+            bukan NIK KTP
           </p>
         </div>
         <span
@@ -167,23 +252,12 @@ function PkbPembinaCard({
       ) : (
         <div className="flex flex-col gap-4 rounded-2xl border border-[#d0dae8] bg-white px-5 py-4 shadow-[var(--shadow-soft)] ring-1 ring-slate-100/80 sm:flex-row sm:items-start sm:px-5 sm:py-5">
           <div className="mx-auto shrink-0 sm:mx-0">
-            {fotoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- URL eksternal SIMSDM
-              <img
-                src={fotoUrl}
-                alt={`Foto ${name}`}
-                width={88}
-                height={88}
-                className="size-[88px] rounded-2xl object-cover ring-1 ring-slate-200"
-              />
-            ) : (
-              <span
-                className="grid size-[88px] place-items-center rounded-2xl bg-violet-50 text-violet-700 ring-1 ring-violet-100"
-                aria-hidden
-              >
-                <UserRound className="size-9" />
-              </span>
-            )}
+            <PkbFoto src={fotoUrl} alt={name ? `Foto ${name}` : "Foto PKB"} />
+            {fotoFile ? (
+              <p className="mt-1.5 max-w-[88px] truncate text-center text-[9px] text-slate-400">
+                {fotoFile}
+              </p>
+            ) : null}
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
@@ -196,46 +270,27 @@ function PkbPembinaCard({
                   </span>
                 ) : null}
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] font-semibold tracking-wide text-slate-400 tabular-nums">
-                <span>{nip ? `NIP ${nip}` : "NIP —"}</span>
-                <span>{pkb.nik ? `NIK ${pkb.nik}` : "NIK —"}</span>
+              <div className="mt-1 font-mono text-[12px] font-bold tracking-wide text-navy tabular-nums">
+                {displayNip
+                  ? `NIP ${displayNip}`
+                  : portal.status === "loading"
+                    ? "NIP …"
+                    : "NIP — (menunggu portal)"}
               </div>
             </div>
 
-            {jabAkhir ? (
-              <div className="flex items-start gap-2 text-[13px] text-slate-700">
-                <span className="mt-0.5 grid size-7 place-items-center rounded-lg bg-slate-50 text-slate-500">
-                  <Briefcase className="size-3.5" aria-hidden />
-                </span>
-                <div>
-                  <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                    Jabatan akhir
-                  </div>
-                  <div className="font-semibold text-navy">{jabAkhir}</div>
-                </div>
-              </div>
-            ) : null}
+            <div className="flex flex-wrap gap-x-4 gap-y-3">
+              <PortalField label="Jabatan akhir" value={jabAkhir} />
+              <PortalField label="Jenis pegawai" value={jenisPegawai} />
+              <PortalField label="Status pegawai" value={statusPegawai} />
+              <PortalField label="Email dinas" value={email} />
+              <PortalField label="No. HP" value={phone} mono />
+              <PortalField label="Lokasi provinsi" value={lokasiPropinsi} />
+              <PortalField label="Lokasi kabupaten" value={lokasiKabupaten} />
+              <PortalField label="Lokasi kecamatan" value={lokasiKecamatan} />
+            </div>
 
-            {email ? (
-              <div className="flex items-start gap-2 text-[13px] text-slate-700">
-                <span className="mt-0.5 grid size-7 place-items-center rounded-lg bg-slate-50 text-slate-500">
-                  <Mail className="size-3.5" aria-hidden />
-                </span>
-                <div>
-                  <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                    Email dinas
-                  </div>
-                  <a
-                    href={`mailto:${email}`}
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    {email}
-                  </a>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <PhoneStatusHint phone={phone} />
               <div className="flex shrink-0 items-center gap-1.5">
                 <TpkContactAction phone={phone} kind="call" size="sm" />
@@ -243,12 +298,13 @@ function PkbPembinaCard({
               </div>
             </div>
 
-            {portal.data?.warning ? (
-              <p className="text-[11px] text-amber-700">{portal.data.warning}</p>
+            {d?.warning ? (
+              <p className="text-[11px] text-amber-700">{d.warning}</p>
             ) : null}
             {portal.status === "error" && portal.error ? (
               <p className="text-[11px] text-slate-500">
-                Portal gagal ({portal.error}) — menampilkan data lokal.
+                Portal gagal ({portal.error}) — menampilkan data lokal (tanpa
+                NIK).
               </p>
             ) : null}
           </div>

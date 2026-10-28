@@ -66,21 +66,36 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   return NextResponse.json(
     {
+      // Field portal (semua ditampilkan di kartu; NIP = response.NIP, bukan NIK).
+      NIP: enrichment.nip,
       nip: enrichment.nip,
       nama: enrichment.nama,
       nohp: enrichment.nohp,
+      jenispegawai: enrichment.jenisPegawai,
+      statuspegawai: enrichment.statusPegawai,
+      lokasi_propinsi: enrichment.lokasiPropinsi,
+      lokasi_kabupaten: enrichment.lokasiKabupaten,
+      lokasi_kecamatan: enrichment.lokasiKecamatan,
+      email_dinas: enrichment.emailDinas,
+      jab_akhir: enrichment.jabAkhir,
+      foto: enrichment.fotoFile,
+      // Alias camelCase untuk UI yang sudah ada
       emailDinas: enrichment.emailDinas,
       jabAkhir: enrichment.jabAkhir,
       statusPegawai: enrichment.statusPegawai,
       jenisPegawai: enrichment.jenisPegawai,
-      fotoUrl: enrichment.fotoUrl,
+      lokasiPropinsi: enrichment.lokasiPropinsi,
+      lokasiKabupaten: enrichment.lokasiKabupaten,
+      lokasiKecamatan: enrichment.lokasiKecamatan,
       fotoFile: enrichment.fotoFile,
+      fotoUrl: enrichment.fotoUrl,
       source: enrichment.source,
       warning: enrichment.error,
       meta: {
         generatedAt: new Date().toISOString(),
         portalHttpStatus: httpStatus,
         tokenConfigured: Boolean(getPkbPortalToken()),
+        simsdmFotoBase: process.env.SIMSDM_FOTO_BASE_URL?.trim() || null,
       },
     },
     {

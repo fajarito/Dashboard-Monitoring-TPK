@@ -6,6 +6,17 @@ const nextConfig: NextConfig = {
   // Dev diakses via 127.0.0.1 sementara next listen 0.0.0.0 — tanpa ini
   // HMR/hydration bisa macet dan fetch agregat di client tidak jalan.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Cadangan bila suatu saat memakai next/image ke SIMSDM langsung.
+  // Kartu PKB default memakai proxy `/api/pkb/foto` (same-origin).
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "simsdm.bkkbn.go.id",
+        pathname: "/assets/uploads/pictures/**",
+      },
+    ],
+  },
   turbopack: {
     rules: {
       "*.css": {

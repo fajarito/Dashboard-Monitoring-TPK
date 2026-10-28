@@ -30,6 +30,7 @@ export type PkbPortalSource = "portal" | "stub" | "fallback";
 
 export type PkbPortalEnrichment = {
   source: PkbPortalSource;
+  /** NIP dari response portal (`NIP`) — bukan NIK KTP. */
   nip: string;
   nama: string;
   nohp: string | null;
@@ -37,7 +38,15 @@ export type PkbPortalEnrichment = {
   jabAkhir: string | null;
   statusPegawai: string | null;
   jenisPegawai: string | null;
+  lokasiPropinsi: string | null;
+  lokasiKabupaten: string | null;
+  lokasiKecamatan: string | null;
   fotoFile: string | null;
+  /**
+   * URL foto untuk <img>:
+   * - portal → proxy same-origin `/api/pkb/foto?file=…` (hindari hotlink/CORS SIMSDM)
+   * - stub → aset lokal
+   */
   fotoUrl: string | null;
   error: string | null;
 };
@@ -78,6 +87,7 @@ export function getPkbPortalToken(): string | null {
   );
 }
 
+/** Absolute URL SIMSDM (server-side fetch / debug). */
 export function buildSimsdmFotoUrl(
   foto: string | null | undefined,
 ): string | null {
@@ -86,6 +96,24 @@ export function buildSimsdmFotoUrl(
   if (/^https?:\/\//i.test(file)) return file;
   return `${getSimsdmFotoBaseUrl()}/${file.replace(/^\//, "")}`;
 }
+
+/**
+ * URL foto untuk browser — always same-origin proxy agar tidak kena
+ * hotlink / CORS / timeout egress browser → SIMSDM.
+ */
+export function buildPkbFotoProxyUrl(
+  foto: string | null | undefined,
+): string | null {
+  const file = foto?.trim();
+  if (!file) return null;
+  if (/^https?:\/\//i.test(file)) {
+    return `/api/pkb/foto?url=${encodeURIComponent(file)}`;
+  }
+  return `/api/pkb/foto?file=${encodeURIComponent(file.replace(/^\//, ""))}`;
+}
+
+/** Aset stub lokal (public/) — dipakai tanpa token. */
+export const PKB_STUB_FOTO_PATH = "/pkb-stub-avatar.svg";
 
 /** Stub hasil portal untuk NIP demo — dipakai tanpa token atau saat smoke. */
 export function getPkbPortalStub(
@@ -98,10 +126,11 @@ export function getPkbPortalStub(
     nohp: "081234567890",
     jenispegawai: "PNS",
     statuspegawai: "PKB",
-    foto: "foto_pkb_demo.jpg",
+    // Nama file contoh — UI stub memakai aset lokal; live pakai proxy SIMSDM.
+    foto: "196803291988032003.jpg",
     lokasi_propinsi: "BALI",
     lokasi_kabupaten: "KOTA DENPASAR",
-    lokasi_kecamatan: null,
+    lokasi_kecamatan: "DENPASAR SELATAN",
     email_dinas: "suryani@bkkbn.go.id",
     jab_akhir: "PKB Madya",
   };
@@ -160,6 +189,10 @@ function toEnrichment(
   source: PkbPortalSource,
   error: string | null = null,
 ): PkbPortalEnrichment {
+  const fotoUrl =
+    source === "stub"
+      ? PKB_STUB_FOTO_PATH
+      : buildPkbFotoProxyUrl(record.foto);
   return {
     source,
     nip: record.NIP,
@@ -169,8 +202,11 @@ function toEnrichment(
     jabAkhir: record.jab_akhir,
     statusPegawai: record.statuspegawai,
     jenisPegawai: record.jenispegawai,
+    lokasiPropinsi: record.lokasi_propinsi,
+    lokasiKabupaten: record.lokasi_kabupaten,
+    lokasiKecamatan: record.lokasi_kecamatan,
     fotoFile: record.foto,
-    fotoUrl: buildSimsdmFotoUrl(record.foto),
+    fotoUrl,
     error,
   };
 }
