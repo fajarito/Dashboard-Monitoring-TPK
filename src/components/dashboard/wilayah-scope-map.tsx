@@ -10,9 +10,11 @@ import {
   ErrorState,
   MapSkeleton,
 } from "@/components/dashboard/data-state";
+import { KeluargaDetailModal } from "@/components/dashboard/keluarga-detail-modal";
 import { KrsPinFilters } from "@/components/dashboard/krs-pin-filters";
 import type { WilayahLevelKey } from "@/components/dashboard/master-wilayah-map";
 import type {
+  KrsPointItem,
   TpkKeluargaIndikatorFilter,
   TpkKeluargaPrioritas,
 } from "@/lib/data/types";
@@ -140,6 +142,7 @@ export function WilayahScopeMap({
   const [pinValidCoords, setPinValidCoords] = useState(true);
   const [pinQ, setPinQ] = useState("");
   const [pinQDebounced, setPinQDebounced] = useState("");
+  const [selectedPin, setSelectedPin] = useState<KrsPointItem | null>(null);
   useEffect(() => {
     const t = window.setTimeout(() => setPinQDebounced(pinQ.trim()), 280);
     return () => window.clearTimeout(t);
@@ -664,9 +667,22 @@ export function WilayahScopeMap({
             onRetryIndicator={onRetryChildren}
             krsPoints={currentLevel === "desa" ? krsPointItems : []}
             clipPinsToVillage
+            onKrsPinClick={setSelectedPin}
           />
         </ClientOnly>
       </div>
+
+      <KeluargaDetailModal
+        open={selectedPin != null}
+        kki={selectedPin?.kki ?? null}
+        provinsiId={
+          provinsiApiId != null && Number.isFinite(Number(provinsiApiId))
+            ? Number(provinsiApiId)
+            : null
+        }
+        fallbackNama={selectedPin?.namaKepalaKeluarga}
+        onClose={() => setSelectedPin(null)}
+      />
 
       <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
         <div className="text-[9px] text-slate-400">

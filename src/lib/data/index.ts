@@ -11,9 +11,11 @@ import { getPeringkatKelurahanMock } from "@/lib/data/mock/peringkat-kelurahan";
 import { getPeringkatProvinsiMock } from "@/lib/data/mock/peringkat";
 import { getRingkasanMock } from "@/lib/data/mock/ringkasan";
 import { getTpkDetailMock } from "@/lib/data/mock/tpk-detail";
+import { getKeluargaDetailMock } from "@/lib/data/mock/keluarga-detail";
 import { getKrsPointsMock } from "@/lib/data/mock/krs-points";
 import { getTpkKeluargaMock } from "@/lib/data/mock/tpk-keluarga";
 import { getTpkListMock } from "@/lib/data/mock/tpk-list";
+import { getKeluargaDetailPostgres } from "@/lib/data/postgres/keluarga-detail";
 import { getKrsPointsPostgres } from "@/lib/data/postgres/krs-points";
 import { getPeringkatKabupatenPostgres } from "@/lib/data/postgres/peringkat-kabupaten";
 import { getPeringkatKecamatanPostgres } from "@/lib/data/postgres/peringkat-kecamatan";
@@ -30,6 +32,8 @@ import { getTpkListPostgres } from "@/lib/data/postgres/tpk-list";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import type {
   DataSource,
+  KeluargaDetailPayload,
+  KeluargaDetailQuery,
   KrsPointsBbox,
   KrsPointsPayload,
   KrsPointsQuery,
@@ -53,10 +57,14 @@ import {
   KRS_POINTS_DEFAULT_LIMIT,
   KRS_POINTS_HARD_MAX,
 } from "@/lib/data/types";
+import { compactKki } from "@/lib/data/kki";
 
 export type {
   DataSource,
   IndikatorRingkasan,
+  KeluargaDetailItem,
+  KeluargaDetailPayload,
+  KeluargaDetailQuery,
   KomposisiPrioritas,
   KomposisiTPK,
   PeringkatKabupatenItem,
@@ -628,6 +636,57 @@ export async function fetchKrsPoints(
     payload = await getKrsPointsPostgres(query);
   } else {
     payload = getKrsPointsMock(query);
+  }
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
+export function parseKeluargaDetailQuery(
+  searchParams: URLSearchParams,
+): KeluargaDetailQuery {
+  // KKI wajib (Fajar). Alias historis: kodeKeluarga/kode — hanya jika nilainya KKI.
+  const kkiRaw =
+    searchParams.get("kki") ??
+    searchParams.get("kodeKeluarga") ??
+    searchParams.get("kode") ??
+    "";
+  const kki = kkiRaw.trim();
+  const provRaw = searchParams.get("provinsiId");
+  const provinsiId =
+    provRaw && Number.isFinite(Number(provRaw)) ? Number(provRaw) : null;
+  if (!compactKki(kki)) {
+    throw new PostgresDataError(
+      "invalid_kki",
+      "Parameter kki wajib diisi (join pin ↔ stunting_head).",
+      { status: 400 },
+    );
+  }
+  return { kki, provinsiId };
+}
+
+/**
+ * Detail 1 keluarga dari stunting_head (verval) — lookup **by KKI**.
+ * Cache 60 dtk. Mock dari sample JSON bila DATA_SOURCE=mock.
+ */
+export async function fetchKeluargaDetail(
+  query: KeluargaDetailQuery,
+): Promise<KeluargaDetailPayload> {
+  const source = resolveDataSource();
+  const key = cacheKey([
+    "keluarga-detail",
+    source,
+    compactKki(query.kki),
+    query.provinsiId,
+  ]);
+  const hit = getCached<KeluargaDetailPayload>(key);
+  if (hit) return hit;
+
+  let payload: KeluargaDetailPayload;
+  if (source === "postgres") {
+    assertPostgresReady();
+    payload = await getKeluargaDetailPostgres(query);
+  } else {
+    payload = getKeluargaDetailMock(query);
   }
 
   return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);

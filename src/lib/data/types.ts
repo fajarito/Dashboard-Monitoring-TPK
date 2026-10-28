@@ -494,6 +494,15 @@ export type KrsPointsQuery = {
 /** Titik pin tipis untuk overlay peta (tanpa NIK). */
 export type KrsPointItem = {
   id: string;
+  /**
+   * KKI — kunci join ke `stunting_head.kki` (Fajar).
+   * Di by_name kolomnya bernama `kode_keluarga` tetapi nilainya = KKI.
+   */
+  kki: string;
+  /**
+   * Alias historis (= kki). Jangan dipakai sebagai key join lain (bukan NIK/NoKK).
+   * @deprecated pakai `kki`
+   */
   kodeKeluarga: string;
   namaKepalaKeluarga: string;
   prioritas: TpkKeluargaPrioritas;
@@ -524,4 +533,71 @@ export type KrsPointsPayload = {
     namaKelurahan: string | null;
   };
   meta: RingkasanMeta;
+};
+
+/**
+ * Detail keluarga dari `verval2024_monitoring.stunting_head`.
+ * Join pin ↔ head: **KKI** (`stunting_head.kki`). Bukan NIK / NoKK.
+ * Tanpa NIK di payload.
+ */
+export type KeluargaDetailHousingField = {
+  code: number | null;
+  label: string | null;
+};
+
+export type KeluargaDetailItem = {
+  idStunting: number;
+  /** KKI — sama dengan pin.kki / stunting_head.kki */
+  kki: string;
+  noKk: string | null;
+  namaKepalaKeluarga: string;
+  namaIstri: string | null;
+  alamat: string | null;
+  prioritas: number | null;
+  risikoStunting: boolean | null;
+  latitude: number | null;
+  longitude: number | null;
+  rumah: {
+    atap: KeluargaDetailHousingField;
+    kondisiAtap: KeluargaDetailHousingField;
+    dinding: KeluargaDetailHousingField;
+    kondisiDinding: KeluargaDetailHousingField;
+    lantai: KeluargaDetailHousingField;
+    kondisiLantai: KeluargaDetailHousingField;
+    luasM2: number | null;
+    jumlahPenghuni: number | null;
+  };
+  jamban: {
+    memilikiTempatBab: KeluargaDetailHousingField;
+    kondisi: KeluargaDetailHousingField;
+  };
+  air: {
+    sumber: KeluargaDetailHousingField;
+    kondisi: KeluargaDetailHousingField;
+  };
+  fotoRumahUrl: string | null;
+  fotoJambanUrl: string | null;
+  keterangan: string | null;
+  idProvinsi: number | null;
+  idKelurahan: number | null;
+};
+
+export type KeluargaDetailPayload = {
+  item: KeluargaDetailItem;
+  join: {
+    /** Kunci pin & stunting_head — selalu KKI */
+    key: "kki";
+    pinField: "kki";
+    headField: "kki";
+    /** Catatan: by_name menyebut kolom `kode_keluarga` tetapi isinya KKI. */
+    byNameColumn: "kode_keluarga";
+  };
+  meta: RingkasanMeta;
+};
+
+export type KeluargaDetailQuery = {
+  /** KKI (wajib) — lookup stunting_head.kki */
+  kki: string;
+  /** Opsional — prune partisi LIST(id_provinsi). */
+  provinsiId: number | null;
 };

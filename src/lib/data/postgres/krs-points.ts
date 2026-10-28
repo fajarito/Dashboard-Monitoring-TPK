@@ -51,17 +51,19 @@ function mapPoint(
   row: PointRow,
   requireIdRange: boolean,
 ): KrsPointItem | null {
-  const kode = row.kode_keluarga?.trim();
+  // by_name."kode_keluarga" = KKI (Fajar: join pin ↔ stunting_head via KKI).
+  const kki = row.kode_keluarga?.trim();
   const nama = row.nama_kepala?.trim();
   const lat = toFloat(row.latitude);
   const lng = toFloat(row.longitude);
-  if (!kode || !nama) return null;
+  if (!kki || !nama) return null;
   if (lat == null || lng == null) return null;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   if (requireIdRange && !isValidIdCoords(lat, lng)) return null;
   return {
-    id: kode,
-    kodeKeluarga: kode,
+    id: kki,
+    kki,
+    kodeKeluarga: kki,
     namaKepalaKeluarga: nama,
     prioritas: mapPrioritas(row.prioritas_raw, row.risiko_stunting),
     krs: isFlagV(row.risiko_stunting),

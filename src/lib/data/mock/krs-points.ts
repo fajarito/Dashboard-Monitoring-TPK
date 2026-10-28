@@ -1,5 +1,7 @@
 import { DEFAULT_CACHE_TTL_SEC } from "@/lib/data/cache";
-import { isValidIdCoords } from "@/lib/data/geo-coords";
+import { isValidIdCoords, parseCoord } from "@/lib/data/geo-coords";
+import { canonicalKki } from "@/lib/data/kki";
+import { STUNTING_HEAD_SEED } from "@/lib/data/mock/stunting-head-seed";
 import type {
   KrsPointItem,
   KrsPointsPayload,
@@ -118,6 +120,69 @@ function collectMockKeluarga(kelurahanId: number): {
   return { items: out, desaName };
 }
 
+function prioritasFromSeed(
+  value: number | null | undefined,
+): TpkKeluargaPrioritas {
+  if (value === 1) return "p1";
+  if (value === 2) return "p2";
+  if (value === 3) return "p3";
+  if (value === 4) return "p4";
+  if (value === 0) return "bukan";
+  return "tidakRisiko";
+}
+
+/**
+ * Sisipkan sample stunting_head agar klik pin mock → detail modal (join **KKI**).
+ * Koordinat digeser ke pusat mock Beji supaya terlihat di peta desa demo.
+ */
+function seedPinItems(query: KrsPointsQuery): KrsPointItem[] {
+  const out: KrsPointItem[] = [];
+  for (const row of STUNTING_HEAD_SEED) {
+    const kki = canonicalKki(row.kki);
+    if (!kki) continue;
+    const prioritas = prioritasFromSeed(row.kesejahteraan_prioritas);
+    const krs = row.resiko_stunting === 1;
+    if (query.prioritas.length > 0 && !query.prioritas.includes(prioritas)) {
+      continue;
+    }
+    if (query.indikator.includes("krs") && !krs) continue;
+    const nama = row.nama_kk?.trim() || "Tanpa nama";
+    if (query.q && !nama.toLowerCase().includes(query.q.toLowerCase())) {
+      continue;
+    }
+    const { lat, lng } = coordsForKode(kki);
+    // Pakai jitter Beji (demo) — lat/lng sample Aceh jauh dari desa mock.
+    void parseCoord(row.latitude);
+    void parseCoord(row.longitude);
+    const latitude = lat;
+    const longitude = lng;
+    if (query.validCoordsOnly && !isValidIdCoords(latitude, longitude)) {
+      continue;
+    }
+    if (query.bbox) {
+      if (
+        latitude < query.bbox.south ||
+        latitude > query.bbox.north ||
+        longitude < query.bbox.west ||
+        longitude > query.bbox.east
+      ) {
+        continue;
+      }
+    }
+    out.push({
+      id: kki,
+      kki,
+      kodeKeluarga: kki,
+      namaKepalaKeluarga: nama,
+      prioritas,
+      krs,
+      latitude,
+      longitude,
+    });
+  }
+  return out;
+}
+
 /**
  * Pin KRS mock — koordinat sintetis di sekitar Beji agar overlay peta hidup tanpa DWH.
  */
@@ -137,7 +202,8 @@ export function getKrsPointsMock(query: KrsPointsQuery): KrsPointsPayload {
     );
   }
 
-  const mapped: KrsPointItem[] = [];
+  const mapped: KrsPointItem[] = [...seedPinItems(query)];
+  const seen = new Set(mapped.map((item) => item.kki));
   for (const kel of filtered) {
     const { lat, lng } = coordsForKode(kel.familyCode);
     if (query.validCoordsOnly && !isValidIdCoords(lat, lng)) continue;
@@ -151,9 +217,14 @@ export function getKrsPointsMock(query: KrsPointsQuery): KrsPointsPayload {
         continue;
       }
     }
+    // familyCode mock = stand-in KKI (bukan NIK).
+    const kki = kel.familyCode;
+    if (seen.has(kki)) continue;
+    seen.add(kki);
     mapped.push({
-      id: kel.familyCode,
-      kodeKeluarga: kel.familyCode,
+      id: kki,
+      kki,
+      kodeKeluarga: kki,
       namaKepalaKeluarga: kel.kepalaKeluarga,
       prioritas: kel.prioritas,
       krs: kel.indikator.krs,

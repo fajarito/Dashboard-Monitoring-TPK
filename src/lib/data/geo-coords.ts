@@ -1,3 +1,17 @@
+/** Parse lat/lng string|number dari DWH/verval; null jika kosong/invalid. */
+export function parseCoord(
+  value: string | number | null | undefined,
+): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Lat Indonesia ~ -11..6, lng ~ 95..141 — buang outlier jelas invalid. */
 export function isValidIdCoords(
   lat: number | null,

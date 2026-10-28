@@ -26,6 +26,7 @@ import {
 import { KabupatenSebaranTable } from "@/components/dashboard/kabupaten-sebaran-table";
 import { KomposisiPrioritasCard } from "@/components/dashboard/komposisi-prioritas-card";
 import { KomposisiTpkCard } from "@/components/dashboard/komposisi-tpk-card";
+import { KeluargaDetailModal } from "@/components/dashboard/keluarga-detail-modal";
 import { KrsPinFilters } from "@/components/dashboard/krs-pin-filters";
 import { NusantaraFreshHero } from "@/components/dashboard/nusantara-fresh-hero";
 import { ProvinceSebaranTable } from "@/components/dashboard/province-sebaran-table";
@@ -40,6 +41,7 @@ import {
   prefetchPeringkatKecamatan,
 } from "@/lib/client-api-cache";
 import type {
+  KrsPointItem,
   PeringkatKabupatenItem,
   TpkKeluargaIndikatorFilter,
   TpkKeluargaPrioritas,
@@ -233,6 +235,7 @@ export function MapSebaran() {
   const [pinValidCoords, setPinValidCoords] = useState(true);
   const [pinQ, setPinQ] = useState("");
   const [pinQDebounced, setPinQDebounced] = useState("");
+  const [selectedPin, setSelectedPin] = useState<KrsPointItem | null>(null);
   useEffect(() => {
     const t = window.setTimeout(() => setPinQDebounced(pinQ.trim()), 280);
     return () => window.clearTimeout(t);
@@ -959,10 +962,24 @@ export function MapSebaran() {
                       currentLevel === "desa" ? krsPointItems : []
                     }
                     clipPinsToVillage
+                    onKrsPinClick={setSelectedPin}
                   />
                 </ClientOnly>
               )}
             </div>
+
+            <KeluargaDetailModal
+              open={selectedPin != null}
+              kki={selectedPin?.kki ?? null}
+              provinsiId={
+                selectedProvinsiApiId != null &&
+                Number.isFinite(Number(selectedProvinsiApiId))
+                  ? Number(selectedProvinsiApiId)
+                  : null
+              }
+              fallbackNama={selectedPin?.namaKepalaKeluarga}
+              onClose={() => setSelectedPin(null)}
+            />
 
             <div className="mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line py-4">
               <div className="text-[9px] text-slate-400">

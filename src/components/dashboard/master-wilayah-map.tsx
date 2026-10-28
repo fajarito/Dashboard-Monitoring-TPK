@@ -137,6 +137,11 @@ export type MasterWilayahMapProps = {
   krsPoints?: KrsPointItem[];
   /** Filter titik di luar poligon desa aktif (ringan, client-side). */
   clipPinsToVillage?: boolean;
+  /**
+   * Klik pin KRS → buka modal detail (stunting_head lookup by **KKI**).
+   * Jika di-set, popup ringkas Leaflet diganti callback.
+   */
+  onKrsPinClick?: (point: KrsPointItem) => void;
 };
 
 const MARKER_CLUSTER_JS =
@@ -551,6 +556,7 @@ export function MasterWilayahMap({
   onRetryIndicator,
   krsPoints = [],
   clipPinsToVillage = true,
+  onKrsPinClick,
 }: MasterWilayahMapProps) {
   const containerId = useId().replace(/:/g, "_");
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1285,15 +1291,22 @@ export function MasterWilayahMap({
         });
         const prioritasLabel =
           KRS_PIN_LABELS[prioritasKey] ?? point.prioritas;
-        const popup = `<div style="font:12px/1.4 system-ui,sans-serif;min-width:140px">
-          <strong>${escapeHtml(point.namaKepalaKeluarga)}</strong><br/>
-          <span style="color:#64748b">${escapeHtml(point.kodeKeluarga)}</span><br/>
-          <span style="display:inline-block;margin-top:4px;padding:1px 6px;border-radius:999px;background:${color}22;color:#0f172a;font-weight:700;font-size:10px">${escapeHtml(prioritasLabel)}${point.krs ? " · KRS" : ""}</span>
-        </div>`;
-        marker.bindPopup(popup);
-        marker.on?.("click", (ev: { originalEvent?: Event }) => {
-          ev?.originalEvent?.stopPropagation?.();
-        });
+        if (onKrsPinClick) {
+          marker.on?.("click", (ev: { originalEvent?: Event }) => {
+            ev?.originalEvent?.stopPropagation?.();
+            onKrsPinClick(point);
+          });
+        } else {
+          const popup = `<div style="font:12px/1.4 system-ui,sans-serif;min-width:140px">
+            <strong>${escapeHtml(point.namaKepalaKeluarga)}</strong><br/>
+            <span style="color:#64748b">KKI ${escapeHtml(point.kki)}</span><br/>
+            <span style="display:inline-block;margin-top:4px;padding:1px 6px;border-radius:999px;background:${color}22;color:#0f172a;font-weight:700;font-size:10px">${escapeHtml(prioritasLabel)}${point.krs ? " · KRS" : ""}</span>
+          </div>`;
+          marker.bindPopup(popup);
+          marker.on?.("click", (ev: { originalEvent?: Event }) => {
+            ev?.originalEvent?.stopPropagation?.();
+          });
+        }
         const bucket = clustersByPrioritas.get(prioritasKey);
         if (bucket) {
           bucket.addLayer(marker);
@@ -1318,6 +1331,7 @@ export function MasterWilayahMap({
     clipPinsToVillage,
     loading,
     applyClientChoropleth,
+    onKrsPinClick,
   ]);
 
   const legendItems = useMemo(() => {
