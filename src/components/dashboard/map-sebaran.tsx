@@ -977,6 +977,12 @@ export function MapSebaran() {
                   ? Number(selectedProvinsiApiId)
                   : null
               }
+              kelurahanId={
+                selectedKelurahanApiId != null &&
+                Number.isFinite(Number(selectedKelurahanApiId))
+                  ? Number(selectedKelurahanApiId)
+                  : null
+              }
               fallbackNama={selectedPin?.namaKepalaKeluarga}
               onClose={() => setSelectedPin(null)}
             />

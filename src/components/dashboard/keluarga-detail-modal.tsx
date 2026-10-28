@@ -72,6 +72,7 @@ export function KeluargaDetailModal({
   open,
   kki,
   provinsiId,
+  kelurahanId,
   fallbackNama,
   onClose,
 }: {
@@ -79,12 +80,15 @@ export function KeluargaDetailModal({
   /** KKI — kunci join ke stunting_head (Fajar). */
   kki: string | null;
   provinsiId?: number | null;
+  /** Scope desa — sempitkan scan partisi bila belum ada index kki. */
+  kelurahanId?: number | null;
   fallbackNama?: string | null;
   onClose: () => void;
 }) {
   const { status, payload, error, refetch } = useKeluargaDetail(
     open ? kki : null,
     provinsiId,
+    kelurahanId,
   );
 
   if (!open || !kki) return null;

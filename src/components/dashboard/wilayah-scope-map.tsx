@@ -680,6 +680,11 @@ export function WilayahScopeMap({
             ? Number(provinsiApiId)
             : null
         }
+        kelurahanId={
+          kelurahanApiId != null && Number.isFinite(Number(kelurahanApiId))
+            ? Number(kelurahanApiId)
+            : null
+        }
         fallbackNama={selectedPin?.namaKepalaKeluarga}
         onClose={() => setSelectedPin(null)}
       />

@@ -13,10 +13,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /**
- * GET /api/keluarga/detail?kki=&provinsiId=
- * Detail 1 KK dari tabel partisi `verval2024_monitoring.stunting_head_{NN}`.
- * Live: `provinsiId` → NN (pad 2). Match `kki =` bentuk padded; compact hanya fallback.
- * Contoh: `SELECT * FROM stunting_head_01 WHERE kki = '11061020310200      001019026'`
+ * GET /api/keluarga/detail?kki=&provinsiId=&diag=1
+ * Detail 1 KK dari `"verval2024_monitoring"."stunting_head_{NN}"`.
+ * `provinsiId` = id_provinsi internal (Jabar=12 → `_12`; BPS 32 ≠ suffix).
+ * Match: `kki = ANY(padded)` bentuk 14+6spasi+sisa. Tanpa replace/compact scan.
+ * `diag=1` / timeout → JSON `diag` berisi SQL exact + param (spasi = `·`).
  * Pool: DATABASE_URL_VERVAL. Unset → mock.
  */
 export async function GET(request: NextRequest) {
@@ -33,24 +34,11 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err) {
-    if (
-      isPostgresDataError(err) &&
-      (err.status === 400 || err.status === 404)
-    ) {
-      return NextResponse.json(
-        {
-          error: err.code,
-          message: err.message,
-          meta: {
-            source: "postgres-error" as const,
-            generatedAt: new Date().toISOString(),
-          },
-        },
-        { status: err.status, headers: { "Cache-Control": "no-store" } },
-      );
+    // 400/404/503 — selalu sertakan diag bila ada (timeout wajib terlihat).
+    if (isPostgresDataError(err)) {
+      const postgres = postgresErrorResponse(err);
+      if (postgres) return postgres;
     }
-    const postgres = postgresErrorResponse(err);
-    if (postgres) return postgres;
     console.error("[api/keluarga/detail] unexpected", err);
     return NextResponse.json(
       {

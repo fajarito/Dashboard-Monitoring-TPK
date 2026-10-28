@@ -5,6 +5,7 @@ import {
 } from "@/lib/data/keluarga-detail-map";
 import {
   compactKki,
+  describeKkiForDiag,
   paddedKkiForms,
   primaryPaddedKki,
 } from "@/lib/data/kki";
@@ -53,21 +54,30 @@ const DETAIL_SELECT = `
 /**
  * Partisi LIST by id_provinsi → `stunting_head_01` … (pad 2 digit).
  * Dump: 01–33, 36–40 (34/35 tidak ada).
+ *
+ * `id_provinsi` = ID internal SIGA/pk2025 — **bukan** kode BPS/Kemendagri.
+ * Contoh: Jabar BPS `32` → id_provinsi `12` → `stunting_head_12`.
  */
 const KNOWN_STUNTING_HEAD_PARTITIONS = new Set<number>([
   ...Array.from({ length: 33 }, (_, i) => i + 1),
   36, 37, 38, 39, 40,
 ]);
 
-/**
- * Nama tabel partisi aman (identifier dari int, bukan string user).
- * Contoh Fajar: `stunting_head_01` untuk provinsi 1.
- */
-export function stuntingHeadPartitionRelation(provinsiId: number): {
+export type StuntingHeadPartitionRelation = {
   schema: "verval2024_monitoring";
   table: string;
   qualified: string;
-} {
+  idProvinsi: number;
+  suffix: string;
+};
+
+/**
+ * Nama tabel partisi aman (identifier dari int, bukan string user).
+ * Contoh Fajar: `stunting_head_01` untuk id_provinsi 1 (Aceh; BPS 11).
+ */
+export function stuntingHeadPartitionRelation(
+  provinsiId: number,
+): StuntingHeadPartitionRelation {
   if (!Number.isInteger(provinsiId) || provinsiId < 1 || provinsiId > 99) {
     throw new PostgresDataError(
       "invalid_provinsi_id",
@@ -75,57 +85,95 @@ export function stuntingHeadPartitionRelation(provinsiId: number): {
       { pool: "verval", status: 400 },
     );
   }
+  const suffix = String(provinsiId).padStart(2, "0");
   if (!KNOWN_STUNTING_HEAD_PARTITIONS.has(provinsiId)) {
     throw new PostgresDataError(
       "partition_not_found",
-      `Partisi stunting_head_${String(provinsiId).padStart(2, "0")} tidak ada di dump (id_provinsi=${provinsiId}).`,
+      `Partisi stunting_head_${suffix} tidak ada di dump (id_provinsi=${provinsiId}).`,
       { pool: "verval", status: 404 },
     );
   }
-  const table = `stunting_head_${String(provinsiId).padStart(2, "0")}`;
+  const table = `stunting_head_${suffix}`;
   return {
     schema: "verval2024_monitoring",
     table,
     qualified: `"verval2024_monitoring"."${table}"`,
+    idProvinsi: provinsiId,
+    suffix,
   };
 }
 
-/** Equality KKI pada tabel partisi — pola Fajar. */
-function sqlExactOnPartition(qualified: string): string {
+/**
+ * Satu round-trip equality ke bentuk KKI padded (pola Fajar).
+ * `kki = ANY($1)` tetap bisa pakai btree index bila ada — jangan `replace()`.
+ * `$2` = id_kelurahan opsional (NULL = abaikan) untuk sempitkan scan partisi besar.
+ */
+function sqlExactAnyOnPartition(qualified: string): string {
   return `
 SELECT ${DETAIL_SELECT}
 FROM ${qualified} src
-WHERE src."kki" = $1
+WHERE src."kki" = ANY($1::text[])
+  AND ($2::int4 IS NULL OR src."id_kelurahan" = $2)
 LIMIT 1
 `;
 }
 
-/** Fallback compact hanya di tabel partisi yang sama. */
-function sqlCompactOnPartition(qualified: string): string {
-  return `
-SELECT ${DETAIL_SELECT}
-FROM ${qualified} src
-WHERE replace(src."kki", ' ', '') = $1
-LIMIT 1
-`;
+function buildDiag(args: {
+  relation: StuntingHeadPartitionRelation;
+  sql: string;
+  params: unknown[];
+  kkiRaw: string;
+  attempt: string;
+}) {
+  const kki = describeKkiForDiag(args.kkiRaw);
+  return {
+    schema: args.relation.schema,
+    table: args.relation.table,
+    qualified: args.relation.qualified,
+    idProvinsi: args.relation.idProvinsi,
+    suffix: args.relation.suffix,
+    sql: args.sql.replace(/\s+/g, " ").trim(),
+    params: args.params,
+    paramsVisible: (args.params as unknown[]).map((p) => {
+      if (Array.isArray(p)) {
+        return p.map((x) =>
+          typeof x === "string" ? x.replace(/ /g, "·") : x,
+        );
+      }
+      return typeof p === "string" ? p.replace(/ /g, "·") : p;
+    }),
+    kki,
+    attempt: args.attempt,
+    note:
+      "provinsiId = id_provinsi internal (Jabar=12 → stunting_head_12). Bukan kode BPS 32.",
+  };
 }
 
 async function queryVervalDetail<T extends StuntingHeadRowRow>(
   text: string,
   params: unknown[],
+  diagBase: ReturnType<typeof buildDiag>,
 ): Promise<QueryResult<T>> {
   const config = getPoolConfigs().verval;
   const pool = getPool("verval");
   try {
+    // query_timeout = opsi node-pg (di luar QueryConfig strict typings).
     return await pool.query<T>({
       text,
       values: params,
+      // Client-side; server role mungkin statement_timeout ~4s.
       query_timeout: 8_000,
-    });
+    } as { text: string; values: unknown[]; query_timeout: number });
   } catch (err) {
     logPostgresError("query failed (verval detail)", err, {
       pool: "verval",
       url: config.url,
+    });
+    console.error("[keluarga-detail] SQL exact", {
+      qualified: diagBase.qualified,
+      sql: diagBase.sql,
+      paramsVisible: diagBase.paramsVisible,
+      kki: diagBase.kki,
     });
     const hint = config.url ? redactDatabaseUrl(config.url) : config.envKey;
     const missingTable =
@@ -134,8 +182,8 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
     if (missingTable) {
       throw new PostgresDataError(
         "partition_not_found",
-        `Tabel partisi stunting_head tidak ditemukan (${hint}).`,
-        { pool: "verval", cause: err, status: 404 },
+        `Tabel partisi ${diagBase.qualified} tidak ditemukan (${hint}).`,
+        { pool: "verval", cause: err, status: 404, details: diagBase },
       );
     }
     const timedOut =
@@ -144,21 +192,22 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
     throw new PostgresDataError(
       timedOut ? "postgres_query_timeout" : "postgres_query_failed",
       timedOut
-        ? `Query verval timeout (${hint}). Pakai tabel partisi + equality KKI padded.`
-        : `Query verval gagal (${hint}). Periksa koneksi/SQL — lihat log server.`,
-      { pool: "verval", cause: err, status: 503 },
+        ? `Query verval timeout pada ${diagBase.qualified} (${hint}). Cek index btree(kki) + bentuk padded; lihat diag.sql.`
+        : `Query verval gagal pada ${diagBase.qualified} (${hint}).`,
+      { pool: "verval", cause: err, status: 503, details: diagBase },
     );
   }
 }
 
 /**
  * Baca 1 keluarga dari **tabel partisi**
- * `"verval2024_monitoring"."stunting_head_{NN}"` (NN = provinsiId pad 2).
+ * `"verval2024_monitoring"."stunting_head_{NN}"` (NN = id_provinsi pad 2).
  *
  * Contoh Fajar:
  * `SELECT * FROM stunting_head_01 WHERE kki = '11061020310200      001019026'`
  *
- * Equality padded dulu; compact hanya fallback. Bukan parent + regexp.
+ * Hanya equality padded (satu query ANY). **Tanpa** `replace(kki,' ','')` —
+ * fallback compact memaksa seq-scan dan sering timeout di partisi besar (Jabar).
  */
 export async function getKeluargaDetailPostgres(
   query: KeluargaDetailQuery,
@@ -175,56 +224,63 @@ export async function getKeluargaDetailPostgres(
   if (query.provinsiId == null || !Number.isFinite(query.provinsiId)) {
     throw new PostgresDataError(
       "invalid_provinsi_id",
-      "Parameter provinsiId wajib — memilih tabel partisi stunting_head_{NN}.",
+      "Parameter provinsiId wajib — id_provinsi internal untuk stunting_head_{NN} (Jabar=12, bukan BPS 32).",
       { pool: "verval", status: 400 },
     );
   }
 
-  const { qualified } = stuntingHeadPartitionRelation(
-    Math.trunc(query.provinsiId),
-  );
+  const relation = stuntingHeadPartitionRelation(Math.trunc(query.provinsiId));
+  const { qualified } = relation;
 
   const paddedPrimary = primaryPaddedKki(query.kki);
-  const paddedForms = paddedKkiForms(query.kki);
-
-  let row: StuntingHeadRowRow | undefined;
-
-  // 1) Equality ke bentuk padded utama (14 + 6 spasi + sisa) — seperti contoh Fajar
-  if (paddedPrimary) {
-    const res = await queryVervalDetail<StuntingHeadRowRow>(
-      sqlExactOnPartition(qualified),
-      [paddedPrimary],
+  if (!paddedPrimary) {
+    throw new PostgresDataError(
+      "invalid_kki",
+      "KKI terlalu pendek untuk bentuk padded (butuh ≥15 digit compact).",
+      {
+        pool: "verval",
+        status: 400,
+        details: describeKkiForDiag(query.kki),
+      },
     );
-    row = res.rows[0];
   }
 
-  // 2) Bentuk padded alternatif (1 spasi) bila beda
-  if (!row) {
-    for (const form of paddedForms) {
-      if (form === paddedPrimary) continue;
-      const res = await queryVervalDetail<StuntingHeadRowRow>(
-        sqlExactOnPartition(qualified),
-        [form],
-      );
-      row = res.rows[0];
-      if (row) break;
-    }
+  // Urutan: bentuk Fajar (14+6spasi+sisa), lalu 1-spasi bila beda. Tanpa compact.
+  const forms = paddedKkiForms(query.kki);
+  const candidates = forms.length > 0 ? forms : [paddedPrimary];
+  const kelurahanId =
+    query.kelurahanId != null && Number.isFinite(query.kelurahanId)
+      ? Math.trunc(query.kelurahanId)
+      : null;
+  const sql = sqlExactAnyOnPartition(qualified);
+  const params: unknown[] = [candidates, kelurahanId];
+  const diag = {
+    ...buildDiag({
+      relation,
+      sql,
+      params,
+      kkiRaw: query.kki,
+      attempt: "exact_padded_any",
+    }),
+    kelurahanId,
+  };
+
+  if (query.diag) {
+    console.info("[keluarga-detail] diag pre-query", diag);
   }
 
-  // 3) Fallback compact hanya di partisi yang sama
-  if (!row) {
-    const res = await queryVervalDetail<StuntingHeadRowRow>(
-      sqlCompactOnPartition(qualified),
-      [compact],
-    );
-    row = res.rows[0];
-  }
+  const res = await queryVervalDetail<StuntingHeadRowRow>(sql, params, diag);
+  const row = res.rows[0];
 
   if (!row) {
     throw new PostgresDataError(
       "keluarga_not_found",
-      `Detail keluarga tidak ditemukan untuk KKI ${compact} di ${qualified}.`,
-      { pool: "verval", status: 404 },
+      `Detail keluarga tidak ditemukan untuk KKI padded di ${qualified}.`,
+      {
+        pool: "verval",
+        status: 404,
+        details: query.diag ? diag : { qualified, kki: describeKkiForDiag(query.kki) },
+      },
     );
   }
 
@@ -233,7 +289,7 @@ export async function getKeluargaDetailPostgres(
     throw new PostgresDataError(
       "keluarga_not_found",
       `Baris stunting_head tidak valid untuk KKI ${compact}.`,
-      { pool: "verval", status: 404 },
+      { pool: "verval", status: 404, details: query.diag ? diag : null },
     );
   }
 
@@ -249,6 +305,15 @@ export async function getKeluargaDetailPostgres(
       source: "postgres",
       generatedAt: new Date().toISOString(),
       cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
+      ...(query.diag
+        ? {
+            diag: {
+              qualified: relation.qualified,
+              kki: describeKkiForDiag(query.kki),
+              matchedKki: typeof row.kki === "string" ? row.kki.replace(/ /g, "·") : row.kki,
+            },
+          }
+        : {}),
     },
   };
 }

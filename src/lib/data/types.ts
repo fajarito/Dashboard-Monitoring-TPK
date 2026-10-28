@@ -592,12 +592,25 @@ export type KeluargaDetailPayload = {
     /** Catatan: by_name menyebut kolom `kode_keluarga` tetapi isinya KKI. */
     byNameColumn: "kode_keluarga";
   };
-  meta: RingkasanMeta;
+  meta: RingkasanMeta & {
+    /** Hanya jika `diag=1` */
+    diag?: Record<string, unknown>;
+  };
 };
 
 export type KeluargaDetailQuery = {
   /** KKI (wajib) — lookup stunting_head.kki */
   kki: string;
-  /** Opsional — prune partisi LIST(id_provinsi). */
+  /**
+   * Wajib di live — `id_provinsi` internal (bukan kode BPS).
+   * Jabar = 12 → tabel `stunting_head_12` (BPS adminCode 32 ≠ suffix partisi).
+   */
   provinsiId: number | null;
+  /**
+   * Opsional — filter `id_kelurahan` (scope desa pin) agar scan partisi lebih sempit
+   * bila belum ada index btree(kki).
+   */
+  kelurahanId?: number | null;
+  /** `diag=1` — sertakan SQL exact / param di error & meta. */
+  diag?: boolean;
 };

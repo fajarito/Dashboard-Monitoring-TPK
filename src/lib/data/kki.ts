@@ -1,11 +1,36 @@
 /**
  * Normalisasi KKI / kode_keluarga untuk join pin ↔ stunting_head.
- * Format dump tipikal: "11061020310200      001019026" (14 digit + spasi + 9 digit).
+ * Format dump tipikal: "11061020310200      001019026" (14 digit + 6 spasi + 9 digit).
+ *
+ * URL: `kki=32010110120011++++++003008009` → setelah decode form/`+` → 6 spasi.
  */
 
 /** URL/`+` sering = spasi di query string; samakan dulu. */
-function spacesFromPlus(value: string): string {
+export function spacesFromPlus(value: string): string {
   return value.replace(/\+/g, " ");
+}
+
+/** Deskripsi aman untuk diag (spasi terlihat sebagai `·`). */
+export function describeKkiForDiag(value: string | null | undefined): {
+  raw: string;
+  visible: string;
+  compact: string;
+  paddedPrimary: string | null;
+  length: number;
+  spaceCount: number;
+} {
+  const raw = value ?? "";
+  const spaced = spacesFromPlus(raw);
+  const compact = compactKki(spaced);
+  const paddedPrimary = primaryPaddedKki(spaced);
+  return {
+    raw,
+    visible: spaced.replace(/ /g, "·"),
+    compact,
+    paddedPrimary,
+    length: spaced.length,
+    spaceCount: (spaced.match(/ /g) ?? []).length,
+  };
 }
 
 /** Compact key: buang semua whitespace. */

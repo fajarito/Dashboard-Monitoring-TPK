@@ -9,11 +9,18 @@ export class PostgresDataError extends Error {
   readonly code: string;
   readonly pool: PoolKind | null;
   readonly status: number;
+  /** Payload diagnostik aman (SQL, relasi, param) — untuk `diag=1` / timeout. */
+  readonly details: Record<string, unknown> | null;
 
   constructor(
     code: string,
     message: string,
-    options?: { pool?: PoolKind | null; cause?: unknown; status?: number },
+    options?: {
+      pool?: PoolKind | null;
+      cause?: unknown;
+      status?: number;
+      details?: Record<string, unknown> | null;
+    },
   ) {
     super(
       message,
@@ -23,6 +30,7 @@ export class PostgresDataError extends Error {
     this.code = code;
     this.pool = options?.pool ?? null;
     this.status = options?.status ?? 503;
+    this.details = options?.details ?? null;
   }
 }
 

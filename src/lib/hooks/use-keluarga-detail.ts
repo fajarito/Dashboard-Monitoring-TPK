@@ -7,7 +7,11 @@ import type { KeluargaDetailPayload } from "@/lib/data/types";
 export type KeluargaDetailStatus = "idle" | "loading" | "ready" | "error";
 
 /** Fetch detail stunting_head by **KKI**. */
-export function useKeluargaDetail(kki: string | null, provinsiId?: number | null) {
+export function useKeluargaDetail(
+  kki: string | null,
+  provinsiId?: number | null,
+  kelurahanId?: number | null,
+) {
   const [status, setStatus] = useState<KeluargaDetailStatus>("idle");
   const [payload, setPayload] = useState<KeluargaDetailPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +31,15 @@ export function useKeluargaDetail(kki: string | null, provinsiId?: number | null
     setStatus("loading");
     setError(null);
 
+    // Jangan trim spasi internal — URLSearchParams encode spasi → `+` (bentuk padded).
     const params = new URLSearchParams({
-      kki: kki.trim(),
+      kki: kki.replace(/^\s+|\s+$/g, ""),
     });
     if (provinsiId != null && Number.isFinite(provinsiId)) {
       params.set("provinsiId", String(provinsiId));
+    }
+    if (kelurahanId != null && Number.isFinite(kelurahanId)) {
+      params.set("kelurahanId", String(kelurahanId));
     }
 
     void fetch(`/api/keluarga/detail?${params.toString()}`, {
@@ -57,7 +65,7 @@ export function useKeluargaDetail(kki: string | null, provinsiId?: number | null
       });
 
     return () => controller.abort();
-  }, [kki, provinsiId, tick]);
+  }, [kki, provinsiId, kelurahanId, tick]);
 
   return { status, payload, error, refetch };
 }
