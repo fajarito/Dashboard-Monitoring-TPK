@@ -21,18 +21,26 @@ export function canonicalKki(value: string | null | undefined): string {
 }
 
 /**
- * Bentuk ber-spasi seperti dump (14 + 6 spasi + sisa) — sering dipakai di stunting_head.
- * Juga bentuk 1 spasi (sample minoritas).
+ * Bentuk KKI dump tipikal (contoh Fajar):
+ * `'11061020310200      001019026'` = 14 digit + 6 spasi + sisa.
+ */
+export function primaryPaddedKki(value: string | null | undefined): string | null {
+  const c = compactKki(value);
+  if (c.length < 15) return null;
+  return `${c.slice(0, 14)}${" ".repeat(6)}${c.slice(14)}`;
+}
+
+/**
+ * Bentuk ber-spasi: padded 6 spasi (utama) + 1 spasi (sample minoritas).
  */
 export function paddedKkiForms(compact: string): string[] {
   const c = compactKki(compact);
   if (!c) return [];
   const out: string[] = [];
+  const primary = primaryPaddedKki(c);
+  if (primary) out.push(primary);
   if (c.length >= 15) {
-    const head = c.slice(0, 14);
-    const tail = c.slice(14);
-    out.push(`${head}${" ".repeat(6)}${tail}`);
-    out.push(`${head} ${tail}`);
+    out.push(`${c.slice(0, 14)} ${c.slice(14)}`);
   }
   return out;
 }

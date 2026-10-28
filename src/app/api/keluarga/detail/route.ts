@@ -14,9 +14,10 @@ export const revalidate = 0;
 
 /**
  * GET /api/keluarga/detail?kki=&provinsiId=
- * Detail 1 KK dari stunting_head (volt_verval). Lookup **by KKI** (bukan NIK/NoKK).
- * Live: `provinsiId` wajib (prune LIST). Match KKI equality (padded/compact), bukan regexp scan.
- * Pool: DATABASE_URL_VERVAL (alias DATABASE_URL_STUNTING). Unset → mock.
+ * Detail 1 KK dari tabel partisi `verval2024_monitoring.stunting_head_{NN}`.
+ * Live: `provinsiId` → NN (pad 2). Match `kki =` bentuk padded; compact hanya fallback.
+ * Contoh: `SELECT * FROM stunting_head_01 WHERE kki = '11061020310200      001019026'`
+ * Pool: DATABASE_URL_VERVAL. Unset → mock.
  */
 export async function GET(request: NextRequest) {
   try {
