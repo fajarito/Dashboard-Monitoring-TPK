@@ -172,18 +172,20 @@ function PkbPembinaCard({
     kabupaten: string | null;
   };
 }) {
-  // Kunci pencarian ke portal (SIGA PKBID) — bukan teks yang ditampilkan sebagai NIP.
+  // Kunci pencarian ke portal: pkb.nip (SIGA) lalu pkbId.
+  // Tanpa digit 8–25 → hook idle, tidak pernah hit /api/pkb.
   const lookupKey = pkb?.nip?.trim() || pkb?.pkbId?.trim() || null;
   const portal = usePkbPortal(lookupKey, {
     propinsi: lokasi.propinsi,
     kabupaten: lokasi.kabupaten,
-    statuspegawai: pkb?.jabatan,
+    // Filter portal = statuspegawai (PKB/PLKB), BUKAN jab_akhir/jabatan lokal.
+    statuspegawai: "PKB",
   });
 
   const d = portal.data;
   const portalReady = portal.status === "ready" && d != null;
 
-  // NIP tampilan: HANYA dari response portal. Jangan pakai NIK.
+  // NIP tampilan: HANYA dari response portal. Jangan pakai NIK / lookupKey lokal.
   const displayNip = portalReady ? d.NIP || d.nip : null;
   const name = portalReady ? d.nama : pkb?.nama || null;
   const phone = portalReady ? d.nohp : pkb?.noHp || null;
@@ -217,7 +219,31 @@ function PkbPembinaCard({
         ? "Stub portal"
         : portal.status === "loading"
           ? "Memuat portal…"
-          : "Data lokal";
+          : portal.status === "idle" && portal.error
+            ? "Lookup NIP kosong"
+            : portal.status === "empty"
+              ? "Portal kosong"
+              : portal.status === "error"
+                ? "Portal error"
+                : "Data lokal";
+
+  const nipStatusLine = (() => {
+    if (displayNip) return `NIP ${displayNip}`;
+    if (portal.status === "loading") return "NIP … memuat portal";
+    if (portal.status === "idle" && !lookupKey) {
+      return "NIP — (tidak ada nip/pkbId di data TPK lokal)";
+    }
+    if (portal.status === "idle" && portal.error) {
+      return `NIP — (${portal.error})`;
+    }
+    if (portal.status === "empty") {
+      return "NIP — (portal: tidak ditemukan / token belum terbaca)";
+    }
+    if (portal.status === "error") {
+      return `NIP — (portal gagal: ${portal.error ?? "error"})`;
+    }
+    return "NIP — (data lokal, portal belum siap)";
+  })();
 
   return (
     <section className="design-card p-6 sm:p-7" aria-label="PKB atau PLKB pembina">
@@ -271,12 +297,14 @@ function PkbPembinaCard({
                 ) : null}
               </div>
               <div className="mt-1 font-mono text-[12px] font-bold tracking-wide text-navy tabular-nums">
-                {displayNip
-                  ? `NIP ${displayNip}`
-                  : portal.status === "loading"
-                    ? "NIP …"
-                    : "NIP — (menunggu portal)"}
+                {nipStatusLine}
               </div>
+              {lookupKey && !displayNip ? (
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  Lookup key:{" "}
+                  <span className="font-mono">{lookupKey}</span>
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-x-4 gap-y-3">
@@ -301,11 +329,20 @@ function PkbPembinaCard({
             {d?.warning ? (
               <p className="text-[11px] text-amber-700">{d.warning}</p>
             ) : null}
+            {portal.status === "empty" ? (
+              <p className="text-[11px] text-slate-500">
+                {portal.error ??
+                  "Portal tidak mengembalikan PKB untuk lookup ini. Cek PKB_PORTAL_API_TOKEN + restart next dev, atau /api/pkb/…?diag=1."}
+              </p>
+            ) : null}
             {portal.status === "error" && portal.error ? (
               <p className="text-[11px] text-slate-500">
                 Portal gagal ({portal.error}) — menampilkan data lokal (tanpa
                 NIK).
               </p>
+            ) : null}
+            {portal.status === "idle" && portal.error ? (
+              <p className="text-[11px] text-slate-500">{portal.error}</p>
             ) : null}
           </div>
         </div>

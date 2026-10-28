@@ -78,13 +78,64 @@ export function getSimsdmFotoBaseUrl(): string {
   );
 }
 
-/** Token Bearer portal. Kosong = mode stub/fallback (aman untuk local). */
+/**
+ * Normalisasi token dari .env.
+ * Jika value sudah `Bearer xxx`, jangan double-prefix di header.
+ */
+export function normalizePortalBearerToken(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().replace(/^["']|["']$/g, "");
+  if (!trimmed) return null;
+  return trimmed.replace(/^Bearer\s+/i, "").trim() || null;
+}
+
+/** Token mentah Bearer (tanpa kata "Bearer "). Kosong = stub/fallback. */
 export function getPkbPortalToken(): string | null {
-  return (
-    readEnv("PKB_PORTAL_API_TOKEN") ??
-    readEnv("PKB_PORTAL_API_KEY") ??
-    null
+  return normalizePortalBearerToken(
+    readEnv("PKB_PORTAL_API_TOKEN") ?? readEnv("PKB_PORTAL_API_KEY"),
   );
+}
+
+/** Diagnostik aman (tanpa membocorkan token). */
+export function getPkbPortalAuthDiag(): {
+  tokenConfigured: boolean;
+  tokenHadBearerPrefix: boolean;
+  envKeysPresent: string[];
+  baseUrl: string;
+} {
+  const raw =
+    readEnv("PKB_PORTAL_API_TOKEN") ?? readEnv("PKB_PORTAL_API_KEY");
+  const envKeysPresent: string[] = [];
+  if (readEnv("PKB_PORTAL_API_TOKEN")) envKeysPresent.push("PKB_PORTAL_API_TOKEN");
+  if (readEnv("PKB_PORTAL_API_KEY")) envKeysPresent.push("PKB_PORTAL_API_KEY");
+  if (readEnv("PKB_PORTAL_API_BASE_URL")) {
+    envKeysPresent.push("PKB_PORTAL_API_BASE_URL");
+  }
+  return {
+    tokenConfigured: Boolean(getPkbPortalToken()),
+    tokenHadBearerPrefix: Boolean(raw && /^Bearer\s+/i.test(raw.trim())),
+    envKeysPresent,
+    baseUrl: getPkbPortalBaseUrl(),
+  };
+}
+
+/**
+ * Kunci NIP untuk query portal.
+ * Ambil digit dari PKBID/nip lokal; NIP PNS biasanya 15–18 digit.
+ */
+export function resolvePortalLookupNip(
+  ...candidates: Array<string | null | undefined>
+): string | null {
+  for (const raw of candidates) {
+    const value = raw?.trim();
+    if (!value) continue;
+    if (/^\d{8,25}$/.test(value)) return value;
+    const digits = value.replace(/\D/g, "");
+    if (digits.length >= 8 && digits.length <= 25) return digits;
+  }
+  return null;
 }
 
 /** Absolute URL SIMSDM (server-side fetch / debug). */
@@ -162,6 +213,10 @@ function normalizeRecord(raw: unknown): PkbPortalRecord | null {
   };
 }
 
+function nipDigitsEqual(a: string, b: string): boolean {
+  return a.replace(/\D/g, "") === b.replace(/\D/g, "");
+}
+
 function pickMatchingRecord(
   payload: unknown,
   nip: string,
@@ -169,17 +224,21 @@ function pickMatchingRecord(
   if (Array.isArray(payload)) {
     for (const item of payload) {
       const rec = normalizeRecord(item);
-      if (rec && rec.NIP === nip) return rec;
+      if (rec && nipDigitsEqual(rec.NIP, nip)) return rec;
     }
-    const first = normalizeRecord(payload[0]);
-    return first && first.NIP === nip ? first : first;
+    // Satu-satunya elemen array → terima meski field NIP sedikit berbeda format
+    if (payload.length === 1) return normalizeRecord(payload[0]);
+    return null;
   }
   if (payload && typeof payload === "object") {
     const obj = payload as Record<string, unknown>;
     if (Array.isArray(obj.data)) return pickMatchingRecord(obj.data, nip);
     if (Array.isArray(obj.result)) return pickMatchingRecord(obj.result, nip);
     if (Array.isArray(obj.items)) return pickMatchingRecord(obj.items, nip);
-    return normalizeRecord(payload);
+    const rec = normalizeRecord(payload);
+    if (rec && nipDigitsEqual(rec.NIP, nip)) return rec;
+    // Object tunggal tanpa array wrapper — terima bila ada NIP
+    return rec;
   }
   return null;
 }
@@ -225,7 +284,7 @@ export async function fetchPkbFromPortal(
   lokasi: PkbPortalLokasi,
   init?: { signal?: AbortSignal },
 ): Promise<FetchPkbPortalResult> {
-  const cleanNip = nip.trim();
+  const cleanNip = resolvePortalLookupNip(nip);
   if (!cleanNip) {
     return { enrichment: null, httpStatus: null };
   }
@@ -244,9 +303,14 @@ export async function fetchPkbFromPortal(
 
   const params = new URLSearchParams();
   params.set("NIP", cleanNip);
-  if (lokasi.propinsi) params.set("lokasi_propinsi", lokasi.propinsi);
-  if (lokasi.kabupaten) params.set("lokasi_kabupaten", lokasi.kabupaten);
-  params.set("statuspegawai", lokasi.statuspegawai?.trim() || "PKB");
+  const propinsi = lokasi.propinsi?.trim().toUpperCase() || "";
+  const kabupaten = lokasi.kabupaten?.trim().toUpperCase() || "";
+  if (propinsi) params.set("lokasi_propinsi", propinsi);
+  if (kabupaten) params.set("lokasi_kabupaten", kabupaten);
+  params.set(
+    "statuspegawai",
+    (lokasi.statuspegawai?.trim() || "PKB").toUpperCase(),
+  );
 
   const url = `${getPkbPortalBaseUrl()}/api/pkb?${params.toString()}`;
 
@@ -255,6 +319,7 @@ export async function fetchPkbFromPortal(
       method: "GET",
       headers: {
         Accept: "application/json",
+        // token sudah di-strip dari prefix "Bearer " bila ada di .env
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
@@ -262,14 +327,18 @@ export async function fetchPkbFromPortal(
     });
 
     if (!response.ok) {
+      let detail = `Portal HTTP ${response.status}`;
+      try {
+        const errBody = (await response.json()) as { error?: string; message?: string };
+        if (errBody?.message) detail = `${detail}: ${errBody.message}`;
+        else if (errBody?.error) detail = `${detail}: ${errBody.error}`;
+      } catch {
+        /* ignore */
+      }
       const stub = getPkbPortalStub(cleanNip);
       if (stub) {
         return {
-          enrichment: toEnrichment(
-            stub,
-            "stub",
-            `Portal HTTP ${response.status} — stub demo`,
-          ),
+          enrichment: toEnrichment(stub, "stub", `${detail} — stub demo`),
           httpStatus: response.status,
         };
       }
@@ -282,6 +351,18 @@ export async function fetchPkbFromPortal(
     const body: unknown = await response.json();
     const record = pickMatchingRecord(body, cleanNip);
     if (!record) {
+      // Response 200 tapi shape tidak dikenali / NIP tidak cocok
+      const stub = getPkbPortalStub(cleanNip);
+      if (stub) {
+        return {
+          enrichment: toEnrichment(
+            stub,
+            "stub",
+            "Portal 200 tapi NIP/record tidak ter-parse — stub demo",
+          ),
+          httpStatus: response.status,
+        };
+      }
       return { enrichment: null, httpStatus: response.status };
     }
     return {

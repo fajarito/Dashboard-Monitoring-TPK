@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   fetchPkbFromPortal,
+  getPkbPortalAuthDiag,
   getPkbPortalToken,
+  resolvePortalLookupNip,
 } from "@/lib/pkb-portal";
 
 export const dynamic = "force-dynamic";
@@ -14,16 +16,23 @@ type RouteContext = {
 
 /**
  * GET /api/pkb/[nip]?propinsi=&kabupaten=&statuspegawai=PKB
+ * Alias query: lokasi_propinsi, lokasi_kabupaten.
  * Proxy server-side ke API portal (token tidak diekspos ke browser).
+ * ?diag=1 → meta auth (tanpa token) untuk debug lokal.
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   const { nip: rawNip } = await context.params;
-  const nip = decodeURIComponent(rawNip || "").trim();
-  if (!nip || !/^\d{8,25}$/.test(nip)) {
+  const nip = resolvePortalLookupNip(decodeURIComponent(rawNip || ""));
+  const diag = getPkbPortalAuthDiag();
+  const wantDiag = request.nextUrl.searchParams.get("diag") === "1";
+
+  if (!nip) {
     return NextResponse.json(
       {
         error: "invalid_nip",
-        message: "Parameter NIP tidak valid.",
+        message:
+          "Parameter NIP tidak valid (butuh 8–25 digit). Cek pkb.nip / pkbId di payload TPK.",
+        meta: wantDiag ? { ...diag, generatedAt: new Date().toISOString() } : undefined,
       },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
@@ -52,10 +61,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
       {
         error: hasToken ? "pkb_not_found" : "portal_token_missing",
         message: hasToken
-          ? "PKB tidak ditemukan di portal untuk NIP ini."
-          : "PKB_PORTAL_API_TOKEN belum di-set; tidak ada stub untuk NIP ini.",
+          ? "PKB tidak ditemukan / tidak ter-parse dari portal untuk NIP ini."
+          : "PKB_PORTAL_API_TOKEN belum terbaca proses Next (isi .env.local lalu restart next dev).",
         nip,
         portalHttpStatus: httpStatus,
+        meta: {
+          generatedAt: new Date().toISOString(),
+          ...diag,
+        },
       },
       {
         status: hasToken ? 404 : 503,
@@ -79,7 +92,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
       email_dinas: enrichment.emailDinas,
       jab_akhir: enrichment.jabAkhir,
       foto: enrichment.fotoFile,
-      // Alias camelCase untuk UI yang sudah ada
       emailDinas: enrichment.emailDinas,
       jabAkhir: enrichment.jabAkhir,
       statusPegawai: enrichment.statusPegawai,
@@ -94,8 +106,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       meta: {
         generatedAt: new Date().toISOString(),
         portalHttpStatus: httpStatus,
-        tokenConfigured: Boolean(getPkbPortalToken()),
+        lookupNip: nip,
         simsdmFotoBase: process.env.SIMSDM_FOTO_BASE_URL?.trim() || null,
+        ...diag,
       },
     },
     {
