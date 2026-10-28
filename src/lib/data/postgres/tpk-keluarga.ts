@@ -88,8 +88,9 @@ export function mapPrioritas(
 /**
  * Bangun predikat filter prioritas + indikator.
  * Param $1=periode, $2=id_provinsi, $3=id_kelurahan; digit prioritas menyusul.
+ * Diekspor agar endpoint pin KRS memakai predikat yang sama.
  */
-function buildFilterSql(
+export function buildFilterSql(
   prioritas: TpkKeluargaPrioritas[],
   indikator: TpkKeluargaIndikatorFilter[],
 ): { sql: string; params: string[] } {

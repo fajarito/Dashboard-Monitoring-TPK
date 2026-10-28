@@ -55,13 +55,23 @@ function mapAnggota(members: TpkMember[]): TpkDetailAnggota[] {
 }
 
 function mapPkb(tpk: TpkUnit): TpkListPkb {
+  // Simulasi flag SIGA Pelatihan* (bukan portal / jabatanDetail).
+  const rich = Boolean(tpk.pkb.nip);
+  const pelatihanLabels = rich
+    ? ["Fungsional LDU", "Teknis KIE", "Teknis Advokasi"]
+    : [];
   return {
-    pkbId: tpk.pkb.nik || `mock-${tpk.id}`,
+    pkbId: tpk.pkb.nip || tpk.pkb.nik || `mock-${tpk.id}`,
+    nip: tpk.pkb.nip || null,
     nama: tpk.pkb.name,
     jabatan: tpk.pkb.jabatan,
     jabatanDetail: tpk.pkb.jabatanDetail,
     nik: tpk.pkb.nik,
     noHp: tpk.pkb.phone,
+    pelatihanLabels,
+    pelatihanEmptyHint: pelatihanLabels.length
+      ? null
+      : "Belum ada data pelatihan dari SIGA.",
   };
 }
 

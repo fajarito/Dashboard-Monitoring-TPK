@@ -2,6 +2,7 @@ import {
   cacheKey,
   DEFAULT_CACHE_TTL_SEC,
   getCached,
+  getOrLoadCached,
   setCached,
 } from "@/lib/data/cache";
 import { getPeringkatKabupatenMock } from "@/lib/data/mock/peringkat-kabupaten";
@@ -10,8 +11,12 @@ import { getPeringkatKelurahanMock } from "@/lib/data/mock/peringkat-kelurahan";
 import { getPeringkatProvinsiMock } from "@/lib/data/mock/peringkat";
 import { getRingkasanMock } from "@/lib/data/mock/ringkasan";
 import { getTpkDetailMock } from "@/lib/data/mock/tpk-detail";
+import { getKeluargaDetailMock } from "@/lib/data/mock/keluarga-detail";
+import { getKrsPointsMock } from "@/lib/data/mock/krs-points";
 import { getTpkKeluargaMock } from "@/lib/data/mock/tpk-keluarga";
 import { getTpkListMock } from "@/lib/data/mock/tpk-list";
+import { getKeluargaDetailPostgres } from "@/lib/data/postgres/keluarga-detail";
+import { getKrsPointsPostgres } from "@/lib/data/postgres/krs-points";
 import { getPeringkatKabupatenPostgres } from "@/lib/data/postgres/peringkat-kabupaten";
 import { getPeringkatKecamatanPostgres } from "@/lib/data/postgres/peringkat-kecamatan";
 import { getPeringkatKelurahanPostgres } from "@/lib/data/postgres/peringkat-kelurahan";
@@ -19,6 +24,7 @@ import { getPeringkatProvinsiPostgres } from "@/lib/data/postgres/peringkat";
 import {
   arePostgresPoolsConfigured,
   getPoolConfigs,
+  isVervalPoolConfigured,
 } from "@/lib/data/postgres/pools";
 import { getRingkasanPostgres } from "@/lib/data/postgres/ringkasan";
 import { getTpkDetailPostgres } from "@/lib/data/postgres/tpk-detail";
@@ -27,6 +33,11 @@ import { getTpkListPostgres } from "@/lib/data/postgres/tpk-list";
 import { PostgresDataError } from "@/lib/data/postgres/errors";
 import type {
   DataSource,
+  KeluargaDetailPayload,
+  KeluargaDetailQuery,
+  KrsPointsBbox,
+  KrsPointsPayload,
+  KrsPointsQuery,
   PeringkatKabupatenPayload,
   PeringkatKecamatanPayload,
   PeringkatKelurahanPayload,
@@ -43,10 +54,18 @@ import type {
   TpkListQuery,
   TpkListSort,
 } from "@/lib/data/types";
+import {
+  KRS_POINTS_DEFAULT_LIMIT,
+  KRS_POINTS_HARD_MAX,
+} from "@/lib/data/types";
+import { compactKki } from "@/lib/data/kki";
 
 export type {
   DataSource,
   IndikatorRingkasan,
+  KeluargaDetailItem,
+  KeluargaDetailPayload,
+  KeluargaDetailQuery,
   KomposisiPrioritas,
   KomposisiTPK,
   PeringkatKabupatenItem,
@@ -64,6 +83,10 @@ export type {
   TpkDetailAnggota,
   TpkDetailKomposisiPrioritas,
   TpkDetailPayload,
+  KrsPointItem,
+  KrsPointsBbox,
+  KrsPointsPayload,
+  KrsPointsQuery,
   TpkKeluargaIndikatorFilter,
   TpkKeluargaItem,
   TpkKeluargaPayload,
@@ -75,6 +98,11 @@ export type {
   TpkListPkb,
   TpkListQuery,
   TpkListSort,
+} from "@/lib/data/types";
+
+export {
+  KRS_POINTS_DEFAULT_LIMIT,
+  KRS_POINTS_HARD_MAX,
 } from "@/lib/data/types";
 
 export {
@@ -189,39 +217,31 @@ export async function fetchRingkasan(
     query.tingkat,
     query.id ?? "",
   ]);
-  const hit = getCached<RingkasanPayload>(key);
-  if (hit) return hit;
-
-  let payload: RingkasanPayload;
-  if (source === "postgres") {
-    assertPostgresReady();
-    payload = await getRingkasanPostgres(query);
-  } else {
-    payload = getRingkasanMock(query);
-  }
-
-  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+  return getOrLoadCached(key, async () => {
+    if (source === "postgres") {
+      assertPostgresReady();
+      return getRingkasanPostgres(query);
+    }
+    return getRingkasanMock(query);
+  }, DEFAULT_CACHE_TTL_SEC);
 }
 
 export async function fetchPeringkatProvinsi(): Promise<PeringkatProvinsiPayload> {
   const source = resolveDataSource();
   const key = cacheKey(["peringkat", "provinsi", source]);
-  const hit = getCached<PeringkatProvinsiPayload>(key);
-  if (hit) return hit;
-
-  let payload: PeringkatProvinsiPayload;
-  if (source === "postgres") {
-    assertPostgresReady();
-    payload = await getPeringkatProvinsiPostgres();
-  } else {
-    payload = getPeringkatProvinsiMock();
-  }
-
-  if (payload.items.length > 40) {
-    payload = { ...payload, items: payload.items.slice(0, 40) };
-  }
-
-  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+  return getOrLoadCached(key, async () => {
+    let payload: PeringkatProvinsiPayload;
+    if (source === "postgres") {
+      assertPostgresReady();
+      payload = await getPeringkatProvinsiPostgres();
+    } else {
+      payload = getPeringkatProvinsiMock();
+    }
+    if (payload.items.length > 40) {
+      payload = { ...payload, items: payload.items.slice(0, 40) };
+    }
+    return payload;
+  }, DEFAULT_CACHE_TTL_SEC);
 }
 
 export async function fetchPeringkatKabupaten(
@@ -485,12 +505,218 @@ export async function fetchTpkKeluarga(
   return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
 }
 
+function parsePositiveIntParam(
+  raw: string | null,
+  label: string,
+): number {
+  const n = raw?.trim() ? Number.parseInt(raw.trim(), 10) : NaN;
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new PostgresDataError(
+      "invalid_query",
+      `${label} wajib angka positif.`,
+      { status: 400 },
+    );
+  }
+  return n;
+}
+
+function parseBboxParam(raw: string | null): KrsPointsBbox | null {
+  if (!raw?.trim()) return null;
+  const parts = raw.split(",").map((p) => Number.parseFloat(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+    throw new PostgresDataError(
+      "invalid_bbox",
+      "bbox harus west,south,east,north (4 angka).",
+      { status: 400 },
+    );
+  }
+  const [west, south, east, north] = parts as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  if (west >= east || south >= north) {
+    throw new PostgresDataError(
+      "invalid_bbox",
+      "bbox: west < east dan south < north.",
+      { status: 400 },
+    );
+  }
+  return { west, south, east, north };
+}
+
+function parseBoolParam(raw: string | null, defaultValue: boolean): boolean {
+  if (raw == null || raw.trim() === "") return defaultValue;
+  const v = raw.trim().toLowerCase();
+  if (v === "1" || v === "true" || v === "ya") return true;
+  if (v === "0" || v === "false" || v === "tidak") return false;
+  return defaultValue;
+}
+
+/**
+ * Query pin KRS kelurahan.
+ * Default: indikator=krs, validCoordsOnly=true, limit=1000 (max 2000).
+ */
+export function parseKrsPointsQuery(
+  searchParams: URLSearchParams,
+): KrsPointsQuery {
+  const kelurahanId = parsePositiveIntParam(
+    searchParams.get("kelurahanId"),
+    "kelurahanId",
+  );
+  const provinsiId = parsePositiveIntParam(
+    searchParams.get("provinsiId"),
+    "provinsiId",
+  );
+
+  let limit = searchParams.get("limit")
+    ? Number.parseInt(searchParams.get("limit")!, 10)
+    : KRS_POINTS_DEFAULT_LIMIT;
+  if (!Number.isFinite(limit) || limit < 1) limit = KRS_POINTS_DEFAULT_LIMIT;
+  limit = Math.min(KRS_POINTS_HARD_MAX, limit);
+
+  let offset = searchParams.get("offset")
+    ? Number.parseInt(searchParams.get("offset")!, 10)
+    : 0;
+  if (!Number.isFinite(offset) || offset < 0) offset = 0;
+
+  const qRaw = searchParams.get("q")?.trim() ?? "";
+  const q = qRaw.length >= 2 ? qRaw.slice(0, 80) : null;
+
+  // Default KRS pins: indikator=krs bila param tidak dikirim sama sekali.
+  // indikator= (kosong) = tanpa filter indikator (user sengaja clear).
+  const indikatorRaw = searchParams.get("indikator");
+  const indikator =
+    indikatorRaw === null
+      ? (["krs"] as TpkKeluargaIndikatorFilter[])
+      : parseCsvParam(indikatorRaw, INDIKATOR_FILTER_VALUES);
+
+  return {
+    kelurahanId,
+    provinsiId,
+    prioritas: parseCsvParam(searchParams.get("prioritas"), PRIORITAS_VALUES),
+    indikator,
+    validCoordsOnly: parseBoolParam(
+      searchParams.get("validCoordsOnly"),
+      true,
+    ),
+    q,
+    bbox: parseBboxParam(searchParams.get("bbox")),
+    limit,
+    offset,
+  };
+}
+
+/** Pin keluarga/KRS se-kelurahan — by_name, cache 60 dtk, hard max 2000. */
+export async function fetchKrsPoints(
+  query: KrsPointsQuery,
+): Promise<KrsPointsPayload> {
+  const source = resolveDataSource();
+  const key = cacheKey([
+    "krs-points",
+    source,
+    query.kelurahanId,
+    query.provinsiId,
+    query.prioritas.join("|"),
+    query.indikator.join("|"),
+    query.validCoordsOnly ? "1" : "0",
+    query.q ?? "",
+    query.bbox
+      ? `${query.bbox.west},${query.bbox.south},${query.bbox.east},${query.bbox.north}`
+      : "",
+    query.limit,
+    query.offset,
+  ]);
+  const hit = getCached<KrsPointsPayload>(key);
+  if (hit) return hit;
+
+  let payload: KrsPointsPayload;
+  if (source === "postgres") {
+    assertPostgresReady();
+    payload = await getKrsPointsPostgres(query);
+  } else {
+    payload = getKrsPointsMock(query);
+  }
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
+export function parseKeluargaDetailQuery(
+  searchParams: URLSearchParams,
+): KeluargaDetailQuery {
+  // KKI wajib (Fajar). Alias historis: kodeKeluarga/kode — hanya jika nilainya KKI.
+  // Jangan collapse spasi internal: URL `+++` → spasi (bentuk padded Fajar).
+  const kkiRaw =
+    searchParams.get("kki") ??
+    searchParams.get("kodeKeluarga") ??
+    searchParams.get("kode") ??
+    "";
+  const kki = kkiRaw.replace(/^\s+|\s+$/g, "");
+  const provRaw = searchParams.get("provinsiId");
+  const provinsiId =
+    provRaw && Number.isFinite(Number(provRaw)) ? Number(provRaw) : null;
+  const kelRaw = searchParams.get("kelurahanId");
+  const kelurahanId =
+    kelRaw && Number.isFinite(Number(kelRaw)) ? Number(kelRaw) : null;
+  const diagRaw = searchParams.get("diag");
+  const diag =
+    diagRaw === "1" || diagRaw === "true" || diagRaw === "yes";
+  if (!compactKki(kki)) {
+    throw new PostgresDataError(
+      "invalid_kki",
+      "Parameter kki wajib diisi (join pin ↔ stunting_head).",
+      { status: 400 },
+    );
+  }
+  return { kki, provinsiId, kelurahanId, diag };
+}
+
+/**
+ * Sumber detail keluarga: hanya pool Verval (host terpisah).
+ * - `DATABASE_URL_VERVAL` / `DATABASE_URL_STUNTING` terisi → postgres verval
+ * - unset → mock (jangan lewat SIGA, jangan 503 karena triple-pool)
+ */
+export function resolveKeluargaDetailSource(): DataSource {
+  if (isVervalPoolConfigured()) return "postgres";
+  return "mock";
+}
+
+/**
+ * Detail 1 keluarga dari stunting_head (volt_verval) — lookup **by KKI**.
+ * Cache 60 dtk. Independen dari DATA_SOURCE triple-pool.
+ */
+export async function fetchKeluargaDetail(
+  query: KeluargaDetailQuery,
+): Promise<KeluargaDetailPayload> {
+  const source = resolveKeluargaDetailSource();
+  const key = cacheKey([
+    "keluarga-detail",
+    source,
+    compactKki(query.kki),
+    query.provinsiId,
+    query.kelurahanId ?? "",
+  ]);
+  const hit = getCached<KeluargaDetailPayload>(key);
+  if (hit) return hit;
+
+  const payload =
+    source === "postgres"
+      ? await getKeluargaDetailPostgres(query)
+      : getKeluargaDetailMock(query);
+
+  return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
+}
+
 /** Diagnostik singkat untuk meta / logging (tanpa membuka koneksi). */
 export function getDataLayerStatus() {
+  const pools = getPoolConfigs();
   return {
     dataSource: resolveDataSource(),
     postgresConfigured: arePostgresPoolsConfigured(),
-    sigaConfigured: getPoolConfigs().siga.ready,
+    sigaConfigured: pools.siga.ready,
+    vervalConfigured: pools.verval.ready,
+    keluargaDetailSource: resolveKeluargaDetailSource(),
     cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
   };
 }

@@ -580,8 +580,45 @@ export const nationalTotals = {
  */
 export const nationalDesaKelurahan = 83_420;
 
+/** Ambang ideal: 1 TPK menangani paling banyak 100 KRS. */
+export const KRS_PER_TPK_IDEAL_MAX = 100;
+
 /** Ambang ideal: 1 PKB membina paling banyak 2 desa/kelurahan. */
 export const PKB_DESA_IDEAL_MAX = 2;
+
+/** Status interpretasi kartu rasio (UI saja — tidak mengubah rumus agregat). */
+export type RasioBebanStatus = "terkendali" | "berat" | "unavailable";
+
+/**
+ * Status Rasio TPK : KRS.
+ * Denominator TPK kosong/invalid → Data Tidak Tersedia (bukan Terkendali).
+ */
+export function getTpkKrsBebanStatus(
+  tpk: number,
+  krs: number,
+  ratio = getKrsPerTpkRatio(tpk, krs),
+): RasioBebanStatus {
+  if (!Number.isFinite(tpk) || tpk <= 0 || !Number.isFinite(krs) || krs < 0) {
+    return "unavailable";
+  }
+  if (!Number.isFinite(ratio)) return "unavailable";
+  return ratio <= KRS_PER_TPK_IDEAL_MAX ? "terkendali" : "berat";
+}
+
+/**
+ * Status Rasio PKB : Desa/Kelurahan.
+ * Denominator PKB kosong, atau desa tidak tersedia/0 → Data Tidak Tersedia.
+ */
+export function getPkbDesaBebanStatus(
+  pkb: number,
+  desa: number | null | undefined,
+  ratio = typeof desa === "number" ? getDesaPerPkbRatio(pkb, desa) : Number.NaN,
+): RasioBebanStatus {
+  if (!Number.isFinite(pkb) || pkb <= 0) return "unavailable";
+  if (desa == null || !Number.isFinite(desa) || desa <= 0) return "unavailable";
+  if (!Number.isFinite(ratio)) return "unavailable";
+  return ratio <= PKB_DESA_IDEAL_MAX ? "terkendali" : "berat";
+}
 
 /** Rasio beban: KRS ÷ TPK → “1 TPK : X KRS”. */
 export function getKrsPerTpkRatio(

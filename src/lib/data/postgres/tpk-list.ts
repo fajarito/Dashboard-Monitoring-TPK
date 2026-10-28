@@ -19,6 +19,11 @@ import type {
   TpkListQuery,
   TpkListSort,
 } from "@/lib/data/types";
+import {
+  mapPkbPelatihanSqlRow,
+  resolvePkbPelatihanEmptyHint,
+  resolvePkbPelatihanLabels,
+} from "@/lib/pkb-pelatihan-siga";
 import { dedupeByTpkId } from "@/lib/tpk-display-name";
 
 type CountRow = { total: string | number };
@@ -91,6 +96,18 @@ type PkbJoinRow = {
   jabatan_tipe: number | null;
   jabatan_pkb: string | null;
   jabatan_plkb: string | null;
+  pelatihan_fungsional_ldu: number | null;
+  pelatihan_fungsional_refreshing: number | null;
+  pelatihan_fungsional_penjenjangan: number | null;
+  pelatihan_fungsional_belum_terlatih: number | null;
+  pelatihan_teknis_pencatatan_laporan: number | null;
+  pelatihan_teknis_kip_konseling: number | null;
+  pelatihan_teknis_advokasi: number | null;
+  pelatihan_teknis_kie: number | null;
+  pelatihan_teknis_substansi_lainnya: number | null;
+  pelatihan_teknis_kependudukan: number | null;
+  pelatihan_teknis_pembangunan_keluarga: number | null;
+  pelatihan_teknis_belum_terlatih: number | null;
 };
 
 type AnggotaRow = {
@@ -309,7 +326,19 @@ SELECT DISTINCT ON (b."KelurahanID")
   NULLIF(TRIM(BOTH FROM p."NoHP"), '') AS nohp,
   p."JabatanPKBAtauPLKBID" AS jabatan_tipe,
   NULLIF(TRIM(BOTH FROM COALESCE(p."JabatanPKBID"::text, '')), '') AS jabatan_pkb,
-  NULLIF(TRIM(BOTH FROM COALESCE(p."JabatanBPLKBID"::text, '')), '') AS jabatan_plkb
+  NULLIF(TRIM(BOTH FROM COALESCE(p."JabatanBPLKBID"::text, '')), '') AS jabatan_plkb,
+  p."PelatihanFungsionalLDU" AS pelatihan_fungsional_ldu,
+  p."PelatihanFungsionalRefreshing" AS pelatihan_fungsional_refreshing,
+  p."PelatihanFungsionalPenjenjangan" AS pelatihan_fungsional_penjenjangan,
+  p."PelatihanFungsionalBelumTerlatih" AS pelatihan_fungsional_belum_terlatih,
+  p."PelatihanTeknisPencatatanLaporan" AS pelatihan_teknis_pencatatan_laporan,
+  p."PelatihanTeknisKIPKonseling" AS pelatihan_teknis_kip_konseling,
+  p."PelatihanTeknisAdvokasi" AS pelatihan_teknis_advokasi,
+  p."PelatihanTeknisKIE" AS pelatihan_teknis_kie,
+  p."PelatihanTeknisSubstansiLainnya" AS pelatihan_teknis_substansi_lainnya,
+  p."PelatihanTeknisKependudukan" AS pelatihan_teknis_kependudukan,
+  p."PelatihanTeknisPembangunanKeluarga" AS pelatihan_teknis_pembangunan_keluarga,
+  p."PelatihanTeknisBelumTerlatih" AS pelatihan_teknis_belum_terlatih
 FROM "sigabaru"."dat_KelurahanDesaBinaan" b
 INNER JOIN "sigabaru"."dat_PKB" p
   ON TRIM(BOTH FROM p."PKBID") = TRIM(BOTH FROM b."PKBID")
@@ -419,13 +448,23 @@ function mapPkbRow(row: PkbJoinRow): TpkListPkb {
     row.jabatan_pkb,
     row.jabatan_plkb,
   );
+  const pkbId = row.pkbid?.trim() || "";
+  const pelatihanFlags = mapPkbPelatihanSqlRow(row);
+  const pelatihanLabels = resolvePkbPelatihanLabels(pelatihanFlags);
   return {
-    pkbId: row.pkbid,
+    pkbId,
+    // SIGA PKBID = identitas pegawai; dipakai sebagai NIP match portal.
+    nip: pkbId || null,
     nama: row.nama?.trim() || null,
     jabatan,
     jabatanDetail,
     nik: row.nik?.trim() || null,
     noHp: row.nohp?.trim() || null,
+    pelatihanLabels,
+    pelatihanEmptyHint:
+      pelatihanLabels.length === 0
+        ? resolvePkbPelatihanEmptyHint(pelatihanFlags)
+        : null,
   };
 }
 

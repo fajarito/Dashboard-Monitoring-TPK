@@ -216,16 +216,29 @@ export type TpkListQuery = {
 /** PKB/PLKB aktif untuk desa TPK (via dat_KelurahanDesaBinaan). */
 export type TpkListPkb = {
   pkbId: string;
+  /**
+   * NIP pegawai untuk match API portal.
+   * Di SIGA biasanya = TRIM(PKBID); diisi eksplisit agar UI/portal jelas.
+   */
+  nip: string | null;
   nama: string | null;
   /** 1 → PKB, 2 → PLKB (JabatanPKBAtauPLKBID). */
   jabatan: "PKB" | "PLKB" | null;
   /**
    * Jenjang detail (huruf JabatanPKBID / JabatanBPLKBID) bila ada.
    * Label resmi Terampil/Mahir/… belum dikunci → boleh kode huruf mentah.
+   * Portal dapat menimpa tampilan dengan `jab_akhir`.
    */
   jabatanDetail: string | null;
   nik: string | null;
   noHp: string | null;
+  /**
+   * Jenis pelatihan dari SIGA `dat_PKB.Pelatihan*` (flag=1).
+   * Bukan dari portal / jabatanDetail.
+   */
+  pelatihanLabels: string[];
+  /** Hint empty-state SIGA (belum terlatih / kosong). */
+  pelatihanEmptyHint: string | null;
 };
 
 /**
@@ -447,4 +460,156 @@ export type TpkKeluargaPayload = {
     krsRekap: number | null;
   };
   meta: RingkasanMeta;
+};
+
+/** Hard max pin KRS per request (kelurahan only). */
+export const KRS_POINTS_HARD_MAX = 2000;
+export const KRS_POINTS_DEFAULT_LIMIT = 1000;
+
+export type KrsPointsBbox = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+/**
+ * Query pin keluarga/KRS di peta desa.
+ * Wajib kelurahanId + provinsiId (partition prune; tanpa scan nasional).
+ */
+export type KrsPointsQuery = {
+  kelurahanId: number;
+  provinsiId: number;
+  prioritas: TpkKeluargaPrioritas[];
+  indikator: TpkKeluargaIndikatorFilter[];
+  /** Default true — buang lat/lng null/invalid. */
+  validCoordsOnly: boolean;
+  /** Cari nama KK (ILIKE); kosong = tanpa filter. */
+  q: string | null;
+  bbox: KrsPointsBbox | null;
+  limit: number;
+  offset: number;
+};
+
+/** Titik pin tipis untuk overlay peta (tanpa NIK). */
+export type KrsPointItem = {
+  id: string;
+  /**
+   * KKI — kunci join ke `stunting_head.kki` (Fajar).
+   * Di by_name kolomnya bernama `kode_keluarga` tetapi nilainya = KKI.
+   */
+  kki: string;
+  /**
+   * Alias historis (= kki). Jangan dipakai sebagai key join lain (bukan NIK/NoKK).
+   * @deprecated pakai `kki`
+   */
+  kodeKeluarga: string;
+  namaKepalaKeluarga: string;
+  prioritas: TpkKeluargaPrioritas;
+  krs: boolean;
+  latitude: number;
+  longitude: number;
+};
+
+export type KrsPointsPayload = {
+  items: KrsPointItem[];
+  total: number;
+  returned: number;
+  truncated: boolean;
+  limit: number;
+  offset: number;
+  filters: {
+    kelurahanId: number;
+    provinsiId: number;
+    prioritas: TpkKeluargaPrioritas[];
+    indikator: TpkKeluargaIndikatorFilter[];
+    validCoordsOnly: boolean;
+    q: string | null;
+    bbox: KrsPointsBbox | null;
+  };
+  grain: {
+    level: "kelurahan";
+    kelurahanId: number;
+    namaKelurahan: string | null;
+  };
+  meta: RingkasanMeta;
+};
+
+/**
+ * Detail keluarga dari `verval2024_monitoring.stunting_head`.
+ * Join pin ↔ head: **KKI** (`stunting_head.kki`). Bukan NIK / NoKK.
+ * Tanpa NIK di payload.
+ */
+export type KeluargaDetailHousingField = {
+  code: number | null;
+  label: string | null;
+};
+
+export type KeluargaDetailItem = {
+  idStunting: number;
+  /** KKI — sama dengan pin.kki / stunting_head.kki */
+  kki: string;
+  noKk: string | null;
+  namaKepalaKeluarga: string;
+  namaIstri: string | null;
+  alamat: string | null;
+  prioritas: number | null;
+  risikoStunting: boolean | null;
+  latitude: number | null;
+  longitude: number | null;
+  rumah: {
+    atap: KeluargaDetailHousingField;
+    kondisiAtap: KeluargaDetailHousingField;
+    dinding: KeluargaDetailHousingField;
+    kondisiDinding: KeluargaDetailHousingField;
+    lantai: KeluargaDetailHousingField;
+    kondisiLantai: KeluargaDetailHousingField;
+    luasM2: number | null;
+    jumlahPenghuni: number | null;
+  };
+  jamban: {
+    memilikiTempatBab: KeluargaDetailHousingField;
+    kondisi: KeluargaDetailHousingField;
+  };
+  air: {
+    sumber: KeluargaDetailHousingField;
+    kondisi: KeluargaDetailHousingField;
+  };
+  fotoRumahUrl: string | null;
+  fotoJambanUrl: string | null;
+  keterangan: string | null;
+  idProvinsi: number | null;
+  idKelurahan: number | null;
+};
+
+export type KeluargaDetailPayload = {
+  item: KeluargaDetailItem;
+  join: {
+    /** Kunci pin & stunting_head — selalu KKI */
+    key: "kki";
+    pinField: "kki";
+    headField: "kki";
+    /** Catatan: by_name menyebut kolom `kode_keluarga` tetapi isinya KKI. */
+    byNameColumn: "kode_keluarga";
+  };
+  meta: RingkasanMeta & {
+    /** Hanya jika `diag=1` */
+    diag?: Record<string, unknown>;
+  };
+};
+
+export type KeluargaDetailQuery = {
+  /** KKI (wajib) — lookup stunting_head.kki */
+  kki: string;
+  /**
+   * Wajib di live — `id_provinsi` internal (bukan kode BPS).
+   * Jabar = 12 → tabel `stunting_head_12` (BPS adminCode 32 ≠ suffix partisi).
+   */
+  provinsiId: number | null;
+  /**
+   * Opsional — filter `id_kelurahan` di **app setelah fetch** (bukan di SQL hot path).
+   */
+  kelurahanId?: number | null;
+  /** `diag=1` — sertakan SQL exact / param di error & meta. */
+  diag?: boolean;
 };

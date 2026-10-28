@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowLeft, UserRound } from "lucide-react";
 
 import { DrilldownBreadcrumb } from "@/components/dashboard/drilldown-breadcrumb";
@@ -25,6 +26,7 @@ import type {
   TpkListPkb,
 } from "@/lib/data/types";
 import { resolveSourceBadge } from "@/lib/data-source-badge";
+import { usePkbPortal } from "@/lib/hooks/use-pkb-portal";
 import { useTpkDetail } from "@/lib/hooks/use-tpk-detail";
 import { formatNumber } from "@/lib/map-data";
 import { getProvinceOrNull } from "@/lib/tpk-drilldown-data";
@@ -97,58 +99,293 @@ function wilayahPath(payload: TpkDetailPayload): string {
   return parts.join(", ");
 }
 
-function PkbPembinaCard({ pkb }: { pkb: TpkListPkb | null }) {
+function toTitleCaseLokasi(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\b([a-zà-ÿ])/g, (ch) => ch.toUpperCase());
+}
+
+/** Satu baris lokasi kerja: `Provinsi - Kab - Kec - Kel` (title case). */
+function formatLokasiKerjaLine(parts: Array<string | null | undefined>): string {
+  return parts
+    .map((p) => p?.trim())
+    .filter((p): p is string => Boolean(p))
+    .map(toTitleCaseLokasi)
+    .join(" - ");
+}
+
+function PkbFoto({
+  src,
+  alt,
+}: {
+  src: string | null;
+  alt: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span
+        className="grid size-24 place-items-center rounded-2xl bg-slate-100 text-slate-500 ring-1 ring-slate-200/80 sm:size-28"
+        aria-hidden
+      >
+        <UserRound className="size-10" />
+      </span>
+    );
+  }
   return (
-    <section className="design-card p-6 sm:p-7" aria-label="PKB atau PLKB pembina">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4">
-        <div className="min-w-0">
-          <h2 className="text-[10px] font-extrabold tracking-[0.14em] text-primary uppercase">
-            PKB / PLKB pembina
-          </h2>
-          <p className="mt-1.5 max-w-md text-[12px] leading-relaxed text-muted-foreground">
-            Tenaga supervisi desa binaan (Status aktif)
-          </p>
-        </div>
+    // eslint-disable-next-line @next/next/no-img-element -- proxy same-origin / stub SVG
+    <img
+      src={src}
+      alt={alt}
+      width={112}
+      height={112}
+      className="size-24 rounded-2xl object-cover ring-1 ring-slate-200/80 sm:size-28"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function ProfileMeta({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string | null | undefined;
+  mono?: boolean;
+}) {
+  if (!value?.trim()) return null;
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-0.5 text-[13px] font-semibold text-navy break-words",
+          mono && "font-mono text-[12px] tracking-wide tabular-nums",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Profil profesional PKB/PLKB — satu composition (bukan nested cards).
+ * Identitas (NIP/foto/jabatan/kontak/lokasi) dari portal;
+ * informasi terlatih dari SIGA `dat_PKB.Pelatihan*` (payload.pkb.pelatihanLabels).
+ */
+function PkbPembinaCard({
+  pkb,
+  lokasi,
+}: {
+  pkb: TpkListPkb | null;
+  /** Nama wilayah dari payload TPK (bukan kode BPS). */
+  lokasi: {
+    propinsi: string | null;
+    kabupaten: string | null;
+    kecamatan: string | null;
+    kelurahan: string | null;
+  };
+}) {
+  const portal = usePkbPortal(
+    pkb ? { nip: pkb.nip, pkbId: pkb.pkbId, nik: pkb.nik } : null,
+    {
+      propinsi: lokasi.propinsi,
+      kabupaten: lokasi.kabupaten,
+      kecamatan: lokasi.kecamatan,
+      kelurahan: lokasi.kelurahan,
+    },
+  );
+
+  const d = portal.data;
+  const portalReady = portal.status === "ready" && d != null;
+
+  const displayNip = portalReady ? d.NIP || d.nip : null;
+  const name = portalReady ? d.nama : pkb?.nama || null;
+  const phone = portalReady ? d.nohp : pkb?.noHp || null;
+  const jabAkhir = portalReady
+    ? d.jab_akhir || d.jabAkhir
+    : [pkb?.jabatan, pkb?.jabatanDetail].filter(Boolean).join(" · ") || null;
+  const email = portalReady ? d.email_dinas || d.emailDinas : null;
+  const jenisPegawai = portalReady
+    ? d.jenispegawai || d.jenisPegawai
+    : null;
+  const statusPegawai = portalReady
+    ? d.statuspegawai || d.statusPegawai
+    : pkb?.jabatan || null;
+  const badgeLabel = statusPegawai || pkb?.jabatan || "PKB";
+  const fotoUrl = portalReady ? d.fotoUrl : null;
+
+  const lokasiLine = formatLokasiKerjaLine([
+    (portalReady ? d.lokasi_propinsi || d.lokasiPropinsi : null) ||
+      lokasi.propinsi,
+    (portalReady ? d.lokasi_kabupaten || d.lokasiKabupaten : null) ||
+      lokasi.kabupaten,
+    (portalReady ? d.lokasi_kecamatan || d.lokasiKecamatan : null) ||
+      lokasi.kecamatan,
+    (portalReady ? d.lokasi_kelurahan || d.lokasiKelurahan : null) ||
+      lokasi.kelurahan,
+  ]);
+
+  // Terlatih = SIGA/DWH saja (bukan portal / jabatanDetail).
+  const pelatihanItems = (pkb?.pelatihanLabels ?? []).filter((s) =>
+    Boolean(s?.trim()),
+  );
+  const pelatihanEmpty =
+    pkb?.pelatihanEmptyHint?.trim() ||
+    "Belum ada data pelatihan dari SIGA.";
+
+  const source = d?.source ?? "fallback";
+  const sourceLabel =
+    source === "portal"
+      ? "Portal"
+      : source === "stub"
+        ? "Stub"
+        : portal.status === "loading"
+          ? "Memuat…"
+          : portal.status === "empty" &&
+              portal.errorCode === "portal_token_missing"
+            ? "Token belum terbaca"
+            : portal.status === "empty"
+              ? "Tidak ditemukan"
+              : portal.status === "error"
+                ? "Error"
+                : "Lokal";
+
+  const nipLine = displayNip
+    ? `NIP ${displayNip}`
+    : portal.status === "loading"
+      ? "NIP …"
+      : portal.errorCode === "portal_token_missing"
+        ? "NIP — token belum terbaca"
+        : portal.status === "empty"
+          ? "NIP — tidak ditemukan di portal"
+          : "NIP —";
+
+  return (
+    <section
+      className="design-card p-6 sm:p-7"
+      aria-label="Profil PKB atau PLKB pembina"
+    >
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[10px] font-extrabold tracking-[0.14em] text-primary uppercase">
+          PKB / PLKB pembina
+        </h2>
         <span
-          className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700"
-          aria-hidden
+          className={cn(
+            "text-[10px] font-extrabold tracking-wider uppercase",
+            source === "portal"
+              ? "text-emerald-700"
+              : source === "stub"
+                ? "text-amber-700"
+                : "text-slate-500",
+          )}
         >
-          <UserRound className="size-4" />
+          {sourceLabel}
         </span>
       </div>
 
-      {!pkb || !pkb.nama ? (
-        <p className="rounded-2xl border border-dashed border-line bg-slate-50/80 px-4 py-8 text-center text-[12px] text-muted-foreground">
+      {!pkb || !name ? (
+        <p className="border-t border-dashed border-line pt-6 text-center text-[12px] text-muted-foreground">
           PKB/PLKB desa binaan tidak ditemukan untuk kelurahan ini.
         </p>
       ) : (
-        <div className="rounded-2xl border border-[#d0dae8] bg-white px-5 py-4 shadow-[var(--shadow-soft)] ring-1 ring-slate-100/80 sm:px-5 sm:py-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <span className="text-sm font-extrabold text-navy">
-                  {pkb.nama}
+        <div className="flex flex-col gap-5 sm:flex-row sm:gap-6">
+          <div className="mx-auto shrink-0 sm:mx-0">
+            <PkbFoto src={fotoUrl} alt={`Foto ${name}`} />
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h3 className="text-base font-extrabold tracking-tight text-navy sm:text-lg">
+                  {name}
+                </h3>
+                <span className="text-[10px] font-extrabold tracking-[0.14em] text-primary uppercase">
+                  {badgeLabel}
                 </span>
-                {pkb.jabatan ? (
-                  <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-violet-700 uppercase">
-                    {pkb.jabatan}
-                  </span>
-                ) : null}
-                {pkb.jabatanDetail ? (
-                  <span className="text-[11px] font-semibold text-slate-400">
-                    {pkb.jabatanDetail}
-                  </span>
-                ) : null}
               </div>
-              <div className="mt-1 font-mono text-[11px] font-semibold tracking-wide text-slate-400 tabular-nums">
-                {pkb.nik ? `NIK ${pkb.nik}` : "NIK —"}
+              <p className="mt-1 font-mono text-[12px] font-bold tracking-wide text-navy/80 tabular-nums">
+                {nipLine}
+              </p>
+              {jabAkhir ? (
+                <p className="mt-1.5 text-[13px] font-semibold text-slate-700">
+                  {jabAkhir}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ProfileMeta label="Jenis pegawai" value={jenisPegawai} />
+              <ProfileMeta label="Status pegawai" value={statusPegawai} />
+              <ProfileMeta label="Email dinas" value={email} />
+              <ProfileMeta label="No. HP" value={phone} mono />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <PhoneStatusHint phone={phone} />
+              <div className="flex shrink-0 items-center gap-1.5">
+                <TpkContactAction phone={phone} kind="call" size="sm" />
+                <TpkContactAction phone={phone} kind="whatsapp" size="sm" />
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <PhoneStatusHint phone={pkb.noHp} />
-              <TpkContactAction phone={pkb.noHp} kind="call" size="sm" />
-              <TpkContactAction phone={pkb.noHp} kind="whatsapp" size="sm" />
+
+            <div className="border-t border-line pt-3">
+              <div className="text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
+                Lokasi kerja
+              </div>
+              <p className="mt-1 text-[13px] font-semibold leading-snug text-navy">
+                {lokasiLine || "Lokasi belum tersedia"}
+              </p>
             </div>
+
+            <div className="border-t border-line pt-3">
+              <div className="text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase">
+                Informasi terlatih
+              </div>
+              <p className="mt-0.5 text-[10px] text-slate-400">
+                Sumber SIGA · dat_PKB
+              </p>
+              {pelatihanItems.length > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {pelatihanItems.map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-emerald-700 uppercase"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-[12px] text-muted-foreground">
+                  {pelatihanEmpty}
+                </p>
+              )}
+            </div>
+
+            {d?.warning ? (
+              <p className="text-[11px] text-amber-700">{d.warning}</p>
+            ) : null}
+            {portal.status === "empty" ? (
+              <p className="text-[11px] text-slate-500">
+                {portal.errorCode === "portal_token_missing"
+                  ? portal.error ??
+                    "Token belum terbaca — isi PKB_PORTAL_API_TOKEN di .env.local lalu restart next dev."
+                  : portal.error ??
+                    "Portal tidak menemukan PKB untuk KTP/NIP ini."}
+              </p>
+            ) : null}
+            {portal.status === "error" && portal.error ? (
+              <p className="text-[11px] text-slate-500">
+                Portal gagal ({portal.error}) — menampilkan data lokal.
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -256,7 +493,15 @@ function DetailReady({
 
       <TpkMemberCards members={toMemberCards(payload.anggota)} />
 
-      <PkbPembinaCard pkb={payload.pkb} />
+      <PkbPembinaCard
+        pkb={payload.pkb}
+        lokasi={{
+          propinsi: payload.wilayah.namaProvinsi,
+          kabupaten: payload.wilayah.namaKabupaten,
+          kecamatan: payload.wilayah.namaKecamatan,
+          kelurahan: payload.wilayah.namaKelurahan,
+        }}
+      />
 
       <SasaranIndikatorPanel
         scopeLabel={desaLabel}

@@ -11,6 +11,7 @@ export function postgresErrorResponse(err: unknown): NextResponse | null {
       error: err.code,
       message: err.message,
       pool: err.pool,
+      ...(err.details ? { diag: err.details } : {}),
       meta: {
         source: "postgres-error" as const,
         generatedAt: new Date().toISOString(),

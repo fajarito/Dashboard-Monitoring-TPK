@@ -14,7 +14,7 @@ export default function DashboardLayout({
 
       <div className="flex min-h-full flex-col lg:pl-64">
         <AppHeader />
-        <main className="mx-auto w-full max-w-[1600px] flex-1 px-5 py-6 md:px-8">
+        <main className="nusantara-main-pane mx-auto w-full max-w-[1600px] flex-1 px-5 py-6 md:px-8">
           {children}
           <footer className="mt-7 flex flex-wrap items-center justify-between gap-2 border-t border-line py-5 text-[9px] text-slate-400">
             <span>Dashboard Monitoring TPK • Kemendukbangga/BKKBN</span>
