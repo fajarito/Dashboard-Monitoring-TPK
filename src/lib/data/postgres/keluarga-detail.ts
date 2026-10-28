@@ -14,7 +14,8 @@ import type {
 /**
  * Baca 1 keluarga dari parent partition `verval2024_monitoring.stunting_head`.
  * Join **by KKI**: compact(`kki`) = pin.kki.
- * Bukan NIK / NoKK. Pool SIGA (owner dump `dev_siga`).
+ * Pool **verval** (`DATABASE_URL_VERVAL` / alias `DATABASE_URL_STUNTING`) —
+ * host volt_verval beda dari SIGA; jangan query lewat DATABASE_URL_SIGA.
  */
 export async function getKeluargaDetailPostgres(
   query: KeluargaDetailQuery,
@@ -24,7 +25,7 @@ export async function getKeluargaDetailPostgres(
     throw new PostgresDataError(
       "invalid_kki",
       "Parameter kki wajib diisi.",
-      { status: 400 },
+      { pool: "verval", status: 400 },
     );
   }
 
@@ -71,13 +72,13 @@ ORDER BY src."updated_date" DESC NULLS LAST, src."id_stunting" DESC
 LIMIT 1
 `;
 
-  const result = await queryPool<StuntingHeadRowRow>("siga", sql, params);
+  const result = await queryPool<StuntingHeadRowRow>("verval", sql, params);
   const row = result.rows[0];
   if (!row) {
     throw new PostgresDataError(
       "keluarga_not_found",
       `Detail keluarga tidak ditemukan untuk KKI ${compact}.`,
-      { pool: "siga", status: 404 },
+      { pool: "verval", status: 404 },
     );
   }
 
@@ -86,7 +87,7 @@ LIMIT 1
     throw new PostgresDataError(
       "keluarga_not_found",
       `Baris stunting_head tidak valid untuk KKI ${compact}.`,
-      { pool: "siga", status: 404 },
+      { pool: "verval", status: 404 },
     );
   }
 

@@ -24,6 +24,7 @@ import { getPeringkatProvinsiPostgres } from "@/lib/data/postgres/peringkat";
 import {
   arePostgresPoolsConfigured,
   getPoolConfigs,
+  isVervalPoolConfigured,
 } from "@/lib/data/postgres/pools";
 import { getRingkasanPostgres } from "@/lib/data/postgres/ringkasan";
 import { getTpkDetailPostgres } from "@/lib/data/postgres/tpk-detail";
@@ -665,13 +666,23 @@ export function parseKeluargaDetailQuery(
 }
 
 /**
- * Detail 1 keluarga dari stunting_head (verval) — lookup **by KKI**.
- * Cache 60 dtk. Mock dari sample JSON bila DATA_SOURCE=mock.
+ * Sumber detail keluarga: hanya pool Verval (host terpisah).
+ * - `DATABASE_URL_VERVAL` / `DATABASE_URL_STUNTING` terisi → postgres verval
+ * - unset → mock (jangan lewat SIGA, jangan 503 karena triple-pool)
+ */
+export function resolveKeluargaDetailSource(): DataSource {
+  if (isVervalPoolConfigured()) return "postgres";
+  return "mock";
+}
+
+/**
+ * Detail 1 keluarga dari stunting_head (volt_verval) — lookup **by KKI**.
+ * Cache 60 dtk. Independen dari DATA_SOURCE triple-pool.
  */
 export async function fetchKeluargaDetail(
   query: KeluargaDetailQuery,
 ): Promise<KeluargaDetailPayload> {
-  const source = resolveDataSource();
+  const source = resolveKeluargaDetailSource();
   const key = cacheKey([
     "keluarga-detail",
     source,
@@ -681,23 +692,23 @@ export async function fetchKeluargaDetail(
   const hit = getCached<KeluargaDetailPayload>(key);
   if (hit) return hit;
 
-  let payload: KeluargaDetailPayload;
-  if (source === "postgres") {
-    assertPostgresReady();
-    payload = await getKeluargaDetailPostgres(query);
-  } else {
-    payload = getKeluargaDetailMock(query);
-  }
+  const payload =
+    source === "postgres"
+      ? await getKeluargaDetailPostgres(query)
+      : getKeluargaDetailMock(query);
 
   return setCached(key, payload, DEFAULT_CACHE_TTL_SEC);
 }
 
 /** Diagnostik singkat untuk meta / logging (tanpa membuka koneksi). */
 export function getDataLayerStatus() {
+  const pools = getPoolConfigs();
   return {
     dataSource: resolveDataSource(),
     postgresConfigured: arePostgresPoolsConfigured(),
-    sigaConfigured: getPoolConfigs().siga.ready,
+    sigaConfigured: pools.siga.ready,
+    vervalConfigured: pools.verval.ready,
+    keluargaDetailSource: resolveKeluargaDetailSource(),
     cacheTtlSec: DEFAULT_CACHE_TTL_SEC,
   };
 }

@@ -1,8 +1,9 @@
 /**
- * Triple-pool Postgres (beda host):
+ * Multi-pool Postgres (beda host):
  * - SIGA  → TPK / anggota / PKB (`sigabaru`)
  * - WILAYAH → label `v_*` (`pk2025`)
  * - DWH → rekap KRS (`dwh_pk2025`)
+ * - VERVAL → `stunting_head` (`volt_verval2024` / `verval2024_monitoring`) — host terpisah
  */
 
 import { Pool, type QueryResult, type QueryResultRow } from "pg";
@@ -27,6 +28,8 @@ const ENV_KEYS: Record<PoolKind, string> = {
   siga: "DATABASE_URL_SIGA",
   wilayah: "DATABASE_URL_WILAYAH",
   dwh: "DATABASE_URL_DWH",
+  /** Canonical; alias `DATABASE_URL_STUNTING` dibaca di resolveVervalUrl. */
+  verval: "DATABASE_URL_VERVAL",
 };
 
 type GlobalPools = {
@@ -38,10 +41,35 @@ function readUrl(envKey: string): string | null {
   return value ? value : null;
 }
 
+/**
+ * Host volt_verval / stunting_head — beda dari SIGA (Fajar).
+ * Canonical: DATABASE_URL_VERVAL; alias: DATABASE_URL_STUNTING.
+ */
+export function resolveVervalUrl(): {
+  url: string | null;
+  envKey: "DATABASE_URL_VERVAL" | "DATABASE_URL_STUNTING";
+} {
+  const verval = readUrl("DATABASE_URL_VERVAL");
+  if (verval) return { url: verval, envKey: "DATABASE_URL_VERVAL" };
+  const stunting = readUrl("DATABASE_URL_STUNTING");
+  if (stunting) return { url: stunting, envKey: "DATABASE_URL_STUNTING" };
+  return { url: null, envKey: "DATABASE_URL_VERVAL" };
+}
+
 export function getPoolConfigs(): Record<PoolKind, PoolConfig> {
-  const kinds: PoolKind[] = ["siga", "wilayah", "dwh"];
+  const kinds: PoolKind[] = ["siga", "wilayah", "dwh", "verval"];
   const result = {} as Record<PoolKind, PoolConfig>;
   for (const kind of kinds) {
+    if (kind === "verval") {
+      const resolved = resolveVervalUrl();
+      result.verval = {
+        kind: "verval",
+        envKey: resolved.envKey,
+        url: resolved.url,
+        ready: Boolean(resolved.url),
+      };
+      continue;
+    }
     const envKey = ENV_KEYS[kind];
     const url = readUrl(envKey);
     result[kind] = { kind, envKey, url, ready: Boolean(url) };
@@ -49,10 +77,15 @@ export function getPoolConfigs(): Record<PoolKind, PoolConfig> {
   return result;
 }
 
-/** true hanya jika ketiga URL terisi (siap query live). */
+/** true hanya jika triple-pool SIGA+WILAYAH+DWH terisi (KPI/list live). */
 export function arePostgresPoolsConfigured(): boolean {
   const pools = getPoolConfigs();
   return pools.siga.ready && pools.wilayah.ready && pools.dwh.ready;
+}
+
+/** Pool Verval/stunting_head siap — independen dari triple-pool. */
+export function isVervalPoolConfigured(): boolean {
+  return getPoolConfigs().verval.ready;
 }
 
 function poolStore(): Partial<Record<PoolKind, Pool>> {
@@ -63,7 +96,7 @@ function poolStore(): Partial<Record<PoolKind, Pool>> {
 
 /**
  * Ambil Pool untuk kind. Throw jika URL kosong (pemanggil harus cek
- * arePostgresPoolsConfigured dulu untuk jalur fallback mock).
+ * arePostgresPoolsConfigured / isVervalPoolConfigured dulu).
  */
 export function getPool(kind: PoolKind): Pool {
   const config = getPoolConfigs()[kind];

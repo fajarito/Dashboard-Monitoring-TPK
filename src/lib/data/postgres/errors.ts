@@ -1,4 +1,5 @@
-export type PoolKind = "siga" | "wilayah" | "dwh";
+/** Pool ke-4 `verval` = host volt_verval / stunting_head (bukan SIGA). */
+export type PoolKind = "siga" | "wilayah" | "dwh" | "verval";
 
 /**
  * Error data layer Postgres — API route mengembalikan 503 JSON jelas.
