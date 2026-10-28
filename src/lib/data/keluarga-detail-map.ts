@@ -1,12 +1,12 @@
 import { parseCoord } from "@/lib/data/geo-coords";
 import { canonicalKki } from "@/lib/data/kki";
 import {
+  labelFasilitasBab,
   labelJenisAtap,
   labelJenisDinding,
   labelJenisLantai,
   labelKondisiBangunan,
   labelSumberAirMinum,
-  labelYaTidak,
 } from "@/lib/data/stunting-head-labels";
 import type {
   KeluargaDetailHousingField,
@@ -114,7 +114,7 @@ export function mapStuntingHeadRow(
     jamban: {
       memilikiTempatBab: housingField(
         row.memiliki_tempat_bab,
-        labelYaTidak(row.memiliki_tempat_bab),
+        labelFasilitasBab(row.memiliki_tempat_bab),
       ),
       kondisi: housingField(
         row.kondisi_fasilitas_bab,
