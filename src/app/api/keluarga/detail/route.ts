@@ -15,8 +15,8 @@ export const revalidate = 0;
 /**
  * GET /api/keluarga/detail?kki=&provinsiId=
  * Detail 1 KK dari stunting_head (volt_verval). Lookup **by KKI** (bukan NIK/NoKK).
- * Pool: DATABASE_URL_VERVAL (alias DATABASE_URL_STUNTING) — host beda dari SIGA.
- * Belum di-set → mock sample. Alias query: kodeKeluarga / kode (jika nilainya KKI).
+ * Live: `provinsiId` wajib (prune LIST). Match KKI equality (padded/compact), bukan regexp scan.
+ * Pool: DATABASE_URL_VERVAL (alias DATABASE_URL_STUNTING). Unset → mock.
  */
 export async function GET(request: NextRequest) {
   try {
