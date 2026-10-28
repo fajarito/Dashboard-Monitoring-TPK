@@ -66,7 +66,7 @@ export function countKkiInternalSpaces(value: string): number {
 }
 
 /**
- * Normalisasi untuk lookup SQL: wajib bentuk padded primary 6 spasi.
+ * Normalisasi untuk lookup SQL: bentuk padded primary 6 spasi (utama).
  * Return null jika compact terlalu pendek.
  */
 export function normalizeKkiForLookup(
@@ -76,18 +76,39 @@ export function normalizeKkiForLookup(
 }
 
 /**
+ * Bentuk KKI dengan **1** spasi (variasi dump Fajar):
+ * `'32760110080016 004015043'` = 14 digit + 1 spasi + sisa.
+ */
+export function singlePaddedKki(value: string | null | undefined): string | null {
+  const c = compactKki(value);
+  if (c.length < 15) return null;
+  return `${c.slice(0, 14)} ${c.slice(14)}`;
+}
+
+/**
+ * Kandidat equality untuk SQL `kki = ANY($1)` — hanya literal padded.
+ * Urutan: pad-6, pad-1. Tanpa compact/replace (agar tetap bisa pakai btree).
+ */
+export function kkiEqualityCandidates(
+  value: string | null | undefined,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (s: string | null) => {
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  };
+  push(primaryPaddedKki(value));
+  push(singlePaddedKki(value));
+  return out;
+}
+
+/**
  * Bentuk ber-spasi: padded 6 spasi (utama) + 1 spasi (sample minoritas).
  */
 export function paddedKkiForms(compact: string): string[] {
-  const c = compactKki(compact);
-  if (!c) return [];
-  const out: string[] = [];
-  const primary = primaryPaddedKki(c);
-  if (primary) out.push(primary);
-  if (c.length >= 15) {
-    out.push(`${c.slice(0, 14)} ${c.slice(14)}`);
-  }
-  return out;
+  return kkiEqualityCandidates(compact);
 }
 
 /**

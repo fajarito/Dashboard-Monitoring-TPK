@@ -6,7 +6,9 @@ import {
 import {
   compactKki,
   describeKkiForDiag,
+  kkiEqualityCandidates,
   primaryPaddedKki,
+  singlePaddedKki,
 } from "@/lib/data/kki";
 import {
   logPostgresError,
@@ -103,15 +105,14 @@ export function stuntingHeadPartitionRelation(
 }
 
 /**
- * Pola Fajar persis — equality scalar, padded primary saja:
- *   WHERE src."kki" = $1  LIMIT 1
- * Tanpa ANY, tanpa id_kelurahan di SQL (filter kelurahan di app setelah fetch).
+ * Equality ke kandidat padded (pad-6 dan/atau pad-1) — variasi dump Fajar.
+ * `ANY(ARRAY[...])` hanya 2 literal; tetap bisa pakai btree(kki). Bukan replace().
  */
-function sqlExactEqOnPartition(qualified: string): string {
+function sqlExactAnyOnPartition(qualified: string): string {
   return `
 SELECT ${DETAIL_SELECT}
 FROM ${qualified} src
-WHERE src."kki" = $1
+WHERE src."kki" = ANY($1::text[])
 LIMIT 1
 `;
 }
@@ -233,7 +234,7 @@ async function queryVervalDetail<T extends StuntingHeadRowRow>(
  * WHERE src."kki" = $1
  * LIMIT 1
  * ```
- * `$1` = padded primary (`14` + 6 spasi + sisa). Tanpa ANY / id_kelurahan / replace.
+ * `$1` = ARRAY pad-6 + pad-1 (padding dump variatif). Tanpa replace / id_kelurahan.
  * Jangan filter id_kelurahan setelah fetch (bed namespace ID → false 404).
  */
 export async function getKeluargaDetailPostgres(
@@ -259,9 +260,12 @@ export async function getKeluargaDetailPostgres(
   const relation = stuntingHeadPartitionRelation(Math.trunc(query.provinsiId));
   const { qualified } = relation;
 
-  // Wajib rebuild pad-6 dari compact — input boleh 1 spasi / 6 spasi / tanpa spasi.
-  const paddedPrimary = primaryPaddedKki(query.kki);
-  if (!paddedPrimary) {
+  // Dump Fajar: padding **variatif** — ada 6 spasi, ada 1 spasi.
+  // Coba equality ke pad-6 + pad-1 (dua literal), bukan replace/seq scan.
+  const pad6 = primaryPaddedKki(query.kki);
+  const pad1 = singlePaddedKki(query.kki);
+  const candidates = kkiEqualityCandidates(query.kki);
+  if (candidates.length === 0) {
     throw new PostgresDataError(
       "invalid_kki",
       "KKI terlalu pendek untuk bentuk padded (butuh ≥15 digit compact).",
@@ -273,19 +277,20 @@ export async function getKeluargaDetailPostgres(
     );
   }
 
-  const sql = sqlExactEqOnPartition(qualified);
-  // $1 = tepat bentuk dump Fajar (14 + 6 spasi + sisa), bukan string URL mentah.
-  const params: unknown[] = [paddedPrimary];
+  const sql = sqlExactAnyOnPartition(qualified);
+  // $1 = ARRAY[pad6, pad1] — equality saja di partisi stunting_head_{NN}.
+  const params: unknown[] = [candidates];
   const diag = {
     ...buildDiag({
       relation,
       sql,
       params,
       kkiRaw: query.kki,
-      attempt: "exact_kki_eq_pad6",
+      attempt: "exact_kki_eq_pad_1_or_6",
     }),
-    paddedPrimaryVisible: paddedPrimary.replace(/ /g, "·"),
-    paddedSpaceCount: 6,
+    pad6Visible: pad6?.replace(/ /g, "·") ?? null,
+    pad1Visible: pad1?.replace(/ /g, "·") ?? null,
+    candidatesVisible: candidates.map((s) => s.replace(/ /g, "·")),
     kelurahanIdIgnored: query.kelurahanId ?? null,
   };
 
