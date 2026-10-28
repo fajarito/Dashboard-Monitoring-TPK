@@ -53,6 +53,8 @@ export type UsePkbPortalState = {
   status: "idle" | "loading" | "ready" | "empty" | "error";
   data: PkbPortalClientPayload | null;
   error: string | null;
+  /** Kode error API: portal_token_missing | pkb_empty | pkb_not_found | … */
+  errorCode: string | null;
   lookup: PkbPortalLookupKey | null;
 };
 
@@ -75,6 +77,7 @@ export function usePkbPortal(
     status: "idle",
     data: null,
     error: null,
+    errorCode: null,
     lookup: null,
   });
 
@@ -100,6 +103,7 @@ export function usePkbPortal(
         status: "idle",
         data: null,
         lookup: null,
+        errorCode: "invalid_lookup",
         error:
           "Lookup portal kosong — butuh NIP 18 digit atau NIK/KTP 16 digit di pkb (bukan kode wilayah)",
       });
@@ -107,18 +111,28 @@ export function usePkbPortal(
     }
 
     const controller = new AbortController();
-    setState({ status: "loading", data: null, error: null, lookup });
+    setState({
+      status: "loading",
+      data: null,
+      error: null,
+      errorCode: null,
+      lookup,
+    });
 
     const params = new URLSearchParams();
     if (lookup.kind === "ktp") {
       params.set("ktp", lookup.value);
     }
-    // Portal filter = nama UPPER (bukan kode).
+    // Nama lokasi — server fetch mencoba kec+kel dulu, lalu ktp-only, baru filter penuh.
     if (propinsi) params.set("lokasi_propinsi", propinsi);
     if (kabupaten) params.set("lokasi_kabupaten", kabupaten);
     if (kecamatan) params.set("lokasi_kecamatan", kecamatan);
     if (kelurahan) params.set("lokasi_kelurahan", kelurahan);
-    params.set("statuspegawai", statuspegawai);
+    // Jangan force statuspegawai di query Next kecuali caller set eksplisit non-default.
+    if (lokasi.statuspegawai?.trim()) {
+      params.set("statuspegawai", statuspegawai);
+    }
+    params.set("diag", "1");
 
     const pathKey = encodeURIComponent(lookup.value);
     void fetch(`/api/pkb/${pathKey}?${params.toString()}`, {
@@ -130,28 +144,29 @@ export function usePkbPortal(
       .then(async (response) => {
         if (response.status === 404 || response.status === 503) {
           let message: string | null = null;
+          let errorCode: string | null = null;
           try {
             const body = (await response.json()) as {
               message?: string;
               error?: string;
+              reason?: string;
               meta?: {
                 tokenConfigured?: boolean;
                 tokenHadBearerPrefix?: boolean;
               };
             };
-            message = body?.message ?? body?.error ?? null;
-            if (body?.meta?.tokenHadBearerPrefix) {
-              message = `${message ?? "auth"} (env punya prefix Bearer — sudah di-strip)`;
-            }
-            if (body?.meta && body.meta.tokenConfigured === false) {
+            errorCode = body?.error ?? body?.reason ?? null;
+            message = body?.message ?? null;
+            if (errorCode === "portal_token_missing" || body?.meta?.tokenConfigured === false) {
               message =
                 message ??
-                "Token belum terbaca proses Next — restart next dev setelah isi .env.local";
+                "Token belum terbaca — isi PKB_PORTAL_API_TOKEN di .env.local lalu restart next dev";
+              errorCode = "portal_token_missing";
             }
           } catch {
             /* ignore */
           }
-          return { kind: "empty" as const, message };
+          return { kind: "empty" as const, message, errorCode };
         }
         if (!response.ok) {
           let detail = `HTTP ${response.status}`;
@@ -173,11 +188,18 @@ export function usePkbPortal(
             status: "empty",
             data: null,
             error: result.message ?? null,
+            errorCode: result.errorCode ?? null,
             lookup,
           });
           return;
         }
-        setState({ status: "ready", data: result.data, error: null, lookup });
+        setState({
+          status: "ready",
+          data: result.data,
+          error: null,
+          errorCode: null,
+          lookup,
+        });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
@@ -185,6 +207,7 @@ export function usePkbPortal(
           status: "error",
           data: null,
           lookup,
+          errorCode: "fetch_error",
           error:
             err instanceof Error
               ? err.message

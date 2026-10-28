@@ -186,7 +186,7 @@ function PkbPembinaCard({
       kabupaten: lokasi.kabupaten,
       kecamatan: lokasi.kecamatan,
       kelurahan: lokasi.kelurahan,
-      statuspegawai: "PKB",
+      // Jangan kirim statuspegawai default — over-filter menyebabkan 404 kosong.
     },
   );
   const lookupKey = portal.lookup
@@ -232,11 +232,14 @@ function PkbPembinaCard({
           ? "Memuat portal…"
           : portal.status === "idle" && portal.error
             ? "Lookup kosong"
-            : portal.status === "empty"
-              ? "Portal kosong"
-              : portal.status === "error"
-                ? "Portal error"
-                : "Data lokal";
+            : portal.status === "empty" &&
+                portal.errorCode === "portal_token_missing"
+              ? "Token belum terbaca"
+              : portal.status === "empty"
+                ? "Portal: tidak ditemukan"
+                : portal.status === "error"
+                  ? "Portal error"
+                  : "Data lokal";
 
   const nipStatusLine = (() => {
     if (displayNip) return `NIP ${displayNip}`;
@@ -256,7 +259,16 @@ function PkbPembinaCard({
       return `NIP — (${portal.error})`;
     }
     if (portal.status === "empty") {
-      return "NIP — (portal: tidak ditemukan / token belum terbaca)";
+      if (portal.errorCode === "portal_token_missing") {
+        return "NIP — (token belum terbaca)";
+      }
+      if (
+        portal.errorCode === "pkb_empty" ||
+        portal.errorCode === "pkb_not_found"
+      ) {
+        return "NIP — (portal: tidak ditemukan)";
+      }
+      return `NIP — (portal: ${portal.error ?? "kosong"})`;
     }
     if (portal.status === "error") {
       return `NIP — (portal gagal: ${portal.error ?? "error"})`;
@@ -350,8 +362,11 @@ function PkbPembinaCard({
             ) : null}
             {portal.status === "empty" ? (
               <p className="text-[11px] text-slate-500">
-                {portal.error ??
-                  "Portal tidak mengembalikan PKB untuk lookup ini. Cek PKB_PORTAL_API_TOKEN + restart next dev, atau /api/pkb/…?diag=1."}
+                {portal.errorCode === "portal_token_missing"
+                  ? portal.error ??
+                    "Token belum terbaca — isi PKB_PORTAL_API_TOKEN di .env.local lalu restart next dev."
+                  : portal.error ??
+                    "Portal tidak menemukan PKB untuk KTP/NIP ini. Coba /api/pkb/…?diag=1 untuk lihat upstreamUrl."}
               </p>
             ) : null}
             {portal.status === "error" && portal.error ? (

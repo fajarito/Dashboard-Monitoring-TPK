@@ -213,7 +213,9 @@ export function getPkbPortalStub(
 function normalizeRecord(raw: unknown): PkbPortalRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
-  const nip = String(row.NIP ?? row.nip ?? "").trim();
+  const nipRaw = row.NIP ?? row.nip;
+  const nip =
+    nipRaw == null ? "" : String(nipRaw).trim().replace(/\D/g, "") || String(nipRaw).trim();
   if (!nip) return null;
   const str = (key: string) => {
     const v = row[key];
@@ -259,11 +261,18 @@ function pickMatchingRecord(
   };
 
   if (Array.isArray(payload)) {
+    if (payload.length === 0) return null;
     for (const item of payload) {
       const hit = matchRec(normalizeRecord(item));
       if (hit) return hit;
     }
-    // Query by ktp biasanya 1 record — terima elemen tunggal.
+    // Query by ktp: terima record pertama yang punya NIP (filter sudah di query).
+    if (lookup.kind === "ktp") {
+      for (const item of payload) {
+        const rec = normalizeRecord(item);
+        if (rec) return rec;
+      }
+    }
     if (payload.length === 1) return normalizeRecord(payload[0]);
     return null;
   }
@@ -272,8 +281,9 @@ function pickMatchingRecord(
     if (Array.isArray(obj.data)) return pickMatchingRecord(obj.data, lookup);
     if (Array.isArray(obj.result)) return pickMatchingRecord(obj.result, lookup);
     if (Array.isArray(obj.items)) return pickMatchingRecord(obj.items, lookup);
+    if (Array.isArray(obj.rows)) return pickMatchingRecord(obj.rows, lookup);
     const rec = normalizeRecord(payload);
-    return matchRec(rec) ?? rec;
+    return matchRec(rec) ?? (lookup.kind === "ktp" ? rec : null) ?? rec;
   }
   return null;
 }
@@ -305,16 +315,125 @@ function toEnrichment(
   };
 }
 
+export type PortalFetchAttempt = {
+  label: string;
+  /** URL lengkap upstream (query-only `/api/pkb?…`, tanpa path KTP). */
+  upstreamUrl: string;
+  httpStatus: number | null;
+  ok: boolean;
+  bodySnippet: string | null;
+  recordFound: boolean;
+  error: string | null;
+};
+
+export type FetchPkbPortalReason =
+  | "ok"
+  | "invalid_lookup"
+  | "token_missing"
+  | "portal_http_error"
+  | "portal_empty"
+  | "portal_unreachable";
+
 export type FetchPkbPortalResult = {
   enrichment: PkbPortalEnrichment | null;
   httpStatus: number | null;
+  reason: FetchPkbPortalReason;
+  attempts: PortalFetchAttempt[];
 };
+
+function snippetBody(body: unknown, max = 400): string {
+  try {
+    const text = typeof body === "string" ? body : JSON.stringify(body);
+    return text.length > max ? `${text.slice(0, max)}…` : text;
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+function isEmptyPayload(body: unknown): boolean {
+  if (body == null) return true;
+  if (Array.isArray(body)) return body.length === 0;
+  if (typeof body === "object") {
+    const obj = body as Record<string, unknown>;
+    for (const key of ["data", "result", "items", "rows"]) {
+      if (Array.isArray(obj[key])) return (obj[key] as unknown[]).length === 0;
+    }
+  }
+  return false;
+}
+
+type QueryBuild = { label: string; params: URLSearchParams };
+
+/**
+ * Susun percobaan query portal — selalu `BASE/api/pkb?…` (bukan path segment).
+ * Urutan: minimal Fajar (ktp+kec+kel) → ktp saja → +propinsi → +statuspegawai.
+ */
+function buildPortalQueryAttempts(
+  lookup: PkbPortalLookupKey,
+  lokasi: PkbPortalLokasi,
+): QueryBuild[] {
+  const names = resolvePortalLokasiNames({
+    propinsi: lokasi.propinsi,
+    kabupaten: lokasi.kabupaten,
+    kecamatan: lokasi.kecamatan,
+    kelurahan: lokasi.kelurahan,
+  });
+  const idParam = lookup.kind === "ktp" ? "ktp" : "NIP";
+  const withId = () => {
+    const p = new URLSearchParams();
+    p.set(idParam, lookup.value);
+    return p;
+  };
+
+  const attempts: QueryBuild[] = [];
+
+  // 1) Bentuk yang Fajar konfirmasi bekerja: ktp + kecamatan + kelurahan
+  if (lookup.kind === "ktp" && (names.kecamatan || names.kelurahan)) {
+    const p = withId();
+    if (names.kecamatan) p.set("lokasi_kecamatan", names.kecamatan);
+    if (names.kelurahan) p.set("lokasi_kelurahan", names.kelurahan);
+    attempts.push({ label: "ktp+kec+kel", params: p });
+  }
+
+  // 2) Hanya identitas
+  attempts.push({ label: `${lookup.kind}-only`, params: withId() });
+
+  // 3) + propinsi/kabupaten nama (tanpa statuspegawai)
+  if (names.propinsi || names.kabupaten || names.kecamatan || names.kelurahan) {
+    const p = withId();
+    if (names.propinsi) p.set("lokasi_propinsi", names.propinsi);
+    if (names.kabupaten) p.set("lokasi_kabupaten", names.kabupaten);
+    if (names.kecamatan) p.set("lokasi_kecamatan", names.kecamatan);
+    if (names.kelurahan) p.set("lokasi_kelurahan", names.kelurahan);
+    attempts.push({ label: "id+lokasi-names", params: p });
+  }
+
+  // 4) Full + statuspegawai hanya jika caller kirim eksplisit (bisa over-filter)
+  const status = lokasi.statuspegawai?.trim();
+  if (status) {
+    const p = withId();
+    if (names.propinsi) p.set("lokasi_propinsi", names.propinsi);
+    if (names.kabupaten) p.set("lokasi_kabupaten", names.kabupaten);
+    if (names.kecamatan) p.set("lokasi_kecamatan", names.kecamatan);
+    if (names.kelurahan) p.set("lokasi_kelurahan", names.kelurahan);
+    p.set("statuspegawai", status.toUpperCase());
+    attempts.push({ label: "id+lokasi+statuspegawai", params: p });
+  }
+
+  // Dedup by query string
+  const seen = new Set<string>();
+  return attempts.filter((a) => {
+    const key = a.params.toString();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 /**
  * Ambil detail PKB dari portal UAT.
- * - kind=nip → query `NIP=`
- * - kind=ktp → query `ktp=` (NIK 16 digit) — konfirmasi Fajar
- * Tanpa token → stub (NIP/KTP demo) atau null.
+ * Upstream SELALU: `{base}/api/pkb?ktp=…` atau `?NIP=…` — bukan `/api/pkb/{ktp}`.
+ * Tanpa token → stub (NIP/KTP demo) atau reason `token_missing`.
  */
 export async function fetchPkbFromPortal(
   lookupInput: PkbPortalLookupKey | string,
@@ -326,7 +445,12 @@ export async function fetchPkbFromPortal(
       ? resolvePortalLookupKey(lookupInput)
       : lookupInput;
   if (!lookup) {
-    return { enrichment: null, httpStatus: null };
+    return {
+      enrichment: null,
+      httpStatus: null,
+      reason: "invalid_lookup",
+      attempts: [],
+    };
   }
 
   const token = getPkbPortalToken();
@@ -340,104 +464,163 @@ export async function fetchPkbFromPortal(
           "PKB_PORTAL_API_TOKEN belum di-set — stub demo",
         ),
         httpStatus: null,
+        reason: "token_missing",
+        attempts: [],
       };
-    }
-    return { enrichment: null, httpStatus: null };
-  }
-
-  const params = new URLSearchParams();
-  // Portal UAT: lookup by KTP pakai query lowercase `ktp` (bukan NIK/KTP).
-  if (lookup.kind === "ktp") {
-    params.set("ktp", lookup.value);
-  } else {
-    params.set("NIP", lookup.value);
-  }
-  // Filter lokasi = NAMA (UPPER), bukan kode wilayah — konfirmasi Fajar.
-  const names = resolvePortalLokasiNames({
-    propinsi: lokasi.propinsi,
-    kabupaten: lokasi.kabupaten,
-    kecamatan: lokasi.kecamatan,
-    kelurahan: lokasi.kelurahan,
-  });
-  if (names.propinsi) params.set("lokasi_propinsi", names.propinsi);
-  if (names.kabupaten) params.set("lokasi_kabupaten", names.kabupaten);
-  if (names.kecamatan) params.set("lokasi_kecamatan", names.kecamatan);
-  if (names.kelurahan) params.set("lokasi_kelurahan", names.kelurahan);
-  params.set(
-    "statuspegawai",
-    (lokasi.statuspegawai?.trim() || "PKB").toUpperCase(),
-  );
-
-  const url = `${getPkbPortalBaseUrl()}/api/pkb?${params.toString()}`;
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-      signal: init?.signal,
-    });
-
-    if (!response.ok) {
-      let detail = `Portal HTTP ${response.status}`;
-      try {
-        const errBody = (await response.json()) as {
-          error?: string;
-          message?: string;
-        };
-        if (errBody?.message) detail = `${detail}: ${errBody.message}`;
-        else if (errBody?.error) detail = `${detail}: ${errBody.error}`;
-      } catch {
-        /* ignore */
-      }
-      const stub = getPkbPortalStub(lookup);
-      if (stub) {
-        return {
-          enrichment: toEnrichment(stub, "stub", `${detail} — stub demo`),
-          httpStatus: response.status,
-        };
-      }
-      return {
-        enrichment: null,
-        httpStatus: response.status,
-      };
-    }
-
-    const body: unknown = await response.json();
-    const record = pickMatchingRecord(body, lookup);
-    if (!record) {
-      const stub = getPkbPortalStub(lookup);
-      if (stub) {
-        return {
-          enrichment: toEnrichment(
-            stub,
-            "stub",
-            "Portal 200 tapi record tidak ter-parse — stub demo",
-          ),
-          httpStatus: response.status,
-        };
-      }
-      return { enrichment: null, httpStatus: response.status };
     }
     return {
-      enrichment: toEnrichment(record, "portal"),
-      httpStatus: response.status,
+      enrichment: null,
+      httpStatus: null,
+      reason: "token_missing",
+      attempts: [],
     };
-  } catch (err) {
-    const stub = getPkbPortalStub(lookup);
-    if (stub) {
-      return {
-        enrichment: toEnrichment(
-          stub,
-          "stub",
-          err instanceof Error ? err.message : "Portal unreachable — stub",
-        ),
-        httpStatus: null,
-      };
-    }
-    return { enrichment: null, httpStatus: null };
   }
+
+  const base = getPkbPortalBaseUrl();
+  const queries = buildPortalQueryAttempts(lookup, lokasi);
+  const attempts: PortalFetchAttempt[] = [];
+  let lastHttp: number | null = null;
+  let sawHttpError = false;
+  let sawEmpty = false;
+  let lastNetworkError: string | null = null;
+
+  for (const q of queries) {
+    // WAJIB query-string only — jangan ever append KTP sebagai path segment.
+    const upstreamUrl = `${base}/api/pkb?${q.params.toString()}`;
+    try {
+      const response = await fetch(upstreamUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+        signal: init?.signal,
+      });
+      lastHttp = response.status;
+      const rawText = await response.text();
+      let body: unknown = rawText;
+      try {
+        body = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        /* keep text */
+      }
+      const bodySnippet = snippetBody(body);
+
+      if (!response.ok) {
+        sawHttpError = true;
+        attempts.push({
+          label: q.label,
+          upstreamUrl,
+          httpStatus: response.status,
+          ok: false,
+          bodySnippet,
+          recordFound: false,
+          error: `HTTP ${response.status}`,
+        });
+        continue;
+      }
+
+      if (isEmptyPayload(body)) {
+        sawEmpty = true;
+        attempts.push({
+          label: q.label,
+          upstreamUrl,
+          httpStatus: response.status,
+          ok: true,
+          bodySnippet,
+          recordFound: false,
+          error: "empty_payload",
+        });
+        continue;
+      }
+
+      const record = pickMatchingRecord(body, lookup);
+      if (!record) {
+        sawEmpty = true;
+        attempts.push({
+          label: q.label,
+          upstreamUrl,
+          httpStatus: response.status,
+          ok: true,
+          bodySnippet,
+          recordFound: false,
+          error: "unparseable_or_no_match",
+        });
+        continue;
+      }
+
+      attempts.push({
+        label: q.label,
+        upstreamUrl,
+        httpStatus: response.status,
+        ok: true,
+        bodySnippet,
+        recordFound: true,
+        error: null,
+      });
+      return {
+        enrichment: toEnrichment(record, "portal"),
+        httpStatus: response.status,
+        reason: "ok",
+        attempts,
+      };
+    } catch (err) {
+      lastNetworkError =
+        err instanceof Error ? err.message : "Portal unreachable";
+      attempts.push({
+        label: q.label,
+        upstreamUrl,
+        httpStatus: null,
+        ok: false,
+        bodySnippet: null,
+        recordFound: false,
+        error: lastNetworkError,
+      });
+    }
+  }
+
+  const stub = getPkbPortalStub(lookup);
+  if (stub) {
+    const hint = attempts
+      .map((a) => `${a.label}:${a.httpStatus ?? "net"}`)
+      .join(", ");
+    return {
+      enrichment: toEnrichment(
+        stub,
+        "stub",
+        `Portal gagal/kosong (${hint}) — stub demo`,
+      ),
+      httpStatus: lastHttp,
+      reason: sawEmpty
+        ? "portal_empty"
+        : sawHttpError
+          ? "portal_http_error"
+          : "portal_unreachable",
+      attempts,
+    };
+  }
+
+  if (lastNetworkError && attempts.every((a) => a.httpStatus == null)) {
+    return {
+      enrichment: null,
+      httpStatus: null,
+      reason: "portal_unreachable",
+      attempts,
+    };
+  }
+  if (sawEmpty && !sawHttpError) {
+    return {
+      enrichment: null,
+      httpStatus: lastHttp,
+      reason: "portal_empty",
+      attempts,
+    };
+  }
+  return {
+    enrichment: null,
+    httpStatus: lastHttp,
+    reason: sawHttpError ? "portal_http_error" : "portal_empty",
+    attempts,
+  };
 }
