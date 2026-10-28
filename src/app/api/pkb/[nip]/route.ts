@@ -135,7 +135,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
         meta: {
           generatedAt: new Date().toISOString(),
           lokasi: lokasiNames,
-          tokenConfigured: Boolean(getPkbPortalToken()),
           // Selalu kirim attempts saat gagal agar Fajar bisa curl ulang upstreamUrl
           attempts,
           ...diag,
@@ -159,9 +158,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       lokasi_propinsi: enrichment.lokasiPropinsi,
       lokasi_kabupaten: enrichment.lokasiKabupaten,
       lokasi_kecamatan: enrichment.lokasiKecamatan,
+      lokasi_kelurahan: enrichment.lokasiKelurahan,
       email_dinas: enrichment.emailDinas,
       jab_akhir: enrichment.jabAkhir,
       foto: enrichment.fotoFile,
+      pelatihanLabels: enrichment.pelatihanLabels,
       emailDinas: enrichment.emailDinas,
       jabAkhir: enrichment.jabAkhir,
       statusPegawai: enrichment.statusPegawai,
@@ -169,6 +170,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       lokasiPropinsi: enrichment.lokasiPropinsi,
       lokasiKabupaten: enrichment.lokasiKabupaten,
       lokasiKecamatan: enrichment.lokasiKecamatan,
+      lokasiKelurahan: enrichment.lokasiKelurahan,
       fotoFile: enrichment.fotoFile,
       fotoUrl: enrichment.fotoUrl,
       source: enrichment.source,

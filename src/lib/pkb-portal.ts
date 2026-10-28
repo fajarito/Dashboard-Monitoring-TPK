@@ -39,8 +39,11 @@ export type PkbPortalRecord = {
   lokasi_propinsi: string | null;
   lokasi_kabupaten: string | null;
   lokasi_kecamatan: string | null;
+  lokasi_kelurahan: string | null;
   email_dinas: string | null;
   jab_akhir: string | null;
+  /** Label pelatihan/diklat/sertifikasi dari portal (jika ada). */
+  pelatihanLabels: string[];
 };
 
 export type PkbPortalLokasi = {
@@ -70,6 +73,7 @@ export type PkbPortalEnrichment = {
   lokasiPropinsi: string | null;
   lokasiKabupaten: string | null;
   lokasiKecamatan: string | null;
+  lokasiKelurahan: string | null;
   fotoFile: string | null;
   /**
    * URL foto untuk <img>:
@@ -77,6 +81,7 @@ export type PkbPortalEnrichment = {
    * - stub → aset lokal
    */
   fotoUrl: string | null;
+  pelatihanLabels: string[];
   error: string | null;
 };
 
@@ -205,9 +210,45 @@ export function getPkbPortalStub(
     lokasi_propinsi: "BALI",
     lokasi_kabupaten: "KOTA DENPASAR",
     lokasi_kecamatan: "DENPASAR SELATAN",
+    lokasi_kelurahan: "SANUR",
     email_dinas: "suryani@bkkbn.go.id",
     jab_akhir: "PKB Madya",
+    pelatihanLabels: ["Orientasi PKB", "Diklat teknis Madya"],
   };
+}
+
+function collectPelatihanLabels(row: Record<string, unknown>): string[] {
+  const labels: string[] = [];
+  const push = (v: unknown) => {
+    if (v == null) return;
+    if (Array.isArray(v)) {
+      for (const item of v) push(item);
+      return;
+    }
+    if (typeof v === "object") {
+      const obj = v as Record<string, unknown>;
+      const label =
+        obj.nama ?? obj.name ?? obj.label ?? obj.pelatihan ?? obj.diklat;
+      if (label != null) push(label);
+      return;
+    }
+    const s = String(v).trim();
+    if (s && !labels.includes(s)) labels.push(s);
+  };
+  for (const key of [
+    "pelatihan",
+    "pelatihan_tbl",
+    "diklat",
+    "sertifikasi",
+    "sertifikat",
+    "pendidikan",
+    "orientasi",
+    "riwayat_pelatihan",
+    "pelatihanLabels",
+  ]) {
+    push(row[key]);
+  }
+  return labels;
 }
 
 function normalizeRecord(raw: unknown): PkbPortalRecord | null {
@@ -215,7 +256,9 @@ function normalizeRecord(raw: unknown): PkbPortalRecord | null {
   const row = raw as Record<string, unknown>;
   const nipRaw = row.NIP ?? row.nip;
   const nip =
-    nipRaw == null ? "" : String(nipRaw).trim().replace(/\D/g, "") || String(nipRaw).trim();
+    nipRaw == null
+      ? ""
+      : String(nipRaw).trim().replace(/\D/g, "") || String(nipRaw).trim();
   if (!nip) return null;
   const str = (key: string) => {
     const v = row[key];
@@ -234,8 +277,10 @@ function normalizeRecord(raw: unknown): PkbPortalRecord | null {
     lokasi_propinsi: str("lokasi_propinsi"),
     lokasi_kabupaten: str("lokasi_kabupaten"),
     lokasi_kecamatan: str("lokasi_kecamatan"),
+    lokasi_kelurahan: str("lokasi_kelurahan"),
     email_dinas: str("email_dinas"),
     jab_akhir: str("jab_akhir"),
+    pelatihanLabels: collectPelatihanLabels(row),
   };
 }
 
@@ -309,8 +354,10 @@ function toEnrichment(
     lokasiPropinsi: record.lokasi_propinsi,
     lokasiKabupaten: record.lokasi_kabupaten,
     lokasiKecamatan: record.lokasi_kecamatan,
+    lokasiKelurahan: record.lokasi_kelurahan,
     fotoFile: record.foto,
     fotoUrl,
+    pelatihanLabels: record.pelatihanLabels,
     error,
   };
 }

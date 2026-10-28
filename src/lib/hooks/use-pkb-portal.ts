@@ -20,9 +20,11 @@ export type PkbPortalClientPayload = {
   lokasi_propinsi: string | null;
   lokasi_kabupaten: string | null;
   lokasi_kecamatan: string | null;
+  lokasi_kelurahan: string | null;
   email_dinas: string | null;
   jab_akhir: string | null;
   foto: string | null;
+  pelatihanLabels?: string[];
   emailDinas: string | null;
   jabAkhir: string | null;
   statusPegawai: string | null;
@@ -30,6 +32,7 @@ export type PkbPortalClientPayload = {
   lokasiPropinsi: string | null;
   lokasiKabupaten: string | null;
   lokasiKecamatan: string | null;
+  lokasiKelurahan: string | null;
   fotoFile: string | null;
   fotoUrl: string | null;
   source: "portal" | "stub" | "fallback";
